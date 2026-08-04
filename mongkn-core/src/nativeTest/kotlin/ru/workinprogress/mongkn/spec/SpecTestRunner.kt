@@ -42,6 +42,8 @@ import kotlinx.coroutines.flow.toList
 class SpecTestRunner(
     private val uri: String,
     private val client: MongoClient,
+    /** Версия сервера покомпонентно — для `runOnRequirements`. */
+    private val version: List<Int>,
 ) {
 
     data class Report(
@@ -80,9 +82,7 @@ class SpecTestRunner(
 
             val skipReason = when {
                 "expectEvents" in case -> "expectEvents: APM не реализован"
-                "runOnRequirements" in case -> "runOnRequirements: топология не проверяется"
-                "runOnRequirements" in file -> "runOnRequirements на уровне файла"
-                else -> unsupportedOperation(case)
+                else -> unmetRequirements(file) ?: unmetRequirements(case) ?: unsupportedOperation(case)
             }
             if (skipReason != null) {
                 report.skipped += name to skipReason
@@ -121,6 +121,40 @@ class SpecTestRunner(
             }
         }
         return collections
+    }
+
+    /**
+     * Проверяет `runOnRequirements`: возвращает причину пропуска или `null`, если требования сняты.
+     *
+     * Умеет только версию сервера — этого хватает для выбранных файлов. Всё остальное
+     * (топология, тип аутентификации, serverless) честно отказывается выполнять сценарий,
+     * а не делает вид, что требование выполнено: молчаливое «подходит» превратило бы
+     * непроверенное в зелёное.
+     */
+    private fun unmetRequirements(node: BsonDocument): String? {
+        val requirements = node.arrayOf("runOnRequirements").filterIsInstance<BsonDocument>()
+        if (requirements.isEmpty()) return null
+
+        val reasons = requirements.map { requirement ->
+            val unknown = requirement.keys - KNOWN_REQUIREMENTS
+            when {
+                unknown.isNotEmpty() -> "runOnRequirements: не умеем проверять ${unknown.sorted()}"
+                !satisfies(requirement) -> "runOnRequirements: версия сервера не подходит"
+                else -> null
+            }
+        }
+        // Требования — список альтернатив: достаточно, чтобы подошла одна.
+        return if (reasons.any { it == null }) null else reasons.filterNotNull().first()
+    }
+
+    private fun satisfies(requirement: BsonDocument): Boolean {
+        (requirement["minServerVersion"] as? BsonString)?.let {
+            if (compareVersions(version, parseVersion(it.value)) < 0) return false
+        }
+        (requirement["maxServerVersion"] as? BsonString)?.let {
+            if (compareVersions(version, parseVersion(it.value)) > 0) return false
+        }
+        return true
     }
 
     private fun unsupportedOperation(case: BsonDocument): String? {
@@ -199,7 +233,7 @@ class SpecTestRunner(
 
         "insertMany" -> {
             val documents = arguments.arrayOf("documents").filterIsInstance<BsonDocument>()
-            val result = collection.insertMany(documents)
+            val result = collection.insertMany(documents, ordered = arguments.flagOf("ordered", default = true))
             // Официальный формат ждёт insertedIds документом «индекс → _id», а не списком.
             BsonDocument(
                 "insertedIds" to BsonDocument(
@@ -209,20 +243,35 @@ class SpecTestRunner(
         }
 
         "updateOne" -> collection
-            .updateOne(arguments.documentOf("filter"), arguments.documentOf("update"))
+            .updateOne(
+                arguments.documentOf("filter"),
+                arguments.documentOf("update"),
+                upsert = arguments.flagOf("upsert", default = false),
+            )
             .let {
                 BsonDocument(
                     "matchedCount" to BsonInt32(it.matchedCount.toInt()),
                     "modifiedCount" to BsonInt32(it.modifiedCount.toInt()),
                     "upsertedCount" to BsonInt32(if (it.upsertedId == null) 0 else 1),
-                )
+                ).let { base ->
+                    // upsertedId сценарии ждут только когда апсерт случился.
+                    if (it.upsertedId == null) base
+                    else BsonDocument(base.entries + ("upsertedId" to it.upsertedId))
+                }
             }
 
         "deleteOne" -> BsonDocument(
             "deletedCount" to BsonInt32(collection.deleteOne(arguments.documentOf("filter")).deletedCount.toInt())
         )
 
-        "find" -> BsonArray(collection.find(arguments.documentOf("filter")).toList())
+        "find" -> {
+            var query = collection.find(arguments.documentOf("filter"))
+            arguments.intOf("skip")?.let { query = query.skip(it) }
+            arguments.intOf("limit")?.let { query = query.limit(it) }
+            arguments.intOf("batchSize")?.let { query = query.batchSize(it) }
+            (arguments["sort"] as? BsonDocument)?.let { query = query.sort(it) }
+            BsonArray(query.toList())
+        }
 
         "countDocuments" -> BsonInt64(collection.countDocuments(arguments.documentOf("filter")))
 
@@ -269,17 +318,29 @@ class SpecTestRunner(
     private fun BsonDocument.stringOf(key: String): String =
         (this[key] as? BsonString)?.value ?: error("ожидалась строка в поле \"$key\": $this")
 
+    private fun BsonDocument.flagOf(key: String, default: Boolean): Boolean =
+        (this[key] as? BsonBoolean)?.value ?: default
+
+    private fun BsonDocument.intOf(key: String): Int? = when (val value = this[key]) {
+        is BsonInt32 -> value.value
+        is BsonInt64 -> value.value.toInt()
+        else -> null
+    }
+
     private fun BsonDocument.documentOf(key: String): Document =
         this[key] as? BsonDocument ?: BsonDocument()
 
     private companion object {
+        /** Требования, которые раннер умеет вычислять. Остальные — повод пропустить. */
+        val KNOWN_REQUIREMENTS = setOf("minServerVersion", "maxServerVersion")
+
         /** Операция → аргументы, которые mongkn действительно учитывает. */
         val SUPPORTED: Map<String, Set<String>> = mapOf(
             "insertOne" to setOf("document"),
-            "insertMany" to setOf("documents"),
-            "updateOne" to setOf("filter", "update"),
+            "insertMany" to setOf("documents", "ordered"),
+            "updateOne" to setOf("filter", "update", "upsert"),
             "deleteOne" to setOf("filter"),
-            "find" to setOf("filter"),
+            "find" to setOf("filter", "limit", "skip", "sort", "batchSize"),
             "countDocuments" to setOf("filter"),
         )
     }

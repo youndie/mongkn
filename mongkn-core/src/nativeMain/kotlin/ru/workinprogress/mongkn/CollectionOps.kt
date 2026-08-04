@@ -1,6 +1,7 @@
 package ru.workinprogress.mongkn
 
 import ru.workinprogress.mongkn.bson.BsonArray
+import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonInt64
@@ -92,6 +93,7 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         documents: List<Document>,
+        ordered: Boolean,
     ): InsertManyResult = execute(client, databaseName, name) { collection ->
         require(documents.isNotEmpty()) { "insertMany: список документов пуст" }
         // `_id` проставляем на клиенте, как это делают все официальные драйверы.
@@ -100,15 +102,19 @@ internal object CollectionOps {
         // «InsertMany with non-existing documents» (M-30).
         val prepared = documents.map { withGeneratedId(it) }
         withBsonArray(prepared) { payload ->
+            // `ordered: false` — продолжать после ошибки. Опции передаются документом, как их
+            // и ждёт mongoc; по умолчанию драйвер считает вставку упорядоченной.
+            withBson(BsonDocument("ordered" to BsonBoolean(ordered))) { opts ->
             withReply { reply, error ->
                 val ok = mongoc_collection_insert_many(
-                    collection, payload, prepared.size.convert(), null, reply, error,
+                    collection, payload, prepared.size.convert(), opts, reply, error,
                 )
                 if (!ok) fail(error)
                 InsertManyResult(
                     insertedCount = reply.toDocument().count("insertedCount"),
                     insertedIds = prepared.map { it.required("_id") },
                 )
+            }
             }
         }
     }
@@ -135,12 +141,14 @@ internal object CollectionOps {
         name: String,
         filter: Document,
         update: Document,
+        upsert: Boolean,
     ): UpdateResult = execute(client, databaseName, name) { collection ->
         withBson(filter) { selector ->
             withBson(update) { modification ->
+                withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
                 withReply { reply, error ->
                     val ok = mongoc_collection_update_one(
-                        collection, selector, modification, null, reply, error,
+                        collection, selector, modification, opts, reply, error,
                     )
                     if (!ok) fail(error)
                     val answer = reply.toDocument()
@@ -149,6 +157,7 @@ internal object CollectionOps {
                         modifiedCount = answer.count("modifiedCount"),
                         upsertedId = answer["upsertedId"],
                     )
+                }
                 }
             }
         }
@@ -211,6 +220,7 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         filter: Document,
+        opts: Document,
     ): Flow<Document> = flow {
         client.withPermit {
         client.useClient { handle ->
@@ -218,8 +228,9 @@ internal object CollectionOps {
                 ?: error("mongoc_client_get_collection вернул NULL")
             try {
                 val nativeFilter = filter.toNativeBson()
+                val nativeOpts = opts.toNativeBson()
                 try {
-                    val cursor = mongoc_collection_find_with_opts(collection, nativeFilter, null, null)
+                    val cursor = mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, null)
                         ?: error("mongoc_collection_find_with_opts вернул NULL")
                     try {
                         memScoped {
@@ -238,6 +249,7 @@ internal object CollectionOps {
                         mongoc_cursor_destroy(cursor)
                     }
                 } finally {
+                    bson_destroy(nativeOpts)
                     bson_destroy(nativeFilter)
                 }
             } finally {

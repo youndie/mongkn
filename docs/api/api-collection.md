@@ -79,11 +79,11 @@ BsonValue
 | Сигнатура | Заметки |
 |---|---|
 | `suspend fun insertOne(document: Document): InsertOneResult` | драфт предлагал `Boolean`; сервер отдаёт `insertedId` (Р3) |
-| `suspend fun insertMany(documents: List<Document>): InsertManyResult` | пустой список отвергается до обращения к серверу |
-| `suspend fun updateOne(filter: Document, update: Document): UpdateResult` | обновление **документом**, не агрегационным конвейером — выбор перегрузки сделан генератором механически (§1.10) |
+| `suspend fun insertMany(documents: List<Document>, ordered: Boolean = true): InsertManyResult` | пустой список отвергается до обращения к серверу; `ordered = false` — продолжать после ошибки |
+| `suspend fun updateOne(filter: Document, update: Document, upsert: Boolean = false): UpdateResult` | обновление **документом**, не агрегационным конвейером — выбор перегрузки сделан генератором механически (§1.10) |
 | `suspend fun deleteOne(filter: Document): DeleteResult` | |
 | `suspend fun countDocuments(filter: Document = Document()): Long` | единственная операция, где libmongoc отдаёт результат возвращаемым значением, а ошибку — отрицательным числом |
-| `fun find(filter: Document = Document()): Flow<Document>` | как в драфте |
+| `fun find(filter: Document = Document()): FindFlow<Document>` | `FindFlow` **является** `Flow`, поверх — чейнинг `limit`/`skip`/`sort`/`projection`/`batchSize` (решение Р8) |
 
 `InsertOneResult` несёт `insertedId: BsonValue` — `BsonObjectId` от сервера либо то значение
 `_id`, которое задал вызывающий (проверено тестом).
@@ -108,7 +108,7 @@ BsonValue
 
 | Официальный драйвер | mongkn | Почему |
 |---|---|---|
-| `find()` возвращает `FindFlow` с 23 методами чейнинга | голый `Flow<Document>` | `FindFlow` **является** `Flow`, поэтому апгрейд будет source-совместимым — решение Р8 |
+| `find()` возвращает `FindFlow` с 23 методами чейнинга | `FindFlow` с пятью | апгрейд оказался source-совместимым, как и предсказывало решение Р8; остальные 18 методов добавляются по мере надобности |
 | маппинг data-классов, `kotlinx.serialization` | только `BsonValue` | вне скоупа MVP — открытый вопрос 1 |
 | отмена операции доходит до сокета | отмена не прерывает вызов | драйвер синхронный — риск 2 |
 | `MongoClient` можно делить между потоками свободно | так же, но за счёт пула внутри | `mongoc_client_t` не потокобезопасен — §1.4 |

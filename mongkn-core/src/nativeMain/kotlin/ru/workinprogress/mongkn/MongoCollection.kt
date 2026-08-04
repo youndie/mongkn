@@ -69,8 +69,9 @@ public class MongoCollection<T> internal constructor(
         CollectionOps.insertOne(client, databaseName, name, toDocument(document))
 
     /** Вставляет несколько документов. Пустой список отвергается до обращения к серверу. */
-    public suspend fun insertMany(documents: List<T>): InsertManyResult =
-        CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument))
+    /** @param ordered `false` — продолжать вставку после первой ошибки. */
+    public suspend fun insertMany(documents: List<T>, ordered: Boolean = true): InsertManyResult =
+        CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument), ordered)
 
     /**
      * Обновляет **один** документ, подходящий под фильтр.
@@ -78,8 +79,9 @@ public class MongoCollection<T> internal constructor(
      * [update] — документ операторов обновления (`{"${'$'}set": …}`), а не агрегационный конвейер:
      * у официального драйвера это разные перегрузки, см. KDoc класса.
      */
-    public suspend fun updateOne(filter: Document, update: Document): UpdateResult =
-        CollectionOps.updateOne(client, databaseName, name, filter, update)
+    /** @param upsert `true` — создать документ, если под фильтр ничего не подошло. */
+    public suspend fun updateOne(filter: Document, update: Document, upsert: Boolean = false): UpdateResult =
+        CollectionOps.updateOne(client, databaseName, name, filter, update, upsert)
 
     /** Удаляет **один** документ, подходящий под фильтр. */
     public suspend fun deleteOne(filter: Document): DeleteResult =
@@ -93,7 +95,13 @@ public class MongoCollection<T> internal constructor(
      * Читает документы по фильтру.
      *
      * Курсор освобождается при любом исходе сбора потока, включая отмену, — см. [CollectionOps].
+     *
+     * Возвращает [FindFlow] — он **является** `Flow`, поэтому `find().toList()` работает как
+     * прежде, а `find().sort(…).limit(…)` добавился сверху (решение Р8).
      */
-    public fun find(filter: Document = BsonDocument()): Flow<T> =
-        CollectionOps.find(client, databaseName, name, filter).map(::fromDocument)
+    public fun find(filter: Document = BsonDocument()): FindFlow<T> = FindFlow(
+        source = { query, opts -> CollectionOps.find(client, databaseName, name, query, opts).map(::fromDocument) },
+        filter = filter,
+        opts = BsonDocument(),
+    )
 }

@@ -12,16 +12,25 @@ open annotation class ru.workinprogress.mongkn.bson/BsonDsl : kotlin/Annotation 
 
 sealed interface ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/BsonValue|null[0]
 
+final class <#A: kotlin/Any?> ru.workinprogress.mongkn/FindFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/FindFlow|null[0]
+    final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.batchSize|batchSize(kotlin.Int){}[0]
+    final fun limit(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.limit|limit(kotlin.Int){}[0]
+    final fun projection(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.projection|projection(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun skip(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.skip|skip(kotlin.Int){}[0]
+    final fun sort(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.sort|sort(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final suspend fun collect(kotlinx.coroutines.flow/FlowCollector<#A>) // ru.workinprogress.mongkn/FindFlow.collect|collect(kotlinx.coroutines.flow.FlowCollector<1:0>){}[0]
+}
+
 final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.workinprogress.mongkn/MongoCollection|null[0]
     final val name // ru.workinprogress.mongkn/MongoCollection.name|{}name[0]
         final fun <get-name>(): kotlin/String // ru.workinprogress.mongkn/MongoCollection.name.<get-name>|<get-name>(){}[0]
 
-    final fun find(ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlinx.coroutines.flow/Flow<#A> // ru.workinprogress.mongkn/MongoCollection.find|find(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun find(ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/MongoCollection.find|find(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun countDocuments(ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlin/Long // ru.workinprogress.mongkn/MongoCollection.countDocuments|countDocuments(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun deleteOne(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/DeleteResult // ru.workinprogress.mongkn/MongoCollection.deleteOne|deleteOne(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
-    final suspend fun insertMany(kotlin.collections/List<#A>): ru.workinprogress.mongkn/InsertManyResult // ru.workinprogress.mongkn/MongoCollection.insertMany|insertMany(kotlin.collections.List<1:0>){}[0]
+    final suspend fun insertMany(kotlin.collections/List<#A>, kotlin/Boolean = ...): ru.workinprogress.mongkn/InsertManyResult // ru.workinprogress.mongkn/MongoCollection.insertMany|insertMany(kotlin.collections.List<1:0>;kotlin.Boolean){}[0]
     final suspend fun insertOne(#A): ru.workinprogress.mongkn/InsertOneResult // ru.workinprogress.mongkn/MongoCollection.insertOne|insertOne(1:0){}[0]
-    final suspend fun updateOne(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/UpdateResult // ru.workinprogress.mongkn/MongoCollection.updateOne|updateOne(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final suspend fun updateOne(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Boolean = ...): ru.workinprogress.mongkn/UpdateResult // ru.workinprogress.mongkn/MongoCollection.updateOne|updateOne(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Boolean){}[0]
 }
 
 final class ru.workinprogress.mongkn.bson/ArrayBuilder { // ru.workinprogress.mongkn.bson/ArrayBuilder|null[0]

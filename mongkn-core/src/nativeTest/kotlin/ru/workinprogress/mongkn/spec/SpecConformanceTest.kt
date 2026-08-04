@@ -49,7 +49,7 @@ class SpecConformanceTest {
         assertTrue(files.isNotEmpty(), "манифест пуст: $directory/manifest.json")
 
         val connection = MongoClient(uri).also { client = it }
-        val runner = SpecTestRunner(uri, connection)
+        val runner = SpecTestRunner(uri, connection, serverVersion(connection))
 
         for (name in files) {
             val path = "$directory/$name"
@@ -72,6 +72,6 @@ class SpecConformanceTest {
 
     private companion object {
         /** Замерено на первом зелёном прогоне; поднимать вместе с ростом поддержки. */
-        const val MINIMUM_EXECUTED = 5
+        const val MINIMUM_EXECUTED = 13
     }
 }
