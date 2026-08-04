@@ -1,0 +1,15 @@
+# cinterop-описание mongo-c-driver.
+#
+# Пути к заголовкам и имена библиотек здесь НЕ хардкодятся: Homebrew кладёт 2.x в
+# версионированный каталог (include/mongoc-2.1.1/) и линкует как -lmongoc2, а системная 1.x
+# лежит в include/libmongoc-1.0/ и линкуется как -lmongoc-1.0. Разрешение обоих вариантов —
+# в mongkn-core/build.gradle.kts (findIncludeDir / findLibName).
+#
+# mongoc.h подтягивает bson.h транзитивно, но bson.h указан явно: без него bson_*-символы
+# попадают в klib только как побочный эффект headerFilter.
+
+headers = mongoc/mongoc.h bson/bson.h
+headerFilter = mongoc/** bson/**
+
+# Драйвер синхронный: все сетевые вызовы блокируют вызывающий поток. Ни одна из функций
+# не исключается — фильтрация API делается на уровне Kotlin-обвязки, а не cinterop.

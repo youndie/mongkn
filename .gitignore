@@ -1,0 +1,7 @@
+.gradle/
+build/
+*.klib
+*.kexe
+.idea/
+.DS_Store
+local.properties
