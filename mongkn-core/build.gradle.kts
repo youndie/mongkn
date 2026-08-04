@@ -68,6 +68,16 @@ fun findLibName(stem: String): String? = mongocPrefixes
 
 val libDirs: List<File> = mongocPrefixes.map { File(it, "lib") }.filter { it.isDirectory }
 
+/**
+ * Дифференциальные тесты (M-28): нативная сторона — вторая из трёх фаз.
+ *
+ * До неё эталон должен записать документ и выгрузить фикстуру, после — проверить написанное нами.
+ * Порядок задаётся зависимостями задач, а не соглашением «запускайте вручную по очереди»:
+ * дифференциальный тест, который молча прошёл на вчерашней фикстуре, хуже отсутствующего.
+ */
+val seedDiffReference = ":mongkn-difftest:seedDiffReference"
+val verifyDiffWritten = ":mongkn-difftest:verifyDiffWritten"
+
 kotlin {
     // Кросс-компиляция cinterop требует заголовков целевой платформы, которых на хосте нет,
     // поэтому собираем только хостовый таргет. Матрица таргетов — задача CI, см. M-13.
@@ -120,4 +130,14 @@ kotlin {
             implementation(libs.coroutines.test)
         }
     }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
+    dependsOn(seedDiffReference)
+    // Путь к фикстуре нативный тест получает через окружение: Gradle-свойства ему недоступны.
+    environment(
+        "MONGKN_DIFF_FIXTURE",
+        project(":mongkn-difftest").layout.buildDirectory.file("diff/reference.json").get().asFile.absolutePath,
+    )
+    finalizedBy(verifyDiffWritten)
 }

@@ -63,6 +63,7 @@
 - [mongkn-core](services/mongkn-core.md) — нативный модуль; всё, что знает про C.
 - [mongkn-codegen](services/mongkn-codegen.md) — JVM-модули генерации. *Уходят по решению Р9,
   пока на месте.*
+- [mongkn-difftest](services/mongkn-difftest.md) — сверка с официальным драйвером как с эталоном.
 
 **Бэклог** — [../BACKLOG.md](../BACKLOG.md), задачи `M-NN` по вехам M0…M8.
 Номер вехи — не приоритет: порядок работ M6 (проверки) → M7 (эргономика) → M8 (выпуск).
