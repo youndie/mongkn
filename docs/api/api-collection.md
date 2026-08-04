@@ -2,7 +2,7 @@
 id: api-collection
 title: Публичный API — client / database / collection
 type: api
-status: draft
+status: active
 owner: unassigned
 implemented_by:
   - mongkn-core
@@ -11,21 +11,21 @@ mirrors: com.mongodb.kotlin.client.coroutine (mongodb-driver-kotlin-coroutine 5.
 
 # API — client / database / collection
 
-> **Статус: целевое.** Ничего из перечисленного ниже, кроме `Mongkn.initialize/shutdown`
-> и `MongoException`, ещё не реализовано. Документ — контракт, который реализуют вехи M2–M4,
-> и вход для генератора из M5. Сигнатуры, помеченные «целевое», сверяются с кодом по мере
-> реализации; расходиться с кодом им нельзя — расходиться могут только с этим планом.
+> **Статус: реализовано.** Вехи M1–M3 закрыты, всё перечисленное ниже есть в коде и покрыто
+> тестами (19 тестов, из них 10 интеграционных против настоящего mongod). Документ остаётся
+> входом для генератора из M5.
 
 Здесь «API» — не HTTP, а публичная поверхность библиотеки: то, что видит пользователь `mongkn`.
 Форма снята с официального корутинного драйвера (`com.mongodb.kotlin.client.coroutine`), потому
 что именно её должен уметь зеркалить генератор M5. Отличия от официального драйвера перечислены
 в конце и каждое имеет причину в [ресёрче](../research/research-architecture.md).
 
-## 1. Реализовано сегодня
+## 1. Жизненный цикл драйвера
 
 | Сигнатура | Где |
 |---|---|
-| `Mongkn.initialize()` / `Mongkn.shutdown()` | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) |
+| `Mongkn.initialize()` — идемпотентен; обычно не нужен, [MongoClient] делает сам | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) |
+| `Mongkn.shutdown()` — **терминален на весь процесс**, повторный `initialize()` бросит `IllegalStateException` | там же |
 | `Mongkn.driverVersion` / `Mongkn.bsonVersion` | там же |
 | `MongoException(domain, code, message)` | [MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt) |
 
@@ -33,12 +33,18 @@ mirrors: com.mongodb.kotlin.client.coroutine (mongodb-driver-kotlin-coroutine 5.
 из `mongoc/mongoc-error.h`, `code` для ошибок сервера совпадает с кодом MongoDB. Наблюдалось
 в прогоне (ресёрч §1.3): дубликат `_id` → `domain=12` (`MONGOC_ERROR_COLLECTION`), `code=11000`.
 
-## 2. Целевые сигнатуры
+## 2. Поверхность API
 
-### 2.1 Значения BSON — M1
+### 2.1 Значения BSON
 
 Sealed-иерархия вместо `Map<String, Any>`; причина — решение Р4 ресёрча (round-trip с проверкой
-равенства недостижим на `Any`).
+равенства недостижим на `Any`). Код — [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt).
+
+Документы строятся билдером: `document { put("name", "x"); putDocument("n") { put("a", 1) } }` —
+[bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt).
+
+Типы за пределами списка (binary, decimal128, regex, code) при чтении дают
+`UnsupportedBsonTypeException` — осознанная граница прототипа, задача M-24.
 
 ```
 BsonValue
@@ -51,26 +57,27 @@ BsonValue
 `Document` = `BsonDocument`. Порядок ключей значим — BSON его хранит, и сервер местами на него
 опирается.
 
-### 2.2 Ресурсы — M2
+### 2.2 Ресурсы
 
-| Сигнатура (целевое) | Смысл |
+| Сигнатура | Смысл |
 |---|---|
-| `MongoClient(connectionString: String)` | владеет `mongoc_client_pool_t`, а не `mongoc_client_t` |
-| `MongoClient.close()` | `mongoc_client_pool_destroy`; не потокобезопасен по контракту libmongoc |
+| `MongoClient(connectionString: String, ioThreads: Int = 4)` | владеет `mongoc_client_pool_t` и собственным пулом потоков |
+| `MongoClient.close()` | `mongoc_client_pool_destroy` + закрытие пула потоков; не потокобезопасен по контракту libmongoc. `Mongkn.shutdown()` **не** зовёт |
 | `MongoClient.getDatabase(name): MongoDatabase` | |
 | `MongoDatabase.getCollection(name): MongoCollection` | |
 
 Клиент на время операции берётся `mongoc_client_pool_pop()` и возвращается `push()` в `finally`.
 Причина, по которой это пул, а не один клиент, — решение Р2 ресёрча.
 
-### 2.3 Операции — M3
+### 2.3 Операции
 
-| Сигнатура (целевое) | Отличие от драфта |
+| Сигнатура | Отличие от драфта |
 |---|---|
 | `suspend fun MongoCollection.insertOne(document: Document): InsertOneResult` | драфт предлагал `Boolean`; сервер отдаёт `insertedId` (Р3) |
 | `fun MongoCollection.find(filter: Document = Document()): Flow<Document>` | как в драфте |
 
-`InsertOneResult` несёт `insertedId: BsonValue`.
+`InsertOneResult` несёт `insertedId: BsonValue` — `BsonObjectId` от сервера либо то значение
+`_id`, которое задал вызывающий (проверено тестом).
 
 Ошибки: провал операции — всегда `MongoException`, никогда возвращаемое значение. `false`
 в схеме «Boolean + исключение» недостижим, поэтому его нет.

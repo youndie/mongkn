@@ -85,20 +85,17 @@ kotlin {
         }
     }
 
+    // Source set'ы `nativeMain` / `nativeTest` заводить руками нельзя: их уже создаёт
+    // стандартный шаблон иерархии KMP, и ручной `by creating` его ломает — компиляция
+    // начинает резолвиться против common-метаданных, где `Dispatchers.IO` объявлен internal.
+    // Каталоги `src/nativeMain/kotlin` и `src/nativeTest/kotlin` подхватываются шаблоном сами.
     sourceSets {
-        val nativeMain by creating {
-            dependsOn(commonMain.get())
-            dependencies {
-                implementation(libs.coroutines.core)
-            }
+        commonMain.dependencies {
+            implementation(libs.coroutines.core)
         }
-        val nativeTest by creating {
-            dependsOn(commonTest.get())
-            dependencies {
-                implementation(kotlin("test"))
-            }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.coroutines.test)
         }
-        getByName("${hostTarget.name}Main") { dependsOn(nativeMain) }
-        getByName("${hostTarget.name}Test") { dependsOn(nativeTest) }
     }
 }

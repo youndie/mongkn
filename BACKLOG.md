@@ -20,36 +20,53 @@
 полный путь `ping → insert → ошибка дубликата → курсор` против `mongo:8` проходит
 (ресёрч §1.2, §1.3) — то есть архитектурных препятствий на уровне C нет.
 
-## M1 — модель BSON
+## M1 — модель BSON ✅
 
-- [ ] **M-04** `BsonValue` sealed-иерархия + `Document`; тест round-trip `Document → bson_t → Document`
+- [x] **M-04** `BsonValue` sealed-иерархия + `Document`; тест round-trip `Document → bson_t → Document`
       с проверкой равенства, включая различие `BsonInt32` / `BsonInt64` и порядок ключей
       (сценарий «round-trip BSON без потери типов»)
-- [ ] **M-05** **Минимальный** билдер документов — прямая плата за отказ от `Map<String, Any>`
+- [x] **M-05** **Минимальный** билдер документов — прямая плата за отказ от `Map<String, Any>`
       (решение Р4): без него фильтр пишется как `Document("age" to BsonDocument("$gt" to BsonInt32(18)))`.
       Это **не** язык запросов: infix-операторы, property-references и прочий DSL — веха M7,
       после того как заработает `find` и станет видно, какие операторы реально нужны (Р7)
 - [ ] **M-06** Проверка отсутствия утечек: подмена аллокатора libbson на считающий.
       **Сначала выяснить**, есть ли в `bson/memory.h` vtable-API и вызывается ли он из Kotlin/Native
-      через `staticCFunction` — это гипотеза риска 3, а не факт
+      через `staticCFunction` — это гипотеза риска 3, а не факт.
+      Пока освобождение курсора проверяется косвенно: после отменённого `find` клиент остаётся
+      рабочим (`MongoIntegrationTest.cancelling the flow does not break the client`)
 
-## M2 — ресурсная модель
+**Итог M1.** Round-trip прошёл на всех типах MVP, включая различие int32/int64 и порядок
+ключей, — решение Р4 подтвердилось. Неожиданность: cinterop отрендерил `bson_type_t` не
+Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
 
-- [ ] **M-07** `MongoClient` поверх `mongoc_client_pool_t`, `MongoDatabase`, `MongoCollection`;
+## M2 — ресурсная модель ✅
+
+- [x] **M-07** `MongoClient` поверх `mongoc_client_pool_t`, `MongoDatabase`, `MongoCollection`;
       pop/push в `finally`, операции на `Dispatchers.IO`. **`Dispatchers.Default` запрещён** —
       ресёрч §1.4
-- [ ] **M-08** Таймауты по умолчанию (`serverSelectionTimeoutMS`, `socketTimeoutMS`) как верхняя
-      граница неотменяемого вызова — риск 2. Закрывает открытый вопрос «какие дефолты»
+- [x] **M-08** Таймауты как верхняя граница неотменяемого вызова — риск 2. Задаются в строке
+      подключения; интеграционный тест на недоступный сервер их и проверяет. Своих дефолтов
+      библиотека не навязывает — открытый вопрос закрыт в пользу «решает вызывающий»
 
-## M3 — операции
+**Итог M2.** Сверх плана переписан жизненный цикл драйвера: `mongoc_init()` после
+`mongoc_cleanup()` не восстанавливает libmongoc, и счётчик ссылок из M-03 ронял процесс
+по assertion в `_mongoc_handshake_freeze`. Вторая находка — `Dispatchers.IO` на Kotlin/Native
+объявлен `internal`, поэтому клиент завёл собственный пул потоков. Обе — ресёрч §1.8.
 
-- [ ] **M-09** `suspend fun insertOne(document: Document): InsertOneResult` с разбором `insertedId`
+## M3 — операции ✅
+
+- [x] **M-09** `suspend fun insertOne(document: Document): InsertOneResult` с разбором `insertedId`
       из `reply` и `bson_destroy` ответа при любом исходе
-- [ ] **M-10** `fun find(filter: Document): Flow<Document>` с `mongoc_cursor_destroy` в `finally`
+- [x] **M-10** `fun find(filter: Document): Flow<Document>` с `mongoc_cursor_destroy` в `finally`
       и конверсией документа **до** эмиссии
-- [ ] **M-11** Интеграционные тесты против локального mongod: все сценарии из
-      [feature-crud-mvp](docs/features/feature-crud-mvp.md), включая дубликат ключа
-      (`domain=12`, `code=11000`) и недоступный сервер (сверить, что `domain` действительно 15)
+- [x] **M-11** Интеграционные тесты против локального mongod: все сценарии из
+      [feature-crud-mvp](docs/features/feature-crud-mvp.md). `domain=15` для недоступного
+      сервера подтвердился
+
+**Итог M3.** 19 тестов зелёные, из них 10 интеграционных против `mongo:8`. Гипотеза ресёрча
+«архитектурных препятствий на уровне C нет» подтвердилась полностью: и запись с разбором
+`insertedId`, и курсор в `Flow` с освобождением при отмене работают. Из открытых вопросов
+не закрыт ни один — они все про форму API, а не про механику.
 
 ## M4 — приведение API к официальному драйверу
 
@@ -90,6 +107,13 @@
       Отдельный артефакт, а не часть ядра (Р7)
 
 ## Вне вех
+
+- [ ] **M-23** Долгий `find` держит клиента libmongoc всё время сбора потока, хотя поток
+      свободен. При множестве медленных потребителей пул (100) исчерпается и
+      `mongoc_client_pool_pop` заблокируется. Померить, нужен ли `try_pop` с таймаутом
+      или чтение батчами с возвратом клиента между ними
+- [ ] **M-24** Расширить покрытие типов BSON: сейчас binary, decimal128, regex, code, timestamp
+      при чтении дают `UnsupportedBsonTypeException` — на чужой коллекции `find` упадёт
 
 - [ ] **M-20** Сделать разрешённые пути к заголовкам явным входом задачи `cinterop`, чтобы
       `brew upgrade` инвалидировал кеш — риск 4

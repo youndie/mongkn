@@ -103,7 +103,7 @@ date: 2026-08-04
 | `mongoc_client_pool_t` потокобезопасен, кроме `mongoc_client_pool_destroy()` | там же |
 | API пула есть и в 2.x: `mongoc_client_pool_new_with_error`, `_pop`, `_try_pop`, `_push`, `_max_size`, `_destroy` | `/opt/homebrew/include/mongoc-2.1.1/mongoc/mongoc-client-pool.h` |
 | На Kotlin/Native `Dispatchers.Default` подкреплён пулом потоков по числу ядер — с kotlinx.coroutines **1.7.0** (#3366) | [CHANGES.md kotlinx.coroutines](https://raw.githubusercontent.com/Kotlin/kotlinx.coroutines/master/CHANGES.md) |
-| `Dispatchers.IO` доступен на Kotlin/Native с **1.7.0** (#3205) | там же |
+| ~~`Dispatchers.IO` доступен на Kotlin/Native с **1.7.0** (#3205)~~ — **неверно для 1.11.0**, см. §1.8 | там же |
 | Актуальная версия kotlinx.coroutines — 1.11.0 | `maven-metadata.xml` в Maven Central |
 
 **Следствие.** Драфтовое «оберни вызов в `withContext(Dispatchers.Default)`» при одном общем
@@ -154,6 +154,53 @@ date: 2026-08-04
 к libmongoc. Собран на Kotlin 1.4.30 и mongo-c-driver 1.17.3, то есть до нового менеджера памяти
 Kotlin/Native и до 2.x C-драйвера. Как ориентир по составу вызовов годится, как основа — нет:
 всё, что касается потоков и памяти, там из другой эпохи.
+
+### 1.8 Найдено при реализации M1–M3
+
+Четыре факта, которых ресёрч «на бумаге» не дал: три из них всплыли только на компиляции и
+на живых тестах, а один прямо опровергает запись из §1.4.
+
+#### `mongoc_init()` / `mongoc_cleanup()` — одноразовые на процесс
+
+| Факт | Где проверено |
+|---|---|
+| «Call `mongoc_init()` exactly once at the beginning of your program… Note that `mongoc_init()` does **not** reinitialize the driver after `mongoc_cleanup()`» | [mongoc_init — документация](https://mongoc.org/libmongoc/current/mongoc_init.html) |
+| Нарушение роняет процесс на следующем же сетевом вызове: `_mongoc_handshake_freeze(): assertion failed: pthread_mutex_lock ((&gHandshakeLock)) == 0` | падение `MongoIntegrationTest` при первом прогоне |
+
+**Поправка к M0.** В M-03 `Mongkn` считал ссылки: `mongoc_cleanup()` на нуле, `mongoc_init()` на
+подъёме с нуля. Модель выглядела аккуратно и была неверной. Поймалось это не тестом инициализации
+(он проходил в одиночку), а порядком запуска: `MongknInitTest` опускал счётчик до нуля, и
+следующий за ним интеграционный тест получал драйвер с уже уничтоженным глобальным мьютексом.
+Сейчас — автомат без возврата `NEW → INITIALIZING → READY → SHUT_DOWN`, повторная инициализация
+после `shutdown()` даёт `IllegalStateException`. Отсюда же: `MongoClient.close()` **не** зовёт
+`Mongkn.shutdown()`, иначе закрытие одного клиента ломало бы все остальные.
+
+#### `Dispatchers.IO` на Kotlin/Native — `internal`
+
+| Факт | Где проверено |
+|---|---|
+| В `kotlinx-coroutines-core-macosArm64Main` 1.11.0 объявлено `internal final val IO: CoroutineDispatcher` | `klib dump-metadata` по артефакту из `~/.gradle/caches` |
+| То же самое в 1.10.2 — это не регрессия свежей версии | тот же приём по артефакту 1.10.2 |
+| При этом [публичная документация](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-dispatchers/-i-o.html) утверждает: «available on the JVM and Native targets» | — |
+| `newFixedThreadPoolContext` и `newSingleThreadContext` на Native **публичны** | тот же дамп |
+
+**Следствие.** Запись в §1.4 про доступность `Dispatchers.IO` с 1.7.0 верна для changelog и неверна
+для сегодняшнего артефакта: компилятор отвечает `Cannot access 'val IO': it is internal`. Хороший
+пример, почему память и changelog источником не являются, а артефакт — является.
+
+**Как решено.** [MongoClient](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt)
+владеет собственным `newFixedThreadPoolContext` и закрывает его в `close()`. Побочная выгода:
+размер пула потоков стал явным и привязан к времени жизни клиента, а не глобальным. Число потоков
+по умолчанию (4) намеренно меньше размера пула клиентов libmongoc (100): клиент занят всё время
+жизни курсора, а поток — только пока идёт вызов.
+
+#### Мелочи, стоившие по сборке каждая
+
+| Факт | Где проверено |
+|---|---|
+| C-энум `bson_type_t` cinterop отрендерил не Kotlin-энумом, а `typealias` на `UInt` с top-level-константами — из-за `BSON_TYPE_MINKEY = 0xFF` | `klib dump-metadata` по cinterop-klib |
+| Ручное создание source set'а `nativeMain` ломает стандартный шаблон иерархии KMP: компиляция начинает резолвиться против common-метаданных | предупреждение `Default Kotlin Hierarchy Template Not Applied Correctly` + неверный резолв `Dispatchers.IO` |
+| Имя теста в обратных кавычках на Kotlin/Native не может содержать запятую | `e: Name contains illegal characters: ","` |
 
 ---
 

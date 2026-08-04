@@ -2,7 +2,7 @@
 id: feature-crud-mvp
 title: Минимальный CRUD из Kotlin/Native
 type: feature
-status: draft
+status: active
 owner: unassigned
 involved_services:
   - mongkn-core
@@ -36,7 +36,8 @@ tags: [mvp]
 ## 3. Как это работает
 
 1. `MongoClient(uri)` создаёт `mongoc_client_pool_t` (не клиент — см. Р2 ресёрча).
-2. Операция уходит на `Dispatchers.IO`, берёт клиента из пула, работает, возвращает клиента
+2. Операция уходит на пул потоков, которым владеет клиент (`Dispatchers.IO` на Kotlin/Native
+   недоступен — ресёрч §1.8), берёт клиента из пула libmongoc, работает, возвращает клиента
    в `finally`.
 3. `insertOne` конвертирует `Document` в `bson_t`, зовёт `mongoc_collection_insert_one`, читает
    `insertedId` из `reply`, освобождает `reply` и документ.
@@ -48,13 +49,16 @@ tags: [mvp]
 
 | Модуль | Код |
 |---|---|
-| mongkn-core | `src/nativeMain/kotlin/io/github/mongkn/` — целевое расположение `Bson*`, `MongoClient`, `MongoCollection` |
-| mongkn-core | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) — единственная реализованная точка входа |
+| mongkn-core | [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) — `insertOne` и `find` целиком |
+| mongkn-core | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) — пул клиентов и граница потоков |
+| mongkn-core | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) — конверсия и владение указателями |
+| mongkn-core | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) — жизненный цикл драйвера |
 
 ## 5. Сценарии (BDD)
 
-Все сценарии — **целевые**: код операций ещё не написан. Значения в них не выдуманы, а взяты
-из прогона против `mongo:8` (ресёрч §1.3); при реализации сверяются с кодом.
+Все сценарии автоматизированы в
+[MongoIntegrationTest](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt)
+и прогоняются против настоящего mongod. Значения сверены с кодом и с прогоном.
 
 ### Сценарий: запись и чтение документа
 * **Дано:** поднят локальный mongod, создан `MongoClient("mongodb://127.0.0.1:27017")`.
@@ -62,7 +66,7 @@ tags: [mvp]
   `find(Document())` собран в список.
 * **Тогда:** `insertOne` возвращает `InsertOneResult` с непустым `insertedId` типа `BsonObjectId`,
   а список содержит документ с `name = "kotlin-native"` и полем `_id`, равным `insertedId`.
-* **Автоматизирован:** — *(целевое, M-08)*
+* **Автоматизирован:** `MongoIntegrationTest.inserts a document and reads it back`
 
 ### Сценарий: round-trip BSON без потери типов
 * **Дано:** `Document` с полями типов `String`, `Int32`, `Int64`, `Double`, `Boolean`,
@@ -70,29 +74,30 @@ tags: [mvp]
 * **Когда:** документ переведён в `bson_t` и обратно.
 * **Тогда:** результат равен исходному по `==`, включая различие `BsonInt32` / `BsonInt64`
   и порядок ключей.
-* **Автоматизирован:** — *(целевое, M-04)*
+* **Автоматизирован:** `BsonRoundTripTest` (8 тестов) — и `MongoIntegrationTest.nested documents and arrays survive a real round trip through the server` для пути через сервер
 
 ### Сценарий: дубликат ключа
 * **Дано:** документ с `_id = 1` уже вставлен.
 * **Когда:** вставляется второй документ с тем же `_id`.
 * **Тогда:** поднимается `MongoException` с `domain = 12`, `code = 11000` и сообщением,
   начинающимся с `E11000 duplicate key error collection:`.
-* **Автоматизирован:** — *(целевое, M-08)*
+* **Автоматизирован:** `MongoIntegrationTest.duplicate key raises MongoException with the server code`
 
 ### Сценарий: сервер недоступен
 * **Дано:** URI указывает на порт, где никто не слушает, `serverSelectionTimeoutMS=3000`.
 * **Когда:** вызван `insertOne`.
-* **Тогда:** не позднее чем через ~3 с поднимается `MongoException` с
-  `domain = 15` (`MONGOC_ERROR_SERVER_SELECTION`) — **целевое, из подсчёта по enum, а не из
-  прогона**; сверить при реализации.
-* **Автоматизирован:** — *(целевое, M-08)*
+* **Тогда:** не позднее таймаута поднимается `MongoException` с `domain = 15`
+  (`MONGOC_ERROR_SERVER_SELECTION`). Значение было выведено из enum, а не из прогона, —
+  тест его подтвердил.
+* **Автоматизирован:** `MongoIntegrationTest.unreachable server fails within the selection timeout`
 
 ### Сценарий: отмена коллекции Flow освобождает курсор
 * **Дано:** в коллекции больше документов, чем потребитель собирается прочитать.
 * **Когда:** `find(...).take(1).collect { }`.
-* **Тогда:** `mongoc_cursor_destroy` вызван; счётчик аллокаций libbson возвращается к исходному.
-* **Автоматизирован:** — *(целевое, M-06 — зависит от того, доступен ли `bson_mem_set_vtable`
-  из Kotlin/Native; см. риск 3 ресёрча)*
+* **Тогда:** курсор освобождён, и следующая операция на том же клиенте работает.
+* **Автоматизирован:** `MongoIntegrationTest.cancelling the flow does not break the client`.
+  Тест проверяет **последствие** (клиент жив), а не сам факт `mongoc_cursor_destroy` —
+  прямая проверка через счётчик аллокаций libbson осталась задачей M-06.
 
 ## 6. Что не входит в скоуп
 
@@ -111,4 +116,10 @@ tags: [mvp]
 * **Отмена Flow не прерывает сетевой вызов, который уже начался.** Курсор освободится, но не
   раньше, чем `mongoc_cursor_next` вернётся сам. Выглядит как зависшая отмена — это ожидаемо.
 * **`Dispatchers.Default` в этом коде — баг, даже если тесты зелёные.** Гонка на общем
-  `mongoc_client_t` воспроизводится редко и не под нагрузкой тестов.
+  `mongoc_client_t` воспроизводится редко и не под нагрузкой тестов. `Dispatchers.IO` тоже
+  не вариант — на Kotlin/Native он `internal` (ресёрч §1.8); используется пул потоков клиента.
+* **`Mongkn.shutdown()` убивает драйвер на весь процесс.** `mongoc_init()` после
+  `mongoc_cleanup()` не восстанавливает библиотеку — следующий сетевой вызов упадёт по
+  assertion внутри libmongoc. Поэтому `MongoClient.close()` его не зовёт.
+* **Интеграционные тесты падают без mongod, а не пропускаются.** Тест, зеленеющий без
+  сервера, ничего не проверяет.
