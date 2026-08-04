@@ -170,6 +170,11 @@ internal object CollectionOps {
      *
      * Через [execute] не идёт: тот `suspend`, а `find` обязан вернуть холодный `Flow`, внутри
      * которого происходит эмиссия.
+     *
+     * **Клиент занят всё время сбора потока** — курсор принадлежит клиенту, и вернуть того в пул
+     * раньше нельзя. Это ограничение libmongoc, а не наш выбор. Смягчено тем, что разрешение
+     * берётся на семафоре: превышение числа одновременных курсоров теперь приостанавливает
+     * корутину (отменяемо, `withTimeout` работает), а не вешает поток в C навсегда (§1.12).
      */
     fun find(
         client: MongoClient,
@@ -177,7 +182,8 @@ internal object CollectionOps {
         name: String,
         filter: Document,
     ): Flow<Document> = flow {
-        client.withClient { handle ->
+        client.withPermit {
+        client.useClient { handle ->
             val collection = mongoc_client_get_collection(handle, databaseName, name)
                 ?: error("mongoc_client_get_collection вернул NULL")
             try {
@@ -208,6 +214,7 @@ internal object CollectionOps {
                 mongoc_collection_destroy(collection)
             }
         }
+        }
     }.flowOn(client.dispatcher)
 
     // --- обвязка, общая для всех операций ---------------------------------------------------
@@ -224,18 +231,14 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         crossinline body: MemScope.(CPointer<mongoc_collection_t>) -> T,
-    ): T {
-        client.checkOpen()
-        return withContext(client.dispatcher) {
-            client.withClient { handle ->
-                val collection = mongoc_client_get_collection(handle, databaseName, name)
-                    ?: error("mongoc_client_get_collection вернул NULL")
-                try {
-                    memScoped { body(collection) }
-                } finally {
-                    mongoc_collection_destroy(collection)
-                }
-            }
+    ): T = client.withClient { handle ->
+        // Переключение на пул потоков и ожидание свободного клиента — внутри withClient.
+        val collection = mongoc_client_get_collection(handle, databaseName, name)
+            ?: error("mongoc_client_get_collection вернул NULL")
+        try {
+            memScoped { body(collection) }
+        } finally {
+            mongoc_collection_destroy(collection)
         }
     }
 

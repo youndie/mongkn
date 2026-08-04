@@ -6,13 +6,19 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.mongoc_client_get_database
 import mongkn.cinterop.mongoc_database_destroy
@@ -59,8 +65,10 @@ class MongoConcurrencyTest {
 
     private val clients = mutableListOf<MongoClient>()
 
-    private fun connect(ioThreads: Int = IO_THREADS): MongoClient =
-        MongoClient(uri, ioThreads = ioThreads).also { clients += it }
+    private suspend fun connect(
+        ioThreads: Int = IO_THREADS,
+        maxConcurrentClients: Int = MongoClient.DEFAULT_MAX_CONCURRENT_CLIENTS,
+    ): MongoClient = MongoClient(uri, ioThreads, maxConcurrentClients).also { clients += it }
 
     @AfterTest
     fun tearDown() {
@@ -71,7 +79,7 @@ class MongoConcurrencyTest {
     private fun MongoClient.freshCollection(hint: String): MongoCollection =
         getDatabase(DATABASE).getCollection("${hint}_${counter++}")
 
-    private fun MongoClient.dropTestDatabase() = withClient { handle ->
+    private suspend fun MongoClient.dropTestDatabase() = withClient { handle ->
         val database = mongoc_client_get_database(handle, DATABASE)
             ?: error("mongoc_client_get_database вернул NULL")
         try {
@@ -83,7 +91,8 @@ class MongoConcurrencyTest {
 
     @Test
     fun `two hundred concurrent inserts all land on one client`() = runTest(timeout = TIMEOUT) {
-        val client = connect().also { it.dropTestDatabase() }
+        val client = connect()
+        client.dropTestDatabase()
         val collection = client.freshCollection("insert")
 
         coroutineScope {
@@ -172,6 +181,60 @@ class MongoConcurrencyTest {
         assertEquals(16, created.distinct().size)
         // Клиенты рабочие, а не просто созданные.
         assertEquals(0L, created.first().freshCollection("init").countDocuments())
+    }
+
+    @Test
+    fun `waiting for a client is cancellable instead of blocking a thread`() = runTest(timeout = TIMEOUT) {
+        // Пул из одного клиента: второй операции придётся ждать.
+        val client = connect(ioThreads = 4, maxConcurrentClients = 1)
+        val collection = client.freshCollection("cancellable")
+        collection.insertMany((0 until 20).map { n -> document { put("n", n) } })
+
+        val holding = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+
+        val holder = launch {
+            // Курсор держит единственного клиента всё время сбора — это и есть M-23.
+            collection.find().collect {
+                if (!holding.isCompleted) {
+                    holding.complete(Unit)
+                    release.await()
+                }
+            }
+        }
+        holding.await()
+
+        // До семафора здесь был бы дедлок навсегда: поток встал бы внутри
+        // mongoc_client_pool_pop, а его отменить нечем (§1.12). Теперь это приостановка,
+        // и withTimeout её снимает.
+        //
+        // Почему прохождение теста вообще что-то доказывает: `runTest` крутит виртуальное
+        // время, и `withTimeout` срабатывает, только когда планировщику нечего выполнять,
+        // то есть когда корутина действительно **припаркована**. Будь поток заблокирован
+        // внутри C, виртуальное время не сдвинулось бы и тест завис — ровно как в §1.12.
+        assertFailsWith<TimeoutCancellationException> {
+            withTimeout(2.seconds) { collection.countDocuments() }
+        }
+
+        release.complete(Unit)
+        holder.join()
+
+        // Клиент вернулся в пул — операции снова проходят.
+        assertEquals(20L, collection.countDocuments())
+    }
+
+    @Test
+    fun `more concurrent cursors than the pool allows still complete`() = runTest(timeout = TIMEOUT) {
+        // Курсоров вчетверо больше, чем клиентов: лишние ждут на семафоре и дожидаются.
+        val client = connect(ioThreads = 4, maxConcurrentClients = 4)
+        val collection = client.freshCollection("oversubscribed")
+        collection.insertMany((0 until 30).map { n -> document { put("n", n) } })
+
+        val sizes = coroutineScope {
+            (0 until 16).map { async { collection.find().toList().size } }.awaitAll()
+        }
+
+        assertTrue(sizes.all { it == 30 }, "курсоры вернули разное: ${sizes.distinct()}")
     }
 
     private companion object {

@@ -42,7 +42,7 @@ class MongoIntegrationTest {
 
     private val clients = mutableListOf<MongoClient>()
 
-    private fun connect(uri: String = this.uri): MongoClient =
+    private suspend fun connect(uri: String = this.uri): MongoClient =
         MongoClient(uri).also { client ->
             clients += client
             // mongod живёт дольше прогона, а счётчик коллекций начинается с нуля каждый раз —
@@ -57,7 +57,7 @@ class MongoIntegrationTest {
      * Сносит тестовую базу целиком. Публичного API для этого нет и в скоуп прототипа он не входит,
      * поэтому дёргаем cinterop напрямую: тестовому source set внутренности модуля видны.
      */
-    private fun MongoClient.dropTestDatabase() = withClient { handle ->
+    private suspend fun MongoClient.dropTestDatabase() = withClient { handle ->
         val database = mongoc_client_get_database(handle, DATABASE)
             ?: error("mongoc_client_get_database вернул NULL")
         try {
