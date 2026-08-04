@@ -59,6 +59,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Сборка и тесты
+        # checkKotlinAbi выполняется только на macOS: дамп различается между таргетами строкой
+        # `// Targets:`, а объявления одинаковы (§1.19). На Linux задача пропускается сама.
         run: ./gradlew build --stacktrace
 
       - name: Отчёты тестов

@@ -151,10 +151,10 @@ Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
       (нужен опрос топологии) и неподдержанные аргументы (`ordered`, `limit`, `sort`, `skip`)
 - [ ] **M-35** Усилить сопоставление в раннере: сейчас документы сравниваются подмножеством,
       лишние поля в фактическом результате расхождением не считаются
-- [ ] **M-31** Включить встроенную в KGP `abiValidation` (`checkKotlinAbi` / `updateKotlinAbi`)
-      с `keepLocallyUnsupportedTargets.set(false)`. **Зависит от M-17:** пока собирается только
-      хостовый таргет, дамп для `linuxX64` будет достроен из `macosArm64`, то есть выдуман.
-      `binary-compatibility-validator` 0.18.1 не берём — maintenance mode (§1.11)
+- [x] **M-31** Включена встроенная в KGP `abiValidation`; дамп — [mongkn-core/api/mongkn-core.klib.api](mongkn-core/api/mongkn-core.klib.api),
+      277 строк. `checkKotlinAbi` ограничен эталонным хостом: дамп различается между таргетами
+      **только** строкой `// Targets:`, все объявления совпадают (§1.19). `binary-compatibility-validator`
+      0.18.1 не брали — maintenance mode
 
 ## M7 — эргономика (после MVP)
 
