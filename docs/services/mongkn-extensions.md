@@ -27,17 +27,17 @@ C-кода здесь нет вовсе: модуль работает толь�
 
 | Файл | Что там |
 |---|---|
-| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` |
+| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` — по имени поля строкой |
+| [Scopes.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Scopes.kt) | `FilterScope` / `UpdateScope` со ссылками на свойства и проверкой имён; `collection.find { … }` |
 | [Updates.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Updates.kt) | `setTo`, `incBy`, `unset`, `combine` |
 
 ## 3. Сознательные ограничения / грабли
 
-* **`@SerialName` не учитывается.** Имя поля берётся из `KProperty1.name`, то есть из имени
-  свойства Kotlin. Если класс размечен `@SerialName`, в базе лежит другое имя, и фильтр
-  **молча** ничего не найдёт: для MongoDB несуществующее поле — просто «не совпало».
-  Связать свойство с элементом дескриптора без рефлексии на Kotlin/Native нельзя. До решения
-  (M-36) — либо не используйте `@SerialName` вместе с DSL, либо задавайте поле строкой:
-  строковая перегрузка есть у каждой операции.
+* **`@SerialName` по-прежнему не разрешается, но больше не проглатывается.** Имя поля берётся
+  из `KProperty1.name`; связать его с serial-именем без рефлексии на Kotlin/Native нельзя.
+  Поэтому ссылки на свойства доступны только внутри `FilterScope` / `UpdateScope`, где есть
+  дескриптор: несовпадение имени роняет вызов с перечислением реальных полей, а не возвращает
+  пустой результат. Для переименованных полей — строковая перегрузка (решение Р14).
 * **`and` не сливает условия в один документ.** Два условия на одно поле имеют одинаковый ключ
   и затёрли бы друг друга, поэтому `$and` явный.
 * **`combine` сливает одноимённые операторы.** Документ с двумя ключами `$set` MongoDB

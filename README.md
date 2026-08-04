@@ -27,7 +27,7 @@ fun main() = runBlocking {
         val people = client.getDatabase("app").getCollection<Person>("people")
 
         people.insertOne(Person("Ada", 1815))
-        people.find(Person::born lt 1900).collect { println(it) }
+        people.find { Person::born lt 1900 }.collect { println(it) }
     }
 }
 ```

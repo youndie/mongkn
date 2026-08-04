@@ -10,7 +10,6 @@ import ru.workinprogress.mongkn.bson.BsonNull
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
-import kotlin.reflect.KProperty1
 
 /**
  * Фильтры в инфиксной записи.
@@ -20,16 +19,13 @@ import kotlin.reflect.KProperty1
  * `mongodb-driver-kotlin-extensions` из основного драйвера.
  *
  * ```
- * collection.find(Person::born gt 1900)
- * collection.find(and(Person::born gt 1900, Person::name eq "Grace"))
+ * collection.find { Person::born gt 1900 }
+ * collection.find { and(Person::born gt 1900, Person::name eq "Grace") }
  * ```
  *
- * **Ограничение, которое надо знать.** Имя поля берётся из имени свойства Kotlin
- * (`KProperty1.name`). Если класс размечен `@SerialName`, имя в базе отличается, и фильтр
- * не найдёт документ — молча, потому что несуществующее поле для MongoDB это просто «не
- * совпало». Сопоставить одно с другим без рефлексии над дескриптором нельзя, а на Kotlin/Native
- * связи «свойство → элемент дескриптора» нет. До решения — не используйте `@SerialName` вместе
- * с этим DSL либо задавайте поле строкой: строковые перегрузки есть у каждой операции.
+ * Здесь только строковые перегрузки — поле задаётся именем как есть. Варианты со ссылками
+ * на свойства (`Person::born gt 1900`) живут в [FilterScope]: там известен дескриптор класса,
+ * и опечатку или `@SerialName` можно поймать, а не проглотить (M-36).
  */
 
 // --- сравнения ---------------------------------------------------------------------------
@@ -37,32 +33,24 @@ import kotlin.reflect.KProperty1
 /** Равенство. На проводе это не `$eq`, а просто значение — так же делает официальный драйвер. */
 public infix fun String.eq(value: Any?): Document = BsonDocument(this to bsonOf(value))
 
-public infix fun <T, R> KProperty1<T, R>.eq(value: R): Document = name eq value
 
 public infix fun String.ne(value: Any?): Document = compare("\$ne", value)
-public infix fun <T, R> KProperty1<T, R>.ne(value: R): Document = name ne value
 
 public infix fun String.gt(value: Any?): Document = compare("\$gt", value)
-public infix fun <T, R> KProperty1<T, R>.gt(value: R): Document = name gt value
 
 public infix fun String.gte(value: Any?): Document = compare("\$gte", value)
-public infix fun <T, R> KProperty1<T, R>.gte(value: R): Document = name gte value
 
 public infix fun String.lt(value: Any?): Document = compare("\$lt", value)
-public infix fun <T, R> KProperty1<T, R>.lt(value: R): Document = name lt value
 
 public infix fun String.lte(value: Any?): Document = compare("\$lte", value)
-public infix fun <T, R> KProperty1<T, R>.lte(value: R): Document = name lte value
 
 /** Вхождение в набор значений. */
 public infix fun String.within(values: Collection<Any?>): Document =
     compare("\$in", BsonArray(values.map(::bsonOf)))
 
-public infix fun <T, R> KProperty1<T, R>.within(values: Collection<R>): Document = name within values
 
 /** Наличие или отсутствие поля. */
 public infix fun String.exists(present: Boolean): Document = compare("\$exists", present)
-public infix fun <T, R> KProperty1<T, R>.exists(present: Boolean): Document = name exists present
 
 // --- композиция --------------------------------------------------------------------------
 

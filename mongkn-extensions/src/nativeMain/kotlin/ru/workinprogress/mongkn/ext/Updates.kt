@@ -2,32 +2,28 @@ package ru.workinprogress.mongkn.ext
 
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
-import kotlin.reflect.KProperty1
 
 /**
  * Документы обновления в инфиксной записи.
  *
  * ```
- * collection.updateOne(Person::name eq "Ada", Person::born setTo 1816)
+ * collection.updateOne(filter { Person::name eq "Ada" }, update { Person::born setTo 1816 })
  * ```
  *
- * Про имена полей действует то же ограничение, что и у фильтров, — см. KDoc [Filters.kt].
+ * Здесь только строковые перегрузки; варианты со ссылками на свойства — в [UpdateScope].
  */
 
 /** `$set` — установить значение поля. */
 public infix fun String.setTo(value: Any?): Document = update("\$set", this, value)
 
-public infix fun <T, R> KProperty1<T, R>.setTo(value: R): Document = name setTo value
 
 /** `$inc` — увеличить числовое поле. */
 public infix fun String.incBy(delta: Number): Document = update("\$inc", this, delta)
 
-public infix fun <T, R : Number> KProperty1<T, R>.incBy(delta: Number): Document = name incBy delta
 
 /** `$unset` — убрать поле. Значение оператору безразлично, договорённость — пустая строка. */
 public fun unset(field: String): Document = update("\$unset", field, "")
 
-public fun <T, R> unset(property: KProperty1<T, R>): Document = unset(property.name)
 
 /**
  * Складывает несколько обновлений в один документ.
