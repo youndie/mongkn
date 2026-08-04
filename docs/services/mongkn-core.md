@@ -56,6 +56,7 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
 | [bson/BsonAllocations.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonAllocations.kt) | считающий аллокатор libbson — единственное, что видит утечки |
 | [spec/SpecTestRunner.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/spec/SpecTestRunner.kt) | раннер официальных spec-тестов MongoDB; частичный, отчёт печатает непокрытое |
+| [spec/SpecMatcher.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/spec/SpecMatcher.kt) | сопоставление по правилам unified test format; вынесено отдельно, чтобы строгость была проверяема |
 | [spec-tests.gradle.kts](../../mongkn-core/spec-tests.gradle.kts) | загрузка spec-тестов в `build/` — в репозиторий они не кладутся из-за лицензии |
 | [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 

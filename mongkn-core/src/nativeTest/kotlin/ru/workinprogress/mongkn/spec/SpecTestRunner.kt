@@ -30,8 +30,10 @@ import kotlinx.coroutines.flow.toList
  *
  * Известные упрощения, каждое ослабляет строгость проверки:
  *
- * * сравнение результата **подмножеством**: проверяются только поля, перечисленные в `expectResult`,
- *   лишние поля в фактическом результате не считаются расхождением;
+ * * лишние поля допускаются **только в корне** `expectResult` — там драйвер вправе вернуть
+ *   больше, чем перечислено в сценарии. Во вложенных документах и в `outcome` сравнение строгое:
+ *   раньше подмножеством сравнивалось всё, и лишнее поле во вложенном документе проходило
+ *   незамеченным (M-35);
  * * из специальных операторов реализованы `$$unsetOrMatches` и `$$type` — те, что встречаются
  *   в выбранных файлах;
  * * `expectEvents` не поддерживается вовсе (нет APM), такие тесты пропускаются целиком;
@@ -178,7 +180,9 @@ class SpecTestRunner(
             check(!expectsError) { "$name: ожидалась ошибка, а операция прошла" }
 
             val expected = operation["expectResult"] ?: continue
-            check(matches(expected, actual)) {
+            // Результат операции сравнивается «как корень»: драйвер вправе вернуть больше полей,
+            // чем перечислено в сценарии (например upsertedCount там, где его не ждут).
+            check(SpecMatcher.matches(expected, actual, root = true)) {
                 "$name: результат не совпал\n  ожидалось: $expected\n  получено:  $actual"
             }
         }
@@ -240,8 +244,10 @@ class SpecTestRunner(
             check(actual.size == wanted.size) {
                 "$name: в коллекции ${expected.stringOf("collectionName")} ${actual.size} документов, ждали ${wanted.size}"
             }
+            // Содержимое коллекции сверяется **строго**: лишнее поле в сохранённом документе
+            // означает, что операция записала не то, и послаблений тут быть не должно.
             for ((index, document) in wanted.withIndex()) {
-                check(matches(document, actual[index])) {
+                check(SpecMatcher.matches(document, actual[index])) {
                     "$name: документ $index не совпал\n  ожидалось: $document\n  получено:  ${actual[index]}"
                 }
             }
@@ -249,55 +255,6 @@ class SpecTestRunner(
     }
 
     // --- сравнение -------------------------------------------------------------------------
-
-    /**
-     * Сравнение по правилам unified test format — в том объёме, который нужен выбранным файлам.
-     *
-     * Документы сравниваются **подмножеством**: лишние поля в фактическом результате не считаются
-     * расхождением. Это ослабление, и оно записано в KDoc класса.
-     */
-    private fun matches(expected: BsonValue, actual: BsonValue?): Boolean {
-        if (expected is BsonDocument && expected.size == 1) {
-            val (operator, argument) = expected.entries.single()
-            when (operator) {
-                "\$\$unsetOrMatches" -> return actual == null || matches(argument, actual)
-                "\$\$type" -> return matchesType(argument, actual)
-                "\$\$exists" -> return (argument as? BsonBoolean)?.value == (actual != null)
-            }
-        }
-        return when (expected) {
-            is BsonDocument -> actual is BsonDocument &&
-                expected.entries.all { (key, value) -> matches(value, actual[key]) }
-
-            is BsonArray -> actual is BsonArray && expected.size == actual.size &&
-                expected.values.indices.all { matches(expected[it], actual[it]) }
-
-            else -> expected == actual
-        }
-    }
-
-    private fun matchesType(argument: BsonValue, actual: BsonValue?): Boolean {
-        val names = when (argument) {
-            is BsonString -> listOf(argument.value)
-            is BsonArray -> argument.values.filterIsInstance<BsonString>().map { it.value }
-            else -> return false
-        }
-        return names.any { name ->
-            when (name) {
-                "int" -> actual is BsonInt32
-                "long" -> actual is BsonInt64
-                "double" -> actual is BsonDouble
-                "string" -> actual is BsonString
-                "bool" -> actual is BsonBoolean
-                "null" -> actual is BsonNull
-                "objectId" -> actual is BsonObjectId
-                "date" -> actual is BsonDateTime
-                "object" -> actual is BsonDocument
-                "array" -> actual is BsonArray
-                else -> false
-            }
-        }
-    }
 
     private fun skipAll(file: BsonDocument, fileName: String, reason: String) {
         for (test in file.arrayOf("tests")) {
