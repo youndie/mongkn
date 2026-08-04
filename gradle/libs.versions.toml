@@ -3,6 +3,7 @@
 # Поддерживаемый диапазон Gradle для KGP 2.4.0-2.4.10: 7.6.3–9.5.0 → wrapper зафиксирован на 9.5.0.
 kotlin = "2.4.10"
 coroutines = "1.11.0"
+serialization = "1.11.0"
 # Официальный JVM-драйвер — эталон для дифференциальных тестов (:mongkn-difftest).
 # Источником сигнатур для генерации он быть перестал: решение Р9, генератор удалён.
 mongodbDriverKotlin = "5.9.1"
@@ -10,8 +11,10 @@ mongodbDriverKotlin = "5.9.1"
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
 mongodb-driver-kotlin-coroutine = { module = "org.mongodb:mongodb-driver-kotlin-coroutine", version.ref = "mongodbDriverKotlin" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

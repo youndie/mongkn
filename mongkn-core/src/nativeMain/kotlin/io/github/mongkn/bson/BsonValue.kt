@@ -33,6 +33,7 @@ public data class BsonDateTime(public val epochMillis: Long) : BsonValue
  * Не `data class`: у `ByteArray` равенство ссылочное, а этот тип обязан сравниваться по
  * содержимому — иначе round-trip-тест из M-04 будет ложно падать.
  */
+@kotlinx.serialization.Serializable(with = BsonObjectIdSerializer::class)
 public class BsonObjectId(bytes: ByteArray) : BsonValue {
 
     init {
@@ -137,3 +138,30 @@ public class UnsupportedBsonTypeException(
     public val typeCode: UInt,
     key: String,
 ) : RuntimeException("Тип BSON 0x${typeCode.toString(16)} в поле \"$key\" пока не поддерживается")
+
+/**
+ * Сериализатор [BsonObjectId].
+ *
+ * Нужен прежде всего компилятору: без него `@Serializable`-класс с полем `BsonObjectId`
+ * не соберётся, сколько бы наш кодировщик ни умел в рантайме.
+ *
+ * Описывает себя строкой (шестнадцатеричное представление) — это разумно для JSON и прочих
+ * форматов. В BSON строка не используется: [BsonValueEncoder] пропускает значения [BsonValue]
+ * мимо сериализации, чтобы `_id` остался настоящим ObjectId, а не превратился в текст.
+ * На чтении сериализатор всё-таки работает, и `decodeString()` отдаёт ему шестнадцатеричную
+ * запись — асимметрия намеренная и описана в [BsonValueDecoder].
+ */
+public object BsonObjectIdSerializer : kotlinx.serialization.KSerializer<BsonObjectId> {
+    override val descriptor: kotlinx.serialization.descriptors.SerialDescriptor =
+        kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "io.github.mongkn.bson.BsonObjectId",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: BsonObjectId) {
+        encoder.encodeString(value.hex)
+    }
+
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): BsonObjectId =
+        BsonObjectId.parse(decoder.decodeString())
+}

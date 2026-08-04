@@ -72,7 +72,7 @@ class MongoIntegrationTest {
     }
 
     /** Уникальное имя коллекции на каждый тест — иначе тесты видят чужие документы. */
-    private fun MongoClient.freshCollection(hint: String): MongoCollection =
+    private fun MongoClient.freshCollection(hint: String): MongoCollection<Document> =
         getDatabase(DATABASE).getCollection("${hint}_${collectionCounter++}")
 
     @AfterTest

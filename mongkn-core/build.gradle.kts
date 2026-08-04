@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Загрузка официальных spec-тестов MongoDB — вынесена, потому что там своя история
@@ -160,6 +161,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.coroutines.core)
+            api(libs.serialization.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

@@ -8,7 +8,7 @@ MongoDB для Kotlin/Native — обвязка над официальным C-
 и спрятан за `suspend fun insertOne(...)` и `fun find(...): Flow<Document>`.
 
 **Статус: рабочий прототип.** Шесть операций (`insertOne`, `insertMany`, `updateOne`,
-`deleteOne`, `countDocuments`, `find`), 52 теста — включая дифференциальные против
+`deleteOne`, `countDocuments`, `find`), типизированные коллекции и infix-DSL, 81 тест — включая дифференциальные против
 официального драйвера, стресс-тесты пула соединений, проверку утечек через подменённый
 аллокатор libbson и property-тесты кодека. Форма API снята с официального `mongodb-driver-kotlin-coroutine`, а совпадение с ним проверяется
 **дифференциальными тестами**: один и тот же документ проходит через официальный JVM-драйвер
@@ -19,23 +19,27 @@ MongoDB для Kotlin/Native — обвязка над официальным C-
 MongoDB и стресс-тест пула, см. [BACKLOG.md](BACKLOG.md).
 
 ```kotlin
+@Serializable
+data class Person(val name: String, val born: Int)
+
 fun main() = runBlocking {
     MongoClient("mongodb://127.0.0.1:27017").use { client ->
-        val people = client.getDatabase("app").getCollection("people")
+        val people = client.getDatabase("app").getCollection<Person>("people")
 
-        val inserted = people.insertOne(document { put("name", "Ada"); put("born", 1815) })
-        println(inserted.insertedId)
-
-        people.find(document { put("name", "Ada") }).collect { println(it) }
+        people.insertOne(Person("Ada", 1815))
+        people.find(Person::born lt 1900).collect { println(it) }
     }
 }
 ```
+
+Документы можно и без маппинга — `getCollection("people")` даёт `MongoCollection<Document>`.
 
 ## Модули
 
 | Модуль | Что делает |
 |---|---|
 | `mongkn-core` | Kotlin/Native: cinterop, BSON, клиент, операции |
+| `mongkn-extensions` | Kotlin/Native: infix-DSL фильтров и обновлений |
 | `mongkn-difftest` | JVM: эталон для дифференциальных тестов — официальный драйвер |
 
 ## Требования

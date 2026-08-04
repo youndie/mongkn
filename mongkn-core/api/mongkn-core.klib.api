@@ -12,6 +12,18 @@ open annotation class io.github.mongkn.bson/BsonDsl : kotlin/Annotation { // io.
 
 sealed interface io.github.mongkn.bson/BsonValue // io.github.mongkn.bson/BsonValue|null[0]
 
+final class <#A: kotlin/Any?> io.github.mongkn/MongoCollection { // io.github.mongkn/MongoCollection|null[0]
+    final val name // io.github.mongkn/MongoCollection.name|{}name[0]
+        final fun <get-name>(): kotlin/String // io.github.mongkn/MongoCollection.name.<get-name>|<get-name>(){}[0]
+
+    final fun find(io.github.mongkn.bson/BsonDocument = ...): kotlinx.coroutines.flow/Flow<#A> // io.github.mongkn/MongoCollection.find|find(io.github.mongkn.bson.BsonDocument){}[0]
+    final suspend fun countDocuments(io.github.mongkn.bson/BsonDocument = ...): kotlin/Long // io.github.mongkn/MongoCollection.countDocuments|countDocuments(io.github.mongkn.bson.BsonDocument){}[0]
+    final suspend fun deleteOne(io.github.mongkn.bson/BsonDocument): io.github.mongkn/DeleteResult // io.github.mongkn/MongoCollection.deleteOne|deleteOne(io.github.mongkn.bson.BsonDocument){}[0]
+    final suspend fun insertMany(kotlin.collections/List<#A>): io.github.mongkn/InsertManyResult // io.github.mongkn/MongoCollection.insertMany|insertMany(kotlin.collections.List<1:0>){}[0]
+    final suspend fun insertOne(#A): io.github.mongkn/InsertOneResult // io.github.mongkn/MongoCollection.insertOne|insertOne(1:0){}[0]
+    final suspend fun updateOne(io.github.mongkn.bson/BsonDocument, io.github.mongkn.bson/BsonDocument): io.github.mongkn/UpdateResult // io.github.mongkn/MongoCollection.updateOne|updateOne(io.github.mongkn.bson.BsonDocument;io.github.mongkn.bson.BsonDocument){}[0]
+}
+
 final class io.github.mongkn.bson/ArrayBuilder { // io.github.mongkn.bson/ArrayBuilder|null[0]
     final fun add(io.github.mongkn.bson/BsonValue) // io.github.mongkn.bson/ArrayBuilder.add|add(io.github.mongkn.bson.BsonValue){}[0]
     final fun add(kotlin/Boolean) // io.github.mongkn.bson/ArrayBuilder.add|add(kotlin.Boolean){}[0]
@@ -139,6 +151,7 @@ final class io.github.mongkn.bson/BsonObjectId : io.github.mongkn.bson/BsonValue
             final fun <get-SIZE>(): kotlin/Int // io.github.mongkn.bson/BsonObjectId.Companion.SIZE.<get-SIZE>|<get-SIZE>(){}[0]
 
         final fun parse(kotlin/String): io.github.mongkn.bson/BsonObjectId // io.github.mongkn.bson/BsonObjectId.Companion.parse|parse(kotlin.String){}[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<io.github.mongkn.bson/BsonObjectId> // io.github.mongkn.bson/BsonObjectId.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -217,23 +230,13 @@ final class io.github.mongkn/MongoClient : kotlin/AutoCloseable { // io.github.m
     }
 }
 
-final class io.github.mongkn/MongoCollection { // io.github.mongkn/MongoCollection|null[0]
-    final val name // io.github.mongkn/MongoCollection.name|{}name[0]
-        final fun <get-name>(): kotlin/String // io.github.mongkn/MongoCollection.name.<get-name>|<get-name>(){}[0]
-
-    final fun find(io.github.mongkn.bson/BsonDocument = ...): kotlinx.coroutines.flow/Flow<io.github.mongkn.bson/BsonDocument> // io.github.mongkn/MongoCollection.find|find(io.github.mongkn.bson.BsonDocument){}[0]
-    final suspend fun countDocuments(io.github.mongkn.bson/BsonDocument = ...): kotlin/Long // io.github.mongkn/MongoCollection.countDocuments|countDocuments(io.github.mongkn.bson.BsonDocument){}[0]
-    final suspend fun deleteOne(io.github.mongkn.bson/BsonDocument): io.github.mongkn/DeleteResult // io.github.mongkn/MongoCollection.deleteOne|deleteOne(io.github.mongkn.bson.BsonDocument){}[0]
-    final suspend fun insertMany(kotlin.collections/List<io.github.mongkn.bson/BsonDocument>): io.github.mongkn/InsertManyResult // io.github.mongkn/MongoCollection.insertMany|insertMany(kotlin.collections.List<io.github.mongkn.bson.BsonDocument>){}[0]
-    final suspend fun insertOne(io.github.mongkn.bson/BsonDocument): io.github.mongkn/InsertOneResult // io.github.mongkn/MongoCollection.insertOne|insertOne(io.github.mongkn.bson.BsonDocument){}[0]
-    final suspend fun updateOne(io.github.mongkn.bson/BsonDocument, io.github.mongkn.bson/BsonDocument): io.github.mongkn/UpdateResult // io.github.mongkn/MongoCollection.updateOne|updateOne(io.github.mongkn.bson.BsonDocument;io.github.mongkn.bson.BsonDocument){}[0]
-}
-
 final class io.github.mongkn/MongoDatabase { // io.github.mongkn/MongoDatabase|null[0]
     final val name // io.github.mongkn/MongoDatabase.name|{}name[0]
         final fun <get-name>(): kotlin/String // io.github.mongkn/MongoDatabase.name.<get-name>|<get-name>(){}[0]
 
-    final fun getCollection(kotlin/String): io.github.mongkn/MongoCollection // io.github.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){}[0]
+    final fun <#A1: kotlin/Any?> getCollection(kotlin/String, kotlinx.serialization/KSerializer<#A1>): io.github.mongkn/MongoCollection<#A1> // io.github.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String;kotlinx.serialization.KSerializer<0:0>){0§<kotlin.Any?>}[0]
+    final fun getCollection(kotlin/String): io.github.mongkn/MongoCollection<io.github.mongkn.bson/BsonDocument> // io.github.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){}[0]
+    final inline fun <#A1: reified kotlin/Any?> getCollection(kotlin/String): io.github.mongkn/MongoCollection<#A1> // io.github.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){0§<kotlin.Any?>}[0]
 }
 
 final class io.github.mongkn/MongoException : kotlin/RuntimeException { // io.github.mongkn/MongoException|null[0]
@@ -264,6 +267,14 @@ final object io.github.mongkn.bson/BsonNull : io.github.mongkn.bson/BsonValue { 
     final fun toString(): kotlin/String // io.github.mongkn.bson/BsonNull.toString|toString(){}[0]
 }
 
+final object io.github.mongkn.bson/BsonObjectIdSerializer : kotlinx.serialization/KSerializer<io.github.mongkn.bson/BsonObjectId> { // io.github.mongkn.bson/BsonObjectIdSerializer|null[0]
+    final val descriptor // io.github.mongkn.bson/BsonObjectIdSerializer.descriptor|{}descriptor[0]
+        final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // io.github.mongkn.bson/BsonObjectIdSerializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+    final fun deserialize(kotlinx.serialization.encoding/Decoder): io.github.mongkn.bson/BsonObjectId // io.github.mongkn.bson/BsonObjectIdSerializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+    final fun serialize(kotlinx.serialization.encoding/Encoder, io.github.mongkn.bson/BsonObjectId) // io.github.mongkn.bson/BsonObjectIdSerializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;io.github.mongkn.bson.BsonObjectId){}[0]
+}
+
 final object io.github.mongkn/Mongkn { // io.github.mongkn/Mongkn|null[0]
     final val bsonVersion // io.github.mongkn/Mongkn.bsonVersion|{}bsonVersion[0]
         final fun <get-bsonVersion>(): kotlin/String // io.github.mongkn/Mongkn.bsonVersion.<get-bsonVersion>|<get-bsonVersion>(){}[0]
@@ -274,4 +285,6 @@ final object io.github.mongkn/Mongkn { // io.github.mongkn/Mongkn|null[0]
     final fun shutdown() // io.github.mongkn/Mongkn.shutdown|shutdown(){}[0]
 }
 
+final fun <#A: kotlin/Any?> io.github.mongkn.bson/decodeFromDocument(kotlinx.serialization/KSerializer<#A>, io.github.mongkn.bson/BsonDocument): #A // io.github.mongkn.bson/decodeFromDocument|decodeFromDocument(kotlinx.serialization.KSerializer<0:0>;io.github.mongkn.bson.BsonDocument){0§<kotlin.Any?>}[0]
+final fun <#A: kotlin/Any?> io.github.mongkn.bson/encodeToDocument(kotlinx.serialization/KSerializer<#A>, #A): io.github.mongkn.bson/BsonDocument // io.github.mongkn.bson/encodeToDocument|encodeToDocument(kotlinx.serialization.KSerializer<0:0>;0:0){0§<kotlin.Any?>}[0]
 final fun io.github.mongkn.bson/document(kotlin/Function1<io.github.mongkn.bson/DocumentBuilder, kotlin/Unit>): io.github.mongkn.bson/BsonDocument // io.github.mongkn.bson/document|document(kotlin.Function1<io.github.mongkn.bson.DocumentBuilder,kotlin.Unit>){}[0]

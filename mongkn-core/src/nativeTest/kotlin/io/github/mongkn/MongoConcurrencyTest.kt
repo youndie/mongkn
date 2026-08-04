@@ -1,5 +1,6 @@
 package io.github.mongkn
 
+import io.github.mongkn.bson.Document
 import io.github.mongkn.support.TestServer
 import io.github.mongkn.bson.BsonInt32
 import io.github.mongkn.bson.document
@@ -77,7 +78,7 @@ class MongoConcurrencyTest {
         clients.clear()
     }
 
-    private fun MongoClient.freshCollection(hint: String): MongoCollection =
+    private fun MongoClient.freshCollection(hint: String): MongoCollection<Document> =
         getDatabase(DATABASE).getCollection("${hint}_${counter++}")
 
     private suspend fun MongoClient.dropTestDatabase() = withClient { handle ->

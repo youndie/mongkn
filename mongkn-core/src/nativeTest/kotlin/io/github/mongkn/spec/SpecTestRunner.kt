@@ -185,7 +185,7 @@ class SpecTestRunner(
     }
 
     private suspend fun invoke(
-        collection: MongoCollection,
+        collection: MongoCollection<Document>,
         name: String,
         arguments: BsonDocument,
     ): BsonValue = when (name) {

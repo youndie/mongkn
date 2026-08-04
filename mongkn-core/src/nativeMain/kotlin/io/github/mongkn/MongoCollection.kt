@@ -2,7 +2,11 @@ package io.github.mongkn
 
 import io.github.mongkn.bson.BsonDocument
 import io.github.mongkn.bson.Document
+import io.github.mongkn.bson.decodeFromDocument
+import io.github.mongkn.bson.encodeToDocument
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.KSerializer
 
 /**
  * Коллекция MongoDB.
@@ -30,23 +34,43 @@ import kotlinx.coroutines.flow.Flow
  *   и агрегационным конвейером. Здесь взята первая. Это ровно та ловушка, которую генератор
  *   разрешал механически, а теперь её ловит только дифференциальный тест.
  *
+ * Параметр [T] — класс документа, как у официального `MongoCollection<T>`. Фильтры и документы
+ * обновления остаются [Document] и там: они описывают запрос, а не хранимую сущность.
+ *
  * Все операции блокирующие внутри и уходят на пул потоков клиента — см. [CollectionOps].
  * Расширять эту поверхность снаружи можно функциями-расширениями: параметры-фильтры принимают
  * [Document], точки расширения не закрыты (требование решения Р7).
  */
-public class MongoCollection internal constructor(
+public class MongoCollection<T> internal constructor(
     internal val client: MongoClient,
     internal val databaseName: String,
     public val name: String,
+    private val codec: KSerializer<T>?,
 ) {
 
+    /**
+     * Переводит документ в [T] и обратно.
+     *
+     * `codec == null` означает `MongoCollection<Document>` — тождественное преобразование.
+     * Отдельная ветка, а не сериализатор для `Document`, потому что документ и так уже документ:
+     * гонять его через кодек значило бы платить за ничего и терять типы, которые сериализация
+     * не различает (например `BsonObjectId`).
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun toDocument(value: T): Document =
+        if (codec == null) value as Document else encodeToDocument(codec, value)
+
+    @Suppress("UNCHECKED_CAST")
+    private fun fromDocument(document: Document): T =
+        if (codec == null) document as T else decodeFromDocument(codec, document)
+
     /** Вставляет документ и возвращает его `_id`. Неуспех — всегда [MongoException]. */
-    public suspend fun insertOne(document: Document): InsertOneResult =
-        CollectionOps.insertOne(client, databaseName, name, document)
+    public suspend fun insertOne(document: T): InsertOneResult =
+        CollectionOps.insertOne(client, databaseName, name, toDocument(document))
 
     /** Вставляет несколько документов. Пустой список отвергается до обращения к серверу. */
-    public suspend fun insertMany(documents: List<Document>): InsertManyResult =
-        CollectionOps.insertMany(client, databaseName, name, documents)
+    public suspend fun insertMany(documents: List<T>): InsertManyResult =
+        CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument))
 
     /**
      * Обновляет **один** документ, подходящий под фильтр.
@@ -70,6 +94,6 @@ public class MongoCollection internal constructor(
      *
      * Курсор освобождается при любом исходе сбора потока, включая отмену, — см. [CollectionOps].
      */
-    public fun find(filter: Document = BsonDocument()): Flow<Document> =
-        CollectionOps.find(client, databaseName, name, filter)
+    public fun find(filter: Document = BsonDocument()): Flow<T> =
+        CollectionOps.find(client, databaseName, name, filter).map(::fromDocument)
 }
