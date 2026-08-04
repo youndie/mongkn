@@ -5,11 +5,19 @@ import io.github.mongkn.bson.BsonObjectId
 import io.github.mongkn.bson.BsonString
 import io.github.mongkn.bson.Document
 import io.github.mongkn.bson.document
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import mongkn.cinterop.bson_error_t
+import mongkn.cinterop.mongoc_client_get_database
+import mongkn.cinterop.mongoc_database_destroy
+import mongkn.cinterop.mongoc_database_drop
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +35,7 @@ import kotlin.test.assertTrue
  * Без него тесты падают, а не молча зеленеют: интеграционный тест, который проходит без
  * сервера, ничего не проверяет.
  */
+@OptIn(ExperimentalForeignApi::class)
 class MongoIntegrationTest {
 
     private val uri = "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000&socketTimeoutMS=5000"
@@ -34,11 +43,36 @@ class MongoIntegrationTest {
     private val clients = mutableListOf<MongoClient>()
 
     private fun connect(uri: String = this.uri): MongoClient =
-        MongoClient(uri).also { clients += it }
+        MongoClient(uri).also { client ->
+            clients += client
+            // mongod живёт дольше прогона, а счётчик коллекций начинается с нуля каждый раз —
+            // без этого второй прогон видит документы первого и падает на assertEquals(1, …).
+            if (!databaseCleaned && uri == this.uri) {
+                client.dropTestDatabase()
+                databaseCleaned = true
+            }
+        }
+
+    /**
+     * Сносит тестовую базу целиком. Публичного API для этого нет и в скоуп прототипа он не входит,
+     * поэтому дёргаем cinterop напрямую: тестовому source set внутренности модуля видны.
+     */
+    private fun MongoClient.dropTestDatabase() = withClient { handle ->
+        val database = mongoc_client_get_database(handle, DATABASE)
+            ?: error("mongoc_client_get_database вернул NULL")
+        try {
+            memScoped {
+                val error = alloc<bson_error_t>()
+                mongoc_database_drop(database, error.ptr)
+            }
+        } finally {
+            mongoc_database_destroy(database)
+        }
+    }
 
     /** Уникальное имя коллекции на каждый тест — иначе тесты видят чужие документы. */
     private fun MongoClient.freshCollection(hint: String): MongoCollection =
-        getDatabase("mongkn_it").getCollection("${hint}_${collectionCounter++}")
+        getDatabase(DATABASE).getCollection("${hint}_${collectionCounter++}")
 
     @AfterTest
     fun tearDown() {
@@ -177,6 +211,8 @@ class MongoIntegrationTest {
     }
 
     private companion object {
+        const val DATABASE = "mongkn_it"
         var collectionCounter = 0
+        var databaseCleaned = false
     }
 }

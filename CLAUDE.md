@@ -16,18 +16,23 @@ Kotlin/Native обвязка над MongoDB C-драйвером (`libmongoc`). 
      вопреки собственной документации, поэтому клиент держит свой пул потоков (§1.8);
    - `mongoc_init()` **не** восстанавливает драйвер после `mongoc_cleanup()`: жизненный цикл
      одноразовый на процесс, `MongoClient.close()` намеренно не зовёт `Mongkn.shutdown()` (§1.8);
-   - KSP, подключённый к нативному таргету, **не увидит** JVM-jar официального драйвера —
-     генератор живёт в отдельном JVM-модуле (§1.5, решение Р5).
-2. [BACKLOG.md](BACKLOG.md) — что делать. Закрыты вехи M0–M3; следующая содержательная —
-   M4 (форма API) и M5 (генератор).
+   - генератор живёт в JVM-модулях (`:mongkn-codegen` + `:mongkn-api-spec`), а не в нативном:
+     в нативной компиляции JVM-jar на classpath не попадает (§1.5, Р5). `MongoCollection`
+     **генерируется** — исходника в репозитории нет, правки идут в процессор или
+     в `CollectionOps`.
+2. [BACKLOG.md](BACKLOG.md) — что делать. Закрыты вехи M0–M5; дальше M6 (выпуск, CI)
+   и M7 (типизированные коллекции и infix-DSL).
 3. Документ слоя, к которому относится задача: [docs/features/](docs/features/),
    [docs/api/](docs/api/), [docs/services/](docs/services/).
 
 ## Сборка
 
 ```bash
-./gradlew :mongkn-core:build
+./gradlew build
 ```
+
+`:mongkn-core` в одиночку не собрать: он забирает сгенерированный `MongoCollection`
+из `:mongkn-api-spec` через конфигурацию `nativeApiSources`.
 
 Предусловие — установленный C-драйвер (`brew install mongo-c-driver`). Если он лежит не в
 `/opt/homebrew`, `/usr/local` или `/usr`, укажите `-Pmongkn.prefix=<префикс>`.

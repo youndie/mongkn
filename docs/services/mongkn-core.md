@@ -47,7 +47,8 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [src/nativeInterop/cinterop/mongoc.def](../../mongkn-core/src/nativeInterop/cinterop/mongoc.def) | какие заголовки попадают в klib; путей и имён библиотек здесь намеренно нет |
 | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) | одноразовый жизненный цикл драйвера: `NEW → INITIALIZING → READY → SHUT_DOWN` |
 | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) | владение `mongoc_client_pool_t`, `withClient` (pop/push), собственный пул потоков |
-| [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) | `insertOne` и `find`; здесь же вся работа с курсором |
+| [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) | реализация `insertOne` и `find`; здесь же вся работа с курсором |
+| `MongoCollection` | **генерируется**, исходника в репозитории нет — см. [mongkn-codegen](mongkn-codegen.md) |
 | [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt) | иерархия значений и `Document` |
 | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) | перевод в `bson_t` и обратно; правила владения указателями |
 | [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt) | минимальный билдер (`document { put(...) }`) |
@@ -96,6 +97,10 @@ pkg-config на машине разработки нет (ресёрч §1.1), �
 ## 6. Инфраструктура и деплой
 
 Библиотека, не сервис. Публикации пока нет — задача M-18.
+
+**Сборка зависит от `:mongkn-api-spec`:** конфигурация `nativeApiSources` приносит
+сгенерированный `MongoCollection` в source set `nativeMain`. Поэтому `:mongkn-core` нельзя
+собрать в одиночку без JVM-модулей — это цена решения Р5.
 
 **Что ломается при апгрейде окружения:** `brew upgrade mongo-c-driver` меняет имя каталога
 с заголовками (`mongoc-2.1.1` → `mongoc-2.3.3`), а задача `cinteropMongocMacosArm64` не считает

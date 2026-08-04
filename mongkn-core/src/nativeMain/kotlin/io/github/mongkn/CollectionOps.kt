@@ -1,6 +1,5 @@
 package io.github.mongkn
 
-import io.github.mongkn.bson.BsonDocument
 import io.github.mongkn.bson.Document
 import io.github.mongkn.bson.toDocument
 import io.github.mongkn.bson.toNativeBson
@@ -27,7 +26,12 @@ import mongkn.cinterop.mongoc_cursor_error
 import mongkn.cinterop.mongoc_cursor_next
 
 /**
- * Коллекция MongoDB.
+ * Реализация операций коллекции — весь cinterop живёт здесь.
+ *
+ * Публичный `MongoCollection` **генерируется** ([mongkn-codegen](../../../../../../../mongkn-codegen)):
+ * его форма снимается с официального драйвера, а тела делегируют сюда. Разделение намеренное —
+ * генератор отвечает за поверхность API, а опасный код с указателями остаётся рукописным
+ * и под тестами (решение Р5, требование расширяемости из Р7).
  *
  * Все операции блокирующие внутри — у `libmongoc` асинхронного API нет вовсе, — поэтому уходят
  * на собственный пул потоков клиента ([MongoClient.dispatcher]) и **никогда** на
@@ -39,11 +43,7 @@ import mongkn.cinterop.mongoc_cursor_next
  * а клиент берётся из пула на время операции.
  */
 @OptIn(ExperimentalForeignApi::class)
-public class MongoCollection internal constructor(
-    private val client: MongoClient,
-    private val databaseName: String,
-    public val name: String,
-) {
+internal object CollectionOps {
 
     /**
      * Вставляет документ и возвращает его `_id`.
@@ -53,7 +53,12 @@ public class MongoCollection internal constructor(
      * Отмена корутины не прервёт уже начатый сетевой вызов: драйвер синхронный. Верхняя граница
      * ожидания задаётся только таймаутами в строке подключения — риск 2 ресёрча.
      */
-    public suspend fun insertOne(document: Document): InsertOneResult {
+    suspend fun insertOne(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        document: Document,
+    ): InsertOneResult {
         client.checkOpen()
         return withContext(client.dispatcher) {
             client.withClient { handle ->
@@ -104,7 +109,12 @@ public class MongoCollection internal constructor(
      * `mongoc_cursor_next`, действителен только до следующего вызова `next`, а между эмиссией
      * и следующим витком потребитель успевает поработать.
      */
-    public fun find(filter: Document = BsonDocument()): Flow<Document> = flow {
+    fun find(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+    ): Flow<Document> = flow {
         client.withClient { handle ->
             val collection = mongoc_client_get_collection(handle, databaseName, name)
                 ?: error("mongoc_client_get_collection вернул NULL")
