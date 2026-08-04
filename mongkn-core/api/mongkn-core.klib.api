@@ -50,6 +50,29 @@ final class ru.workinprogress.mongkn.bson/BsonArray : kotlin.collections/Iterabl
     final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonArray.toString|toString(){}[0]
 }
 
+final class ru.workinprogress.mongkn.bson/BsonBinary : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonBinary|null[0]
+    constructor <init>(kotlin/UByte, kotlin/ByteArray) // ru.workinprogress.mongkn.bson/BsonBinary.<init>|<init>(kotlin.UByte;kotlin.ByteArray){}[0]
+
+    final val size // ru.workinprogress.mongkn.bson/BsonBinary.size|{}size[0]
+        final fun <get-size>(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonBinary.size.<get-size>|<get-size>(){}[0]
+    final val subtype // ru.workinprogress.mongkn.bson/BsonBinary.subtype|{}subtype[0]
+        final fun <get-subtype>(): kotlin/UByte // ru.workinprogress.mongkn.bson/BsonBinary.subtype.<get-subtype>|<get-subtype>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonBinary.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonBinary.hashCode|hashCode(){}[0]
+    final fun toByteArray(): kotlin/ByteArray // ru.workinprogress.mongkn.bson/BsonBinary.toByteArray|toByteArray(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonBinary.toString|toString(){}[0]
+
+    final object Companion { // ru.workinprogress.mongkn.bson/BsonBinary.Companion|null[0]
+        final const val ENCRYPTED // ru.workinprogress.mongkn.bson/BsonBinary.Companion.ENCRYPTED|{}ENCRYPTED[0]
+            final fun <get-ENCRYPTED>(): kotlin/UByte // ru.workinprogress.mongkn.bson/BsonBinary.Companion.ENCRYPTED.<get-ENCRYPTED>|<get-ENCRYPTED>(){}[0]
+        final const val GENERIC // ru.workinprogress.mongkn.bson/BsonBinary.Companion.GENERIC|{}GENERIC[0]
+            final fun <get-GENERIC>(): kotlin/UByte // ru.workinprogress.mongkn.bson/BsonBinary.Companion.GENERIC.<get-GENERIC>|<get-GENERIC>(){}[0]
+        final const val UUID // ru.workinprogress.mongkn.bson/BsonBinary.Companion.UUID|{}UUID[0]
+            final fun <get-UUID>(): kotlin/UByte // ru.workinprogress.mongkn.bson/BsonBinary.Companion.UUID.<get-UUID>|<get-UUID>(){}[0]
+    }
+}
+
 final class ru.workinprogress.mongkn.bson/BsonBoolean : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonBoolean|null[0]
     constructor <init>(kotlin/Boolean) // ru.workinprogress.mongkn.bson/BsonBoolean.<init>|<init>(kotlin.Boolean){}[0]
 
@@ -63,6 +86,19 @@ final class ru.workinprogress.mongkn.bson/BsonBoolean : ru.workinprogress.mongkn
     final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonBoolean.toString|toString(){}[0]
 }
 
+final class ru.workinprogress.mongkn.bson/BsonCode : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonCode|null[0]
+    constructor <init>(kotlin/String) // ru.workinprogress.mongkn.bson/BsonCode.<init>|<init>(kotlin.String){}[0]
+
+    final val code // ru.workinprogress.mongkn.bson/BsonCode.code|{}code[0]
+        final fun <get-code>(): kotlin/String // ru.workinprogress.mongkn.bson/BsonCode.code.<get-code>|<get-code>(){}[0]
+
+    final fun component1(): kotlin/String // ru.workinprogress.mongkn.bson/BsonCode.component1|component1(){}[0]
+    final fun copy(kotlin/String = ...): ru.workinprogress.mongkn.bson/BsonCode // ru.workinprogress.mongkn.bson/BsonCode.copy|copy(kotlin.String){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonCode.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonCode.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonCode.toString|toString(){}[0]
+}
+
 final class ru.workinprogress.mongkn.bson/BsonDateTime : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonDateTime|null[0]
     constructor <init>(kotlin/Long) // ru.workinprogress.mongkn.bson/BsonDateTime.<init>|<init>(kotlin.Long){}[0]
 
@@ -74,6 +110,19 @@ final class ru.workinprogress.mongkn.bson/BsonDateTime : ru.workinprogress.mongk
     final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonDateTime.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonDateTime.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonDateTime.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn.bson/BsonDecimal128 : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonDecimal128|null[0]
+    final val value // ru.workinprogress.mongkn.bson/BsonDecimal128.value|{}value[0]
+        final fun <get-value>(): kotlin/String // ru.workinprogress.mongkn.bson/BsonDecimal128.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonDecimal128.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonDecimal128.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonDecimal128.toString|toString(){}[0]
+
+    final object Companion { // ru.workinprogress.mongkn.bson/BsonDecimal128.Companion|null[0]
+        final fun invoke(kotlin/String): ru.workinprogress.mongkn.bson/BsonDecimal128 // ru.workinprogress.mongkn.bson/BsonDecimal128.Companion.invoke|invoke(kotlin.String){}[0]
+    }
 }
 
 final class ru.workinprogress.mongkn.bson/BsonDocument : kotlin.collections/Iterable<kotlin/Pair<kotlin/String, ru.workinprogress.mongkn.bson/BsonValue>>, ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonDocument|null[0]
@@ -155,6 +204,22 @@ final class ru.workinprogress.mongkn.bson/BsonObjectId : ru.workinprogress.mongk
     }
 }
 
+final class ru.workinprogress.mongkn.bson/BsonRegex : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonRegex|null[0]
+    constructor <init>(kotlin/String, kotlin/String = ...) // ru.workinprogress.mongkn.bson/BsonRegex.<init>|<init>(kotlin.String;kotlin.String){}[0]
+
+    final val options // ru.workinprogress.mongkn.bson/BsonRegex.options|{}options[0]
+        final fun <get-options>(): kotlin/String // ru.workinprogress.mongkn.bson/BsonRegex.options.<get-options>|<get-options>(){}[0]
+    final val pattern // ru.workinprogress.mongkn.bson/BsonRegex.pattern|{}pattern[0]
+        final fun <get-pattern>(): kotlin/String // ru.workinprogress.mongkn.bson/BsonRegex.pattern.<get-pattern>|<get-pattern>(){}[0]
+
+    final fun component1(): kotlin/String // ru.workinprogress.mongkn.bson/BsonRegex.component1|component1(){}[0]
+    final fun component2(): kotlin/String // ru.workinprogress.mongkn.bson/BsonRegex.component2|component2(){}[0]
+    final fun copy(kotlin/String = ..., kotlin/String = ...): ru.workinprogress.mongkn.bson/BsonRegex // ru.workinprogress.mongkn.bson/BsonRegex.copy|copy(kotlin.String;kotlin.String){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonRegex.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonRegex.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonRegex.toString|toString(){}[0]
+}
+
 final class ru.workinprogress.mongkn.bson/BsonString : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonString|null[0]
     constructor <init>(kotlin/String) // ru.workinprogress.mongkn.bson/BsonString.<init>|<init>(kotlin.String){}[0]
 
@@ -166,6 +231,35 @@ final class ru.workinprogress.mongkn.bson/BsonString : ru.workinprogress.mongkn.
     final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonString.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonString.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonString.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn.bson/BsonSymbol : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonSymbol|null[0]
+    constructor <init>(kotlin/String) // ru.workinprogress.mongkn.bson/BsonSymbol.<init>|<init>(kotlin.String){}[0]
+
+    final val value // ru.workinprogress.mongkn.bson/BsonSymbol.value|{}value[0]
+        final fun <get-value>(): kotlin/String // ru.workinprogress.mongkn.bson/BsonSymbol.value.<get-value>|<get-value>(){}[0]
+
+    final fun component1(): kotlin/String // ru.workinprogress.mongkn.bson/BsonSymbol.component1|component1(){}[0]
+    final fun copy(kotlin/String = ...): ru.workinprogress.mongkn.bson/BsonSymbol // ru.workinprogress.mongkn.bson/BsonSymbol.copy|copy(kotlin.String){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonSymbol.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonSymbol.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonSymbol.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn.bson/BsonTimestamp : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonTimestamp|null[0]
+    constructor <init>(kotlin/UInt, kotlin/UInt) // ru.workinprogress.mongkn.bson/BsonTimestamp.<init>|<init>(kotlin.UInt;kotlin.UInt){}[0]
+
+    final val increment // ru.workinprogress.mongkn.bson/BsonTimestamp.increment|{}increment[0]
+        final fun <get-increment>(): kotlin/UInt // ru.workinprogress.mongkn.bson/BsonTimestamp.increment.<get-increment>|<get-increment>(){}[0]
+    final val seconds // ru.workinprogress.mongkn.bson/BsonTimestamp.seconds|{}seconds[0]
+        final fun <get-seconds>(): kotlin/UInt // ru.workinprogress.mongkn.bson/BsonTimestamp.seconds.<get-seconds>|<get-seconds>(){}[0]
+
+    final fun component1(): kotlin/UInt // ru.workinprogress.mongkn.bson/BsonTimestamp.component1|component1(){}[0]
+    final fun component2(): kotlin/UInt // ru.workinprogress.mongkn.bson/BsonTimestamp.component2|component2(){}[0]
+    final fun copy(kotlin/UInt = ..., kotlin/UInt = ...): ru.workinprogress.mongkn.bson/BsonTimestamp // ru.workinprogress.mongkn.bson/BsonTimestamp.copy|copy(kotlin.UInt;kotlin.UInt){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonTimestamp.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonTimestamp.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonTimestamp.toString|toString(){}[0]
 }
 
 final class ru.workinprogress.mongkn.bson/DocumentBuilder { // ru.workinprogress.mongkn.bson/DocumentBuilder|null[0]
@@ -261,6 +355,18 @@ final class ru.workinprogress.mongkn/UpdateResult { // ru.workinprogress.mongkn/
     final fun toString(): kotlin/String // ru.workinprogress.mongkn/UpdateResult.toString|toString(){}[0]
 }
 
+final object ru.workinprogress.mongkn.bson/BsonMaxKey : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonMaxKey|null[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonMaxKey.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonMaxKey.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonMaxKey.toString|toString(){}[0]
+}
+
+final object ru.workinprogress.mongkn.bson/BsonMinKey : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonMinKey|null[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonMinKey.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonMinKey.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonMinKey.toString|toString(){}[0]
+}
+
 final object ru.workinprogress.mongkn.bson/BsonNull : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonNull|null[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonNull.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonNull.hashCode|hashCode(){}[0]
@@ -273,6 +379,12 @@ final object ru.workinprogress.mongkn.bson/BsonObjectIdSerializer : kotlinx.seri
 
     final fun deserialize(kotlinx.serialization.encoding/Decoder): ru.workinprogress.mongkn.bson/BsonObjectId // ru.workinprogress.mongkn.bson/BsonObjectIdSerializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
     final fun serialize(kotlinx.serialization.encoding/Encoder, ru.workinprogress.mongkn.bson/BsonObjectId) // ru.workinprogress.mongkn.bson/BsonObjectIdSerializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;ru.workinprogress.mongkn.bson.BsonObjectId){}[0]
+}
+
+final object ru.workinprogress.mongkn.bson/BsonUndefined : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonUndefined|null[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // ru.workinprogress.mongkn.bson/BsonUndefined.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonUndefined.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn.bson/BsonUndefined.toString|toString(){}[0]
 }
 
 final object ru.workinprogress.mongkn/Mongkn { // ru.workinprogress.mongkn/Mongkn|null[0]

@@ -43,13 +43,18 @@ Sealed-иерархия вместо `Map<String, Any>`; причина — ре
 Документы строятся билдером: `document { put("name", "x"); putDocument("n") { put("a", 1) } }` —
 [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/DocumentBuilder.kt).
 
-Типы за пределами списка (binary, decimal128, regex, code) при чтении дают
-`UnsupportedBsonTypeException` — осознанная граница прототипа, задача M-24.
+Покрыты все типы BSON, кроме `dbpointer` и `code with scope` — оба устаревшие, и на них
+остаётся `UnsupportedBsonTypeException`. `decimal128` хранится канонической строкой: своей
+128-битной десятичной арифметики у Kotlin/Native нет, а мост в BigDecimal сознательно
+не тянется в ядро (решение Р13).
 
 ```
 BsonValue
- ├ BsonString  ├ BsonInt32   ├ BsonInt64   ├ BsonDouble
- ├ BsonBoolean ├ BsonNull    ├ BsonObjectId├ BsonDateTime
+ ├ BsonString  ├ BsonInt32     ├ BsonInt64    ├ BsonDouble
+ ├ BsonBoolean ├ BsonNull      ├ BsonObjectId ├ BsonDateTime
+ ├ BsonBinary (подтип + байты)  ├ BsonDecimal128 (каноническая строка)
+ ├ BsonTimestamp ├ BsonRegex   ├ BsonCode     ├ BsonSymbol
+ ├ BsonUndefined ├ BsonMinKey  ├ BsonMaxKey
  ├ BsonDocument (упорядоченные пары key → BsonValue)
  └ BsonArray
 ```

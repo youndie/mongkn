@@ -7,8 +7,9 @@ package ru.workinprogress.mongkn.bson
  * а `ObjectId` и `DateTime` в `Any` вообще не выражаются — без этого `Document → bson_t → Document`
  * не возвращает исходный документ. Обоснование — решение Р4 ресёрча.
  *
- * Покрыты типы, нужные MVP. Встретив в ответе сервера что-то ещё (binary, decimal128, regex, code),
- * чтение упадёт с [UnsupportedBsonTypeException] — это осознанная граница прототипа, а не недосмотр.
+ * Покрыты все типы BSON, кроме двух устаревших — `dbpointer` и `code with scope`. Их чтение
+ * падает с [UnsupportedBsonTypeException]: первый удалён из спецификации, второй объявлен
+ * устаревшим, а полезной нагрузки у обоих столько же, сколько реальных данных с ними.
  */
 public sealed interface BsonValue
 
@@ -75,6 +76,92 @@ public class BsonObjectId(bytes: ByteArray) : BsonValue {
         }
     }
 }
+
+/**
+ * Двоичные данные с подтипом.
+ *
+ * Подтип — не украшение: `0x04` это UUID, `0x00` — просто байты, `0x06` — зашифрованное поле.
+ * Потерять его значит превратить UUID в мешок байт, поэтому он часть значения, а не деталь
+ * кодирования.
+ *
+ * Не `data class`: у `ByteArray` равенство ссылочное.
+ */
+public class BsonBinary(public val subtype: UByte, bytes: ByteArray) : BsonValue {
+
+    private val bytes: ByteArray = bytes.copyOf()
+
+    public fun toByteArray(): ByteArray = bytes.copyOf()
+
+    public val size: Int get() = bytes.size
+
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is BsonBinary && subtype == other.subtype && bytes.contentEquals(other.bytes))
+
+    override fun hashCode(): Int = 31 * subtype.hashCode() + bytes.contentHashCode()
+
+    override fun toString(): String = "BsonBinary(subtype=0x${subtype.toString(16)}, ${bytes.size} байт)"
+
+    public companion object {
+        /** Обычные байты. */
+        public const val GENERIC: UByte = 0x00u
+        /** UUID в каноническом представлении. */
+        public const val UUID: UByte = 0x04u
+        /** Поле, зашифрованное client-side field level encryption. */
+        public const val ENCRYPTED: UByte = 0x06u
+    }
+}
+
+/**
+ * `decimal128` — 128-битное десятичное число.
+ *
+ * Хранится строкой, а не парой `int64`: libbson сама переводит туда и обратно
+ * (`bson_decimal128_from_string` / `_to_string`), а собственная арифметика по 128-битному
+ * десятичному формату — отдельная библиотека, которой у Kotlin/Native нет.
+ *
+ * **Запись приводится к каноническому виду при создании.** Без этого `BsonDecimal128("0.0…01")`
+ * и прочитанное обратно `BsonDecimal128("1E-30")` были бы разными значениями при одном и том же
+ * числе — ровно это и поймали тесты M-24.
+ *
+ * @throws IllegalArgumentException если строка не разбирается как decimal128.
+ */
+public class BsonDecimal128 private constructor(public val value: String) : BsonValue {
+
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is BsonDecimal128 && value == other.value)
+
+    override fun hashCode(): Int = value.hashCode()
+
+    override fun toString(): String = "BsonDecimal128($value)"
+
+    public companion object {
+        public operator fun invoke(text: String): BsonDecimal128 =
+            BsonDecimal128(canonicalDecimal128(text))
+    }
+}
+
+/**
+ * Внутренний тип MongoDB для оплога и репликации: пара «секунды от эпохи» и «счётчик внутри
+ * секунды». С [BsonDateTime] не путать — у них разное назначение и разное представление.
+ */
+public data class BsonTimestamp(public val seconds: UInt, public val increment: UInt) : BsonValue
+
+/** Регулярное выражение: шаблон и флаги (`i`, `m`, `s`, `x`, `u`). */
+public data class BsonRegex(public val pattern: String, public val options: String = "") : BsonValue
+
+/** Хранимый JavaScript. */
+public data class BsonCode(public val code: String) : BsonValue
+
+/** Устаревший строковый тип. Читается, потому что встречается в старых коллекциях. */
+public data class BsonSymbol(public val value: String) : BsonValue
+
+/** Устаревший маркер «значение не определено». */
+public data object BsonUndefined : BsonValue
+
+/** Меньше любого другого значения при сравнении. Используется в диапазонах и шардировании. */
+public data object BsonMinKey : BsonValue
+
+/** Больше любого другого значения при сравнении. */
+public data object BsonMaxKey : BsonValue
 
 /** Массив BSON. На проводе это документ с ключами `"0"`, `"1"`, … — см. [BsonCodec]. */
 public class BsonArray(public val values: List<BsonValue>) : BsonValue, Iterable<BsonValue> {

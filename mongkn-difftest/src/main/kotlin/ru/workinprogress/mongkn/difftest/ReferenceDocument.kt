@@ -1,6 +1,13 @@
 package ru.workinprogress.mongkn.difftest
 
 import org.bson.BsonArray
+import org.bson.BsonBinary
+import org.bson.BsonDecimal128
+import org.bson.BsonMaxKey
+import org.bson.BsonMinKey
+import org.bson.BsonRegularExpression
+import org.bson.BsonTimestamp
+import org.bson.types.Decimal128
 import org.bson.BsonBoolean
 import org.bson.BsonDateTime
 import org.bson.BsonDocument
@@ -69,6 +76,15 @@ public object ReferenceDocument {
                 ),
             ),
         )
+        // Типы за пределами MVP (M-24). Именно здесь реализации обычно и расходятся:
+        // подтип binary легко потерять, а decimal128 — записать не в каноническом виде.
+        .append("binaryGeneric", BsonBinary(byteArrayOf(1, 2, 3)))
+        .append("binaryUuid", BsonBinary(0x04, ByteArray(16) { it.toByte() }))
+        .append("decimal", BsonDecimal128(Decimal128.parse("1234567890.123456789")))
+        .append("timestamp", BsonTimestamp(1_700_000_000, 7))
+        .append("regex", BsonRegularExpression("^a.*z$", "im"))
+        .append("minKey", BsonMinKey())
+        .append("maxKey", BsonMaxKey())
         .append("emptyArray", BsonArray(emptyList()))
         .append("emptyDocument", BsonDocument())
 }

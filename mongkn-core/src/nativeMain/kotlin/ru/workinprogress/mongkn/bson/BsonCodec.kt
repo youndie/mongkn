@@ -7,7 +7,14 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CPointerVar
+import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.UIntVar
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.allocPointerTo
+import kotlinx.cinterop.convert
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.cstr
@@ -15,6 +22,33 @@ import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import kotlinx.cinterop.set
 import kotlinx.cinterop.toKString
+import mongkn.cinterop.BSON_TYPE_BINARY
+import mongkn.cinterop.BSON_TYPE_CODE
+import mongkn.cinterop.BSON_TYPE_DECIMAL128
+import mongkn.cinterop.BSON_TYPE_MAXKEY
+import mongkn.cinterop.BSON_TYPE_MINKEY
+import mongkn.cinterop.BSON_TYPE_REGEX
+import mongkn.cinterop.BSON_TYPE_SYMBOL
+import mongkn.cinterop.BSON_TYPE_TIMESTAMP
+import mongkn.cinterop.BSON_TYPE_UNDEFINED
+import mongkn.cinterop.bson_append_binary
+import mongkn.cinterop.bson_append_code
+import mongkn.cinterop.bson_append_decimal128
+import mongkn.cinterop.bson_append_maxkey
+import mongkn.cinterop.bson_append_minkey
+import mongkn.cinterop.bson_append_regex
+import mongkn.cinterop.bson_append_symbol
+import mongkn.cinterop.bson_append_timestamp
+import mongkn.cinterop.bson_append_undefined
+import mongkn.cinterop.bson_decimal128_from_string
+import mongkn.cinterop.bson_decimal128_t
+import mongkn.cinterop.bson_decimal128_to_string
+import mongkn.cinterop.bson_iter_binary
+import mongkn.cinterop.bson_iter_code
+import mongkn.cinterop.bson_iter_decimal128
+import mongkn.cinterop.bson_iter_regex
+import mongkn.cinterop.bson_iter_symbol
+import mongkn.cinterop.bson_iter_timestamp
 import mongkn.cinterop.bson_append_array
 import mongkn.cinterop.bson_append_bool
 import mongkn.cinterop.bson_append_date_time
@@ -109,6 +143,37 @@ private fun MemScope.appendValue(target: CPointer<bson_t>, key: String, value: B
         is BsonBoolean -> bson_append_bool(target, key, -1, value.value)
         BsonNull -> bson_append_null(target, key, -1)
         is BsonDateTime -> bson_append_date_time(target, key, -1, value.epochMillis)
+        is BsonTimestamp -> bson_append_timestamp(target, key, -1, value.seconds, value.increment)
+        is BsonRegex -> bson_append_regex(target, key, -1, value.pattern, value.options)
+        // У bson_append_code нет параметра длины — NUL внутри кода непредставим средствами
+        // самой libbson, не только нашими.
+        is BsonCode -> bson_append_code(target, key, -1, value.code)
+        is BsonSymbol -> bson_append_symbol(target, key, -1, value.value, -1)
+        BsonUndefined -> bson_append_undefined(target, key, -1)
+        BsonMinKey -> bson_append_minkey(target, key, -1)
+        BsonMaxKey -> bson_append_maxkey(target, key, -1)
+
+        is BsonBinary -> {
+            val bytes = value.toByteArray()
+            if (bytes.isEmpty()) {
+                bson_append_binary(target, key, -1, value.subtype.convert(), null, 0u)
+            } else {
+                bytes.usePinned { pinned ->
+                    bson_append_binary(
+                        target, key, -1, value.subtype.convert(),
+                        pinned.addressOf(0).reinterpret<UByteVar>(), bytes.size.convert(),
+                    )
+                }
+            }
+        }
+
+        is BsonDecimal128 -> {
+            val decimal = alloc<bson_decimal128_t>()
+            require(bson_decimal128_from_string(value.value, decimal.ptr)) {
+                "не разбирается как decimal128: \"${'$'}{value.value}\""
+            }
+            bson_append_decimal128(target, key, -1, decimal.ptr)
+        }
 
         is BsonObjectId -> {
             val oid = alloc<bson_oid_t>()
@@ -128,6 +193,23 @@ private fun MemScope.appendValue(target: CPointer<bson_t>, key: String, value: B
         }
     }
     check(ok) { "bson_append_* отказался добавить поле \"$key\": документ переполнен или ключ некорректен" }
+}
+
+/**
+ * Приводит запись decimal128 к каноническому виду средствами libbson.
+ *
+ * Нужно потому, что `0.000000000000000000000000000001` и `1E-30` — одно число, но разные строки,
+ * и после round-trip libbson отдаёт второе. Без приведения два равных числа оказывались бы
+ * неравными значениями, что заметили тесты M-24.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun canonicalDecimal128(text: String): String = memScoped {
+    val decimal = alloc<bson_decimal128_t>()
+    require(bson_decimal128_from_string(text, decimal.ptr)) { "не разбирается как decimal128: \"$text\"" }
+    // 43 байта — BSON_DECIMAL128_STRING из bson-decimal128.h.
+    val buffer = allocArray<ByteVar>(43)
+    bson_decimal128_to_string(decimal.ptr, buffer)
+    buffer.toKString()
 }
 
 /**
@@ -196,6 +278,53 @@ private fun MemScope.readValue(iter: CPointer<bson_iter_t>, key: String): BsonVa
         BSON_TYPE_OID -> {
             val oid = bson_iter_oid(iter) ?: error("bson_iter_oid вернул NULL")
             BsonObjectId(oid.pointed.bytes.readBytes(BsonObjectId.SIZE))
+        }
+
+        BSON_TYPE_TIMESTAMP -> {
+            val seconds = alloc<UIntVar>()
+            val increment = alloc<UIntVar>()
+            bson_iter_timestamp(iter, seconds.ptr, increment.ptr)
+            BsonTimestamp(seconds.value, increment.value)
+        }
+
+        BSON_TYPE_REGEX -> {
+            val options = allocPointerTo<ByteVar>()
+            val pattern = bson_iter_regex(iter, options.ptr) ?: error("bson_iter_regex вернул NULL")
+            BsonRegex(pattern.toKString(), options.value?.toKString().orEmpty())
+        }
+
+        BSON_TYPE_CODE -> {
+            val length = alloc<UIntVar>()
+            val code = bson_iter_code(iter, length.ptr) ?: error("bson_iter_code вернул NULL")
+            BsonCode(code.readBytes(length.value.toInt()).decodeToString())
+        }
+
+        BSON_TYPE_SYMBOL -> {
+            val length = alloc<UIntVar>()
+            val symbol = bson_iter_symbol(iter, length.ptr) ?: error("bson_iter_symbol вернул NULL")
+            BsonSymbol(symbol.readBytes(length.value.toInt()).decodeToString())
+        }
+
+        BSON_TYPE_UNDEFINED -> BsonUndefined
+        BSON_TYPE_MINKEY -> BsonMinKey
+        BSON_TYPE_MAXKEY -> BsonMaxKey
+
+        BSON_TYPE_BINARY -> {
+            val subtype = alloc<UIntVar>()
+            val length = alloc<UIntVar>()
+            val data = allocPointerTo<UByteVar>()
+            bson_iter_binary(iter, subtype.ptr.reinterpret(), length.ptr, data.ptr)
+            val bytes = data.value?.readBytes(length.value.toInt()) ?: ByteArray(0)
+            BsonBinary(subtype.value.toUByte(), bytes)
+        }
+
+        BSON_TYPE_DECIMAL128 -> {
+            val decimal = alloc<bson_decimal128_t>()
+            check(bson_iter_decimal128(iter, decimal.ptr)) { "bson_iter_decimal128 не прочитал значение" }
+            // 43 байта — BSON_DECIMAL128_STRING из bson-decimal128.h.
+            val buffer = allocArray<ByteVar>(43)
+            bson_decimal128_to_string(decimal.ptr, buffer)
+            BsonDecimal128(buffer.toKString())
         }
 
         BSON_TYPE_DOCUMENT -> BsonDocument(readEntries(recurse(iter)))

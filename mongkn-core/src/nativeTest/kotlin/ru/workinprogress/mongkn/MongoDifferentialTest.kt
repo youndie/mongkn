@@ -1,7 +1,13 @@
 package ru.workinprogress.mongkn
 
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.bson.BsonBinary
 import ru.workinprogress.mongkn.bson.BsonDateTime
+import ru.workinprogress.mongkn.bson.BsonDecimal128
+import ru.workinprogress.mongkn.bson.BsonMaxKey
+import ru.workinprogress.mongkn.bson.BsonMinKey
+import ru.workinprogress.mongkn.bson.BsonRegex
+import ru.workinprogress.mongkn.bson.BsonTimestamp
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.BsonInt64
 import ru.workinprogress.mongkn.bson.BsonObjectId
@@ -90,6 +96,13 @@ class MongoDifferentialTest {
             addDocument { put("four", true) }
             addArray { add(5L) }
         }
+        put("binaryGeneric", BsonBinary(BsonBinary.GENERIC, byteArrayOf(1, 2, 3)))
+        put("binaryUuid", BsonBinary(BsonBinary.UUID, ByteArray(16) { it.toByte() }))
+        put("decimal", BsonDecimal128("1234567890.123456789"))
+        put("timestamp", BsonTimestamp(seconds = 1_700_000_000u, increment = 7u))
+        put("regex", BsonRegex("^a.*z$", "im"))
+        put("minKey", BsonMinKey)
+        put("maxKey", BsonMaxKey)
         putArray("emptyArray") {}
         putDocument("emptyDocument") {}
     }
