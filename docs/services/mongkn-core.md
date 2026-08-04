@@ -53,6 +53,7 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [src/nativeMain/kotlin/io/github/mongkn/MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt) | подъём `bson_error_t` в исключение |
 | [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod. Проверяют ожидания автора |
 | [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoDifferentialTest.kt) | сверка с официальным драйвером — фаза B, см. [mongkn-difftest](mongkn-difftest.md) |
+| [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
 | [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 
 ## 3. Как устроено
@@ -140,5 +141,7 @@ docker run -d --name mongkn-it -p 27017:27017 mongo:8
 * **`Mongkn.shutdown()` терминален на весь процесс.** После него ни один новый `MongoClient`
   не заработает: `mongoc_init()` не восстанавливает драйвер после `mongoc_cleanup()`.
 * **Долгий `find` держит клиента из пула всё время сбора потока.** Поток при этом свободен,
-  а клиент — нет; при множестве медленных потребителей пул libmongoc (100) может исчерпаться,
-  и `mongoc_client_pool_pop` заблокирует поток. Задача M-23.
+  а клиент — нет; при множестве медленных потребителей пул libmongoc (100) исчерпается, и
+  `mongoc_client_pool_pop` заблокирует поток **навсегда**: прервать блокировку внутри C нечем,
+  таймаут корутины на неё не действует (§1.12). Снаружи это выглядит как повисшая сборка,
+  а не как ошибка. Задача M-23.
