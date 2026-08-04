@@ -9,9 +9,13 @@ MongoDB для Kotlin/Native — обвязка над официальным C-
 
 **Статус: рабочий прототип.** Шесть операций (`insertOne`, `insertMany`, `updateOne`,
 `deleteOne`, `countDocuments`, `find`), 25 тестов, из них 16 интеграционных против настоящего
-mongod. Поверхность `MongoCollection` **генерируется** по сигнатурам официального JVM-драйвера
-(KSP + KotlinPoet) — но выгода от этого оказалась меньше ожидаемой, замер в
-[ресёрче §1.10](docs/research/research-architecture.md). Дальше — [BACKLOG.md](BACKLOG.md).
+mongod. Поверхность `MongoCollection` пока генерируется по сигнатурам официального JVM-драйвера
+(KSP + KotlinPoet), но от этого плана решено отказаться: выгода оказалась меньше ожидаемой,
+а главное — генератор проверяет форму API, а не поведение. Замер и обоснование —
+[ресёрч §1.10 и решение Р9](docs/research/research-architecture.md).
+
+Дальше приоритет на проверках корректности: дифференциальные тесты против официального
+драйвера и раннер spec-тестов MongoDB. См. [BACKLOG.md](BACKLOG.md).
 
 ```kotlin
 fun main() = runBlocking {

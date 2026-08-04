@@ -48,12 +48,12 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) | одноразовый жизненный цикл драйвера: `NEW → INITIALIZING → READY → SHUT_DOWN` |
 | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) | владение `mongoc_client_pool_t`, `withClient` (pop/push), собственный пул потоков |
 | [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) | реализация `insertOne` и `find`; здесь же вся работа с курсором |
-| `MongoCollection` | **генерируется**, исходника в репозитории нет — см. [mongkn-codegen](mongkn-codegen.md) |
+| `MongoCollection` | **генерируется** (пока), исходника в репозитории нет — см. [mongkn-codegen](mongkn-codegen.md). Генерация уходит по решению Р9, задача M-33 |
 | [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt) | иерархия значений и `Document` |
 | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) | перевод в `bson_t` и обратно; правила владения указателями |
 | [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt) | минимальный билдер (`document { put(...) }`) |
 | [src/nativeMain/kotlin/io/github/mongkn/MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt) | подъём `bson_error_t` в исключение |
-| [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod |
+| [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod. **Проверяют ожидания автора, а не эталон** — заменяется дифференциальными тестами, M-28 |
 | [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 
 ## 3. Как устроено
@@ -100,7 +100,8 @@ pkg-config на машине разработки нет (ресёрч §1.1), �
 
 **Сборка зависит от `:mongkn-api-spec`:** конфигурация `nativeApiSources` приносит
 сгенерированный `MongoCollection` в source set `nativeMain`. Поэтому `:mongkn-core` нельзя
-собрать в одиночку без JVM-модулей — это цена решения Р5.
+собрать в одиночку без JVM-модулей — это цена решения Р5, и именно она снимается решением Р9
+(задача M-33).
 
 **Что ломается при апгрейде окружения:** `brew upgrade mongo-c-driver` меняет имя каталога
 с заголовками (`mongoc-2.1.1` → `mongoc-2.3.3`), а задача `cinteropMongocMacosArm64` не считает
