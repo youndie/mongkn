@@ -7,7 +7,12 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.UIntVar
 import kotlinx.cinterop.readBytes
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.cstr
+import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import kotlinx.cinterop.set
 import kotlinx.cinterop.toKString
 import mongkn.cinterop.bson_append_array
@@ -92,8 +97,12 @@ private fun MemScope.appendEntries(target: CPointer<bson_t>, document: BsonDocum
 @OptIn(ExperimentalForeignApi::class)
 private fun MemScope.appendValue(target: CPointer<bson_t>, key: String, value: BsonValue) {
     // key_length = -1 означает «посчитай strlen сам»; то же для длины строкового значения.
+    // Ключ в BSON — C-строка, и NUL в ней не представим. Молча обрезать нельзя: пользователь
+    // получил бы не тот документ, который просил, без единого признака ошибки.
+    require(!key.contains('\u0000')) { "ключ BSON не может содержать NUL: \"$key\"" }
+
     val ok = when (value) {
-        is BsonString -> bson_append_utf8(target, key, -1, value.value, -1)
+        is BsonString -> appendUtf8(target, key, value.value)
         is BsonInt32 -> bson_append_int32(target, key, -1, value.value)
         is BsonInt64 -> bson_append_int64(target, key, -1, value.value)
         is BsonDouble -> bson_append_double(target, key, -1, value.value)
@@ -119,6 +128,23 @@ private fun MemScope.appendValue(target: CPointer<bson_t>, key: String, value: B
         }
     }
     check(ok) { "bson_append_* отказался добавить поле \"$key\": документ переполнен или ключ некорректен" }
+}
+
+/**
+ * Кладёт строку с **явной** длиной в байтах.
+ *
+ * `-1` вместо длины означало бы «посчитай `strlen`», и строка обрезалась бы на первом NUL.
+ * BSON-строки длиннопрефиксные, NUL внутри значения формат допускает, — обрезание было
+ * молчаливой потерей данных. Найдено property-тестом (M-32).
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun MemScope.appendUtf8(target: CPointer<bson_t>, key: String, value: String): Boolean {
+    val bytes = value.encodeToByteArray()
+    // Пустую строку нельзя пинить — addressOf(0) на пустом массиве бросает.
+    if (bytes.isEmpty()) return bson_append_utf8(target, key.cstr.getPointer(this), -1, "".cstr.getPointer(this), 0)
+    return bytes.usePinned { pinned ->
+        bson_append_utf8(target, key.cstr.getPointer(this), -1, pinned.addressOf(0), bytes.size)
+    }
 }
 
 /** Собирает временный дочерний `bson_t`, отдаёт его в [use] и гарантированно уничтожает. */
@@ -152,8 +178,13 @@ private fun MemScope.readValue(iter: CPointer<bson_iter_t>, key: String): BsonVa
     // top-level-констант: в C-энуме есть BSON_TYPE_MINKEY = 0xFF, и в Kotlin-enum он не лёг.
     // Поэтому здесь `when` по UInt, а не по значениям перечисления.
     when (val type = bson_iter_type(iter)) {
-        BSON_TYPE_UTF8 ->
-            BsonString(bson_iter_utf8(iter, null)?.toKString() ?: error("bson_iter_utf8 вернул NULL"))
+        // Длину берём у libbson, а не через toKString(): та остановилась бы на первом NUL
+        // и потеряла хвост — зеркало той же проблемы, что и при записи.
+        BSON_TYPE_UTF8 -> {
+            val length = alloc<UIntVar>()
+            val chars = bson_iter_utf8(iter, length.ptr) ?: error("bson_iter_utf8 вернул NULL")
+            BsonString(chars.readBytes(length.value.toInt()).decodeToString())
+        }
 
         BSON_TYPE_INT32 -> BsonInt32(bson_iter_int32(iter))
         BSON_TYPE_INT64 -> BsonInt64(bson_iter_int64(iter))

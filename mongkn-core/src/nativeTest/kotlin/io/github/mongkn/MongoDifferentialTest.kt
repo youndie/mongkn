@@ -68,6 +68,7 @@ class MongoDifferentialTest {
         put("string", "kotlin-native")
         put("emptyString", "")
         put("unicode", "документ ✓")
+        put("embeddedNul", "a\u0000b")
         put("int32", 42)
         put("int32Negative", -1)
         put("int64", 9_000_000_000L)

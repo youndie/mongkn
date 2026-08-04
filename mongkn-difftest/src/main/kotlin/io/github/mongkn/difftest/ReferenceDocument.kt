@@ -39,6 +39,9 @@ public object ReferenceDocument {
         .append("string", BsonString("kotlin-native"))
         .append("emptyString", BsonString(""))
         .append("unicode", BsonString("документ ✓"))
+        // Строка с NUL внутри: BSON её допускает, а наивный кодек обрезает по strlen.
+        // Эталон подтверждает, что именно так это и должно храниться.
+        .append("embeddedNul", BsonString("a\u0000b"))
         .append("int32", BsonInt32(42))
         .append("int32Negative", BsonInt32(-1))
         .append("int64", BsonInt64(9_000_000_000L))
