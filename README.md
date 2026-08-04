@@ -72,8 +72,12 @@ repositories {
 }
 
 dependencies {
+    // Опубликовано со сборки на Linux, поэтому короткая координата резолвится для linuxX64.
     implementation("ru.workinprogress.mongkn:mongkn-core:0.1.0-SNAPSHOT")
     implementation("ru.workinprogress.mongkn:mongkn-extensions:0.1.0-SNAPSHOT") // infix-DSL, по желанию
+
+    // На macOS нужна таргетная координата — корневой модуль знает только про хост сборки (M-37):
+    // implementation("ru.workinprogress.mongkn:mongkn-core-macosarm64:0.1.0-SNAPSHOT")
 }
 ```
 
