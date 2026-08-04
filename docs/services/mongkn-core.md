@@ -55,6 +55,8 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoDifferentialTest.kt) | сверка с официальным драйвером — фаза B, см. [mongkn-difftest](mongkn-difftest.md) |
 | [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
 | [bson/BsonAllocations.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonAllocations.kt) | считающий аллокатор libbson — единственное, что видит утечки |
+| [spec/SpecTestRunner.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/spec/SpecTestRunner.kt) | раннер официальных spec-тестов MongoDB; частичный, отчёт печатает непокрытое |
+| [spec-tests.gradle.kts](../../mongkn-core/spec-tests.gradle.kts) | загрузка spec-тестов в `build/` — в репозиторий они не кладутся из-за лицензии |
 | [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 
 ## 3. Как устроено
@@ -120,6 +122,10 @@ brew install mongo-c-driver
 ```bash
 ./gradlew :mongkn-core:build
 ```
+
+Первый прогон дополнительно требует сети: задача `fetchSpecTests` качает официальные spec-тесты
+MongoDB в `build/spec-tests`. В репозиторий они не кладутся — `mongodb/specifications` под
+CC BY-NC-SA 3.0, а это NonCommercial и ShareAlike (§1.16).
 
 Интеграционным тестам нужен локальный mongod — без него они падают, а не пропускаются:
 

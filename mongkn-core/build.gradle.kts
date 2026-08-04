@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
 }
 
+// Загрузка официальных spec-тестов MongoDB — вынесена, потому что там своя история
+// про лицензию и про то, почему файлы не лежат в репозитории.
+apply(from = "spec-tests.gradle.kts")
+
 /**
  * Где искать заголовки и библиотеки mongo-c-driver.
  *
@@ -118,6 +122,11 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
     // при первом же инкрементальном прогоне после удаления генератора.
     outputs.upToDateWhen { false }
     // Путь к фикстуре нативный тест получает через окружение: Gradle-свойства ему недоступны.
+    dependsOn("fetchSpecTests")
+    environment(
+        "MONGKN_SPEC_TESTS",
+        layout.buildDirectory.dir("spec-tests").get().asFile.absolutePath,
+    )
     environment(
         "MONGKN_DIFF_FIXTURE",
         project(":mongkn-difftest").layout.buildDirectory.file("diff/reference.json").get().asFile.absolutePath,

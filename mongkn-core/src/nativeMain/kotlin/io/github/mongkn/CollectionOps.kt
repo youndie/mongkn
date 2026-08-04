@@ -4,12 +4,16 @@ import io.github.mongkn.bson.BsonArray
 import io.github.mongkn.bson.BsonDocument
 import io.github.mongkn.bson.BsonInt32
 import io.github.mongkn.bson.BsonInt64
+import io.github.mongkn.bson.BsonObjectId
 import io.github.mongkn.bson.BsonValue
 import io.github.mongkn.bson.Document
 import io.github.mongkn.bson.toDocument
 import io.github.mongkn.bson.toNativeBson
 import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CPointerVar
+import kotlinx.cinterop.readBytes
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.MemScope
 import kotlinx.cinterop.alloc
@@ -28,6 +32,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
+import mongkn.cinterop.bson_oid_init
+import mongkn.cinterop.bson_oid_t
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_collection
 import mongkn.cinterop.mongoc_collection_count_documents
@@ -83,21 +89,40 @@ internal object CollectionOps {
         documents: List<Document>,
     ): InsertManyResult = execute(client, databaseName, name) { collection ->
         require(documents.isNotEmpty()) { "insertMany: список документов пуст" }
-        withBsonArray(documents) { payload ->
+        // `_id` проставляем на клиенте, как это делают все официальные драйверы.
+        // Без этого вернуть insertedIds невозможно: reply от mongoc_collection_insert_many
+        // их не содержит, в отличие от insert_one. Обнаружено spec-тестом
+        // «InsertMany with non-existing documents» (M-30).
+        val prepared = documents.map { withGeneratedId(it) }
+        withBsonArray(prepared) { payload ->
             withReply { reply, error ->
                 val ok = mongoc_collection_insert_many(
-                    collection, payload, documents.size.convert(), null, reply, error,
+                    collection, payload, prepared.size.convert(), null, reply, error,
                 )
                 if (!ok) fail(error)
-                val answer = reply.toDocument()
                 InsertManyResult(
-                    insertedCount = answer.count("insertedCount"),
-                    // insertedIds сервер отдаёт не всегда; отсутствие поля — не ошибка.
-                    insertedIds = (answer["insertedIds"] as? BsonArray)?.values.orEmpty(),
+                    insertedCount = reply.toDocument().count("insertedCount"),
+                    insertedIds = prepared.map { it.required("_id") },
                 )
             }
         }
     }
+
+    /**
+     * Возвращает документ с гарантированным `_id`: свой, если он уже есть, иначе новый ObjectId.
+     *
+     * `_id` ставится **первым полем** — так его кладут официальные драйверы, и так он выглядит
+     * в ответе сервера, что важно для сравнения документов целиком.
+     */
+    private fun MemScope.withGeneratedId(document: Document): Document =
+        if ("_id" in document) {
+            document
+        } else {
+            val oid = alloc<bson_oid_t>()
+            bson_oid_init(oid.ptr, null)
+            val bytes = oid.ptr.reinterpret<ByteVar>().readBytes(BsonObjectId.SIZE)
+            BsonDocument(listOf<Pair<String, BsonValue>>("_id" to BsonObjectId(bytes)) + document.entries)
+        }
 
     suspend fun updateOne(
         client: MongoClient,

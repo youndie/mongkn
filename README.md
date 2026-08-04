@@ -55,6 +55,15 @@ fun main() = runBlocking {
 docker run -d --name mongkn-it -p 27017:27017 mongo:8
 ```
 
+## Тесты
+
+```bash
+./gradlew build
+```
+
+Нужен локальный mongod и — на первом прогоне — сеть: официальные spec-тесты MongoDB
+скачиваются в `build/` и в репозиторий не кладутся ([CC BY-NC-SA](https://github.com/mongodb/specifications)).
+
 ## Документация
 
 [docs/](docs/README.md) — слоёная документация. Начинать с
