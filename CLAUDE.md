@@ -62,11 +62,20 @@ docker run -d --name mongkn-it -p 27017:27017 mongo:8
 
 ## Публикация
 
-`ru.workinprogress.mongkn`, приватный Reposilite. Креды берутся из `REPOSILITE_USER`
-и `REPOSILITE_SECRET` (окружение или Gradle-свойства) — в репозитории их нет и быть не должно.
+**Целевая платформа одна — `linuxX64`.** macOS-таргет не публикуется: он нужен для разработки
+и для того, чтобы в CI проверялась ветка mongo-c-driver **2.x** (в Ubuntu только 1.x). Не удаляйте
+macOS-джобу как «ненужный таргет» — вместе с ней исчезнет половина проверки решения Р1.
+
+`ru.workinprogress.mongkn`, приватный Reposilite. Креды — `REPOSILITE_USER` и `REPOSILITE_SECRET`;
+они лежат в `~/.zshrc`, то есть видны **только интерактивной** оболочке, и в репозитории их нет.
+
+Сборка и публикация — из Linux-контейнера:
 
 ```bash
-./gradlew publishAllPublicationsToReposilitePrivateRepository
+zsh -ic 'docker run --rm --platform linux/amd64 --network mongkn-ci \
+  -v "$PWD":/src -v mongkn-gradle-amd64:/gradle -v mongkn-konan-amd64:/konan \
+  -e REPOSILITE_USER -e REPOSILITE_SECRET mongkn-ci:amd64 \
+  ./gradlew :mongkn-core:publishAllPublicationsToReposilitePrivateRepository'
 ```
 
 Перед отправкой на сервер стоит прогнать `publishToMavenLocal` и посмотреть координаты:
