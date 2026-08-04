@@ -54,6 +54,7 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod. Проверяют ожидания автора |
 | [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoDifferentialTest.kt) | сверка с официальным драйвером — фаза B, см. [mongkn-difftest](mongkn-difftest.md) |
 | [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
+| [bson/BsonAllocations.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonAllocations.kt) | считающий аллокатор libbson — единственное, что видит утечки |
 | [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 
 ## 3. Как устроено
