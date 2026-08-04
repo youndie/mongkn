@@ -1,5 +1,6 @@
 package io.github.mongkn
 
+import io.github.mongkn.support.TestServer
 import io.github.mongkn.bson.BsonInt32
 import io.github.mongkn.bson.document
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -61,7 +62,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalForeignApi::class)
 class MongoConcurrencyTest {
 
-    private val uri = "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000&socketTimeoutMS=10000"
+    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=10000")
 
     private val clients = mutableListOf<MongoClient>()
 

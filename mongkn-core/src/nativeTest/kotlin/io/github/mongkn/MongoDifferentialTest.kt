@@ -1,5 +1,6 @@
 package io.github.mongkn
 
+import io.github.mongkn.support.TestServer
 import io.github.mongkn.bson.BsonDateTime
 import io.github.mongkn.bson.BsonDocument
 import io.github.mongkn.bson.BsonInt64
@@ -50,7 +51,7 @@ import kotlin.test.assertEquals
 @OptIn(ExperimentalForeignApi::class)
 class MongoDifferentialTest {
 
-    private val uri = "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000"
+    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000")
 
     private val clients = mutableListOf<MongoClient>()
 

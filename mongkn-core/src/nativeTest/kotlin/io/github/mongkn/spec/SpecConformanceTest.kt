@@ -1,5 +1,6 @@
 package io.github.mongkn.spec
 
+import io.github.mongkn.support.TestServer
 import io.github.mongkn.MongoClient
 import io.github.mongkn.bson.BsonArray
 import io.github.mongkn.bson.BsonString
@@ -23,7 +24,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class SpecConformanceTest {
 
-    private val uri = "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000&socketTimeoutMS=10000"
+    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=10000")
 
     private var client: MongoClient? = null
 

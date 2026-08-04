@@ -40,6 +40,16 @@ Kotlin/Native обвязка над MongoDB C-драйвером (`libmongoc`). 
 Собирается **только хостовый таргет**: `cinterop` требует заголовков целевой платформы.
 Это решение (Р6), а не недоделка.
 
+Проверить Linux локально (там libmongoc **1.x**, а на macOS 2.x — обе ветки должны работать):
+
+```bash
+docker build -t mongkn-ci ci/
+docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
+  -e MONGKN_TEST_HOST=mongkn-ci-db:27017 mongkn-ci ./gradlew build
+```
+
+`--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
+
 Интеграционным тестам нужен локальный mongod — **без него они падают, а не пропускаются**:
 
 ```bash

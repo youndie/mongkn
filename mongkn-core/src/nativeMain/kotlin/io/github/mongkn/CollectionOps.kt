@@ -74,10 +74,15 @@ internal object CollectionOps {
         name: String,
         document: Document,
     ): InsertOneResult = execute(client, databaseName, name) { collection ->
-        withBson(document) { payload ->
+        // `_id` берём из документа, который сами и отправили, а не из ответа драйвера.
+        // Причина не в стиле: libmongoc 1.26 кладёт в reply только `insertedCount`, тогда как
+        // 2.1.1 добавляет `insertedId` (ресёрч §1.19). Опираться на ответ значило бы работать
+        // на одной ветке драйвера и падать на другой.
+        val prepared = withGeneratedId(document)
+        withBson(prepared) { payload ->
             withReply { reply, error ->
                 if (!mongoc_collection_insert_one(collection, payload, null, reply, error)) fail(error)
-                InsertOneResult(reply.toDocument().required("insertedId"))
+                InsertOneResult(prepared.required("_id"))
             }
         }
     }

@@ -1,5 +1,6 @@
 package io.github.mongkn
 
+import io.github.mongkn.support.TestServer
 import io.github.mongkn.bson.BsonInt32
 import io.github.mongkn.bson.BsonObjectId
 import io.github.mongkn.bson.BsonString
@@ -38,7 +39,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalForeignApi::class)
 class MongoIntegrationTest {
 
-    private val uri = "mongodb://127.0.0.1:27017/?serverSelectionTimeoutMS=3000&socketTimeoutMS=5000"
+    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=5000")
 
     private val clients = mutableListOf<MongoClient>()
 

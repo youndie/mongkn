@@ -34,24 +34,36 @@ fun findIncludeDir(rel: String): File? = mongocPrefixes
     .firstOrNull { File(it, rel).isFile }
 
 /**
- * Имя библиотеки для линковки зависит от мажорной версии драйвера:
- * 2.x — `libmongoc2` / `libbson2`, 1.x — `libmongoc-1.0` / `libbson-1.0`.
- * Выводим из того, что реально лежит в `<prefix>/lib`.
+ * Каталоги с библиотеками.
+ *
+ * Кроме `<prefix>/lib` обязательно смотрим на уровень ниже: Debian и Ubuntu кладут библиотеки
+ * в multiarch-каталог `/usr/lib/aarch64-linux-gnu`, и без этого на Linux ничего не находится.
  */
-fun findLibName(stem: String): String? = mongocPrefixes
+val libDirs: List<File> = mongocPrefixes
     .map { File(it, "lib") }
     .filter { it.isDirectory }
-    .firstNotNullOfOrNull { libDir ->
+    .flatMap { lib -> listOf(lib) + (lib.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
+
+/**
+ * Имя библиотеки для линковки зависит от мажорной версии драйвера:
+ * 2.x — `libmongoc2` / `libbson2`, 1.x — `libmongoc-1.0` / `libbson-1.0`.
+ * Выводим из того, что реально лежит рядом.
+ *
+ * Точность здесь не педантизм: `libmongocrypt.so` тоже начинается с `libmongoc`, и при наивном
+ * сравнении по длине его можно выбрать вместо `libmongoc-1.0`. Поэтому после основы допускаются
+ * только цифры, дефисы и точки — то есть версия, а не другое слово.
+ */
+fun findLibName(stem: String): String? {
+    val allowed = Regex("^" + Regex.escape(stem) + "[-0-9.]*$")
+    return libDirs.firstNotNullOfOrNull { libDir ->
         libDir.listFiles()
             ?.map { it.name }
-            ?.filter { it.startsWith("lib$stem") && (it.endsWith(".dylib") || it.endsWith(".so")) }
+            ?.filter { it.endsWith(".dylib") || it.endsWith(".so") }
             ?.map { it.removePrefix("lib").substringBefore(".dylib").substringBefore(".so") }
-            // "mongoc2.2" (версионированный симлинк) отбрасываем в пользу "mongoc2"
-            ?.filter { !it.substringAfter(stem).contains('.') }
+            ?.filter { allowed.matches(it) }
             ?.minByOrNull { it.length }
     }
-
-val libDirs: List<File> = mongocPrefixes.map { File(it, "lib") }.filter { it.isDirectory }
+}
 
 /**
  * Дифференциальные тесты (M-28): нативная сторона — вторая из трёх фаз.
@@ -68,7 +80,15 @@ kotlin {
     // поэтому собираем только хостовый таргет. Матрица таргетов — задача CI, см. M-13.
     val hostTarget: KotlinNativeTarget = when {
         System.getProperty("os.name") == "Mac OS X" && System.getProperty("os.arch") == "aarch64" -> macosArm64()
-        System.getProperty("os.name") == "Mac OS X" -> macosX64()
+        // Kotlin/Native не поддерживает linux-aarch64 как **хост**: компилятора под него нет.
+        // Объявить таргет мало — Gradle пропустит все задачи компиляции и отрапортует
+        // BUILD SUCCESSFUL, не собрав ни строчки. Молчаливо зелёная сборка хуже красной,
+        // поэтому падаем явно.
+        System.getProperty("os.name") == "Linux" && System.getProperty("os.arch") == "aarch64" -> error(
+            "mongkn: Kotlin/Native не умеет компилировать на linux-aarch64. " +
+                "В контейнере на Apple Silicon запускайте образ как --platform linux/amd64, " +
+                "либо собирайте Linux-таргет в CI на x86_64-раннере."
+        )
         System.getProperty("os.name") == "Linux" -> linuxX64()
         else -> error("mongkn: неподдерживаемый хост ${System.getProperty("os.name")}/${System.getProperty("os.arch")}")
     }
@@ -95,7 +115,28 @@ kotlin {
         binaries.all {
             val mongoc = findLibName("mongoc") ?: error("mongkn: не найдена libmongoc в $libDirs")
             val bson = findLibName("bson") ?: error("mongkn: не найдена libbson в $libDirs")
-            linkerOpts(libDirs.flatMap { listOf("-L${it.absolutePath}") } + listOf("-l$mongoc", "-l$bson"))
+
+            /*
+             * На Linux нужен --allow-shlib-undefined, и это не перестраховка.
+             *
+             * Kotlin/Native линкует своим sysroot с намеренно старой glibc — ради переносимости
+             * бинарника. Системная libbson собрана против glibc дистрибутива, которая новее,
+             * и тянет символы вроде strlcpy@GLIBC_2.38 и pthread_once@GLIBC_2.34. ld.lld по
+             * умолчанию считает неразрешённые ссылки **внутри чужой .so** ошибкой и падает.
+             *
+             * Разрешать их на этапе линковки незачем: динамический загрузчик найдёт их в реальной
+             * glibc системы при запуске. Флаг снимает именно эту проверку и только для
+             * разделяемых библиотек — неразрешённые символы нашего кода по-прежнему ошибка.
+             */
+            val platformOpts = if (System.getProperty("os.name") == "Linux") {
+                listOf("-Wl,--allow-shlib-undefined")
+            } else {
+                emptyList()
+            }
+            linkerOpts(
+                libDirs.flatMap { listOf("-L${it.absolutePath}") } +
+                    listOf("-l$mongoc", "-l$bson") + platformOpts
+            )
         }
     }
 
@@ -123,6 +164,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
     outputs.upToDateWhen { false }
     // Путь к фикстуре нативный тест получает через окружение: Gradle-свойства ему недоступны.
     dependsOn("fetchSpecTests")
+    // Адрес mongod в CI и в Linux-контейнере не 127.0.0.1 — см. support/TestServer.kt.
+    providers.environmentVariable("MONGKN_TEST_HOST").orNull?.let { environment("MONGKN_TEST_HOST", it) }
     environment(
         "MONGKN_SPEC_TESTS",
         layout.buildDirectory.dir("spec-tests").get().asFile.absolutePath,
