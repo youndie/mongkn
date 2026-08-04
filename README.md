@@ -89,6 +89,11 @@ dependencies {
 Нужен локальный mongod и — на первом прогоне — сеть: официальные spec-тесты MongoDB
 скачиваются в `build/` и в репозиторий не кладутся ([CC BY-NC-SA](https://github.com/mongodb/specifications)).
 
+## Что уже умеет
+
+Шесть операций коллекции из тридцати, все типы BSON кроме двух устаревших, типизированные
+коллекции и infix-DSL. Подробно и с цифрами — [docs/coverage.md](docs/coverage.md).
+
 ## Документация
 
 [docs/](docs/README.md) — слоёная документация. Начинать с
