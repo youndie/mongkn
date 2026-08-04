@@ -172,7 +172,7 @@ Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
       дескриптора без рефлексии на Kotlin/Native нельзя — нужен либо кодоген, либо явный
       реестр имён
 
-## M8 — выпуск
+## M8 — выпуск ✅
 
 - [x] **M-17** CI-матрица macOS (mongo-c-driver 2.x) + Linux (libmongoc 1.x) и образ
       [ci/Dockerfile](ci/Dockerfile) для локальной проверки Linux. Ветка 1.x впервые исполнилась
@@ -181,7 +181,11 @@ Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
       Всё починено, 53 теста зелёные на обеих платформах.
       **Сам workflow не прогонялся** — GitHub Actions отсюда не запустить; проверено только то,
       что Linux-сборка проходит в контейнере
-- [ ] **M-18** Публикация klib, README с примером, лицензия
+- [x] **M-18** Публикация в приватный Reposilite: `ru.workinprogress.mongkn`, модули
+      `mongkn-core` и `mongkn-extensions` (плюс таргетные `*-macosarm64` / `*-linuxx64`).
+      Креды — `REPOSILITE_USER` / `REPOSILITE_SECRET` из окружения или Gradle-свойств.
+      `:mongkn-difftest` не публикуется — это тестовая оснастка.
+      **Лицензия не выбрана** и секции `licenses` в POM намеренно нет: репозиторий приватный
 
 ---
 

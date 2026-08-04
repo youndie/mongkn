@@ -6,5 +6,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
-group = "io.github.mongkn"
-version = "0.1.0-SNAPSHOT"
+// Координаты задаются всем проектам, а не только корню: подпроект по умолчанию получает
+// группой имя корневого проекта, и артефакты уехали бы в `mongkn`, а не в `ru.workinprogress.mongkn`.
+allprojects {
+    group = "ru.workinprogress.mongkn"
+    version = providers.gradleProperty("VERSION").getOrElse("0.1.0-SNAPSHOT")
+}

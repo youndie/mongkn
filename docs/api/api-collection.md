@@ -24,10 +24,10 @@ mirrors: com.mongodb.kotlin.client.coroutine (mongodb-driver-kotlin-coroutine 5.
 
 | Сигнатура | Где |
 |---|---|
-| `Mongkn.initialize()` — идемпотентен; обычно не нужен, [MongoClient] делает сам | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) |
+| `Mongkn.initialize()` — идемпотентен; обычно не нужен, [MongoClient] делает сам | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/Mongkn.kt) |
 | `Mongkn.shutdown()` — **терминален на весь процесс**, повторный `initialize()` бросит `IllegalStateException` | там же |
 | `Mongkn.driverVersion` / `Mongkn.bsonVersion` | там же |
-| `MongoException(domain, code, message)` | [MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt) |
+| `MongoException(domain, code, message)` | [MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoException.kt) |
 
 Коды ошибок — проверенные, не выдуманные: `domain` — значение `mongoc_error_domain_t`
 из `mongoc/mongoc-error.h`, `code` для ошибок сервера совпадает с кодом MongoDB. Наблюдалось
@@ -38,10 +38,10 @@ mirrors: com.mongodb.kotlin.client.coroutine (mongodb-driver-kotlin-coroutine 5.
 ### 2.1 Значения BSON
 
 Sealed-иерархия вместо `Map<String, Any>`; причина — решение Р4 ресёрча (round-trip с проверкой
-равенства недостижим на `Any`). Код — [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt).
+равенства недостижим на `Any`). Код — [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/BsonValue.kt).
 
 Документы строятся билдером: `document { put("name", "x"); putDocument("n") { put("a", 1) } }` —
-[bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt).
+[bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/DocumentBuilder.kt).
 
 Типы за пределами списка (binary, decimal128, regex, code) при чтении дают
 `UnsupportedBsonTypeException` — осознанная граница прототипа, задача M-24.
@@ -121,7 +121,7 @@ BsonValue
 Совпадение с официальным драйвером теперь держится на двух вещах:
 
 1. **Эта таблица** (раздел 3) и KDoc в
-   [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) —
+   [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoCollection.kt) —
    текст, который может протухнуть. Это признанная цена решения Р9.
 2. **Дифференциальные тесты** ([mongkn-difftest](../services/mongkn-difftest.md)) — сверка
    с самим драйвером как с эталоном. Сильнее пункта 1: проверяют, что мы делаем то же самое,

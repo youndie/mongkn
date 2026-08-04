@@ -49,17 +49,17 @@ tags: [mvp]
 
 | Модуль | Код |
 |---|---|
-| mongkn-core | [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) — реализация `insertOne` и `find` целиком |
-| mongkn-core | [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) — публичная поверхность |
+| mongkn-core | [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/CollectionOps.kt) — реализация `insertOne` и `find` целиком |
+| mongkn-core | [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoCollection.kt) — публичная поверхность |
 | mongkn-difftest | [сверка с официальным драйвером](../services/mongkn-difftest.md) как с эталоном |
-| mongkn-core | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) — пул клиентов и граница потоков |
-| mongkn-core | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) — конверсия и владение указателями |
-| mongkn-core | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) — жизненный цикл драйвера |
+| mongkn-core | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoClient.kt) — пул клиентов и граница потоков |
+| mongkn-core | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/BsonCodec.kt) — конверсия и владение указателями |
+| mongkn-core | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/Mongkn.kt) — жизненный цикл драйвера |
 
 ## 5. Сценарии (BDD)
 
 Все сценарии автоматизированы в
-[MongoIntegrationTest](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt)
+[MongoIntegrationTest](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoIntegrationTest.kt)
 и прогоняются против настоящего mongod. Значения сверены с кодом и с прогоном.
 
 ### Сценарий: запись и чтение документа

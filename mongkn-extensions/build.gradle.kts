@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
 }
 
+// Публикация в приватный Reposilite — общая для всех выкладываемых модулей.
+apply(from = rootProject.file("publishing.gradle.kts"))
+
 /**
  * Выбор хостового таргета повторяет `:mongkn-core` — вынести в общий скрипт стоит, когда
  * модулей станет больше двух; пока дублирование дешевле лишней абстракции.

@@ -27,8 +27,8 @@ C-кода здесь нет вовсе: модуль работает толь�
 
 | Файл | Что там |
 |---|---|
-| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/io/github/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` |
-| [Updates.kt](../../mongkn-extensions/src/nativeMain/kotlin/io/github/mongkn/ext/Updates.kt) | `setTo`, `incBy`, `unset`, `combine` |
+| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` |
+| [Updates.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Updates.kt) | `setTo`, `incBy`, `unset`, `combine` |
 
 ## 3. Сознательные ограничения / грабли
 

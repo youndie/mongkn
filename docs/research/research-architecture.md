@@ -64,7 +64,7 @@ date: 2026-08-04
 | `bson_new` / `bson_append_utf8` / `bson_append_int32` / `bson_iter_*` / `bson_as_relaxed_extended_json` доступны из Kotlin и дают `{ "hello" : "world", "n" : 42 }` | тот же прогон |
 | Сборка Gradle зелёная, тест хостового таргета проходит | `./gradlew :mongkn-core:build` → `BUILD SUCCESSFUL`, задача `macosArm64Test` |
 
-**Следствие.** Фаза 1 драфта закрыта, но с поправкой из 1.1. Живой код — [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt).
+**Следствие.** Фаза 1 драфта закрыта, но с поправкой из 1.1. Живой код — [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/Mongkn.kt).
 
 ### 1.3 Сетевой путь проверен против настоящего mongod
 
@@ -90,7 +90,7 @@ date: 2026-08-04
 `libbson` доаллоцировал в куче.
 
 **Следствие 3.** Ошибки поднимаются из `bson_error_t` без потерь — отсюда форма
-[MongoException](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt)
+[MongoException](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoException.kt)
 с `domain` + `code` + текстом.
 
 ### 1.4 `mongoc_client_t` не потокобезопасен — а `Dispatchers.Default` многопоточный
@@ -188,7 +188,7 @@ Kotlin/Native и до 2.x C-драйвера. Как ориентир по со�
 для сегодняшнего артефакта: компилятор отвечает `Cannot access 'val IO': it is internal`. Хороший
 пример, почему память и changelog источником не являются, а артефакт — является.
 
-**Как решено.** [MongoClient](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt)
+**Как решено.** [MongoClient](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoClient.kt)
 владеет собственным `newFixedThreadPoolContext` и закрывает его в `close()`. Побочная выгода:
 размер пула потоков стал явным и привязан к времени жизни клиента, а не глобальным. Число потоков
 по умолчанию (4) намеренно меньше размера пула клиентов libmongoc (100): клиент занят всё время
@@ -321,7 +321,7 @@ ABI-валидацию имеет смысл только вместе с реа
 
 | Факт | Где проверено |
 |---|---|
-| `mongoc_client_pool_max_size(pool, n)` задаёт размер пула; вызывается до первого `pop` | `mongoc/mongoc-client-pool.h:60`, вызов в [MongoClient](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) |
+| `mongoc_client_pool_max_size(pool, n)` задаёт размер пула; вызывается до первого `pop` | `mongoc/mongoc-client-pool.h:60`, вызов в [MongoClient](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoClient.kt) |
 | Если держать `kotlinx.coroutines.sync.Semaphore` с числом разрешений ровно в размер пула, `pop` не блокирует никогда: разрешение уже гарантирует свободного клиента | тест `waiting for a client is cancellable instead of blocking a thread` |
 | Ожидание разрешения — обычная приостановка: `withTimeout` его снимает, поток при этом свободен | тот же тест |
 | Курсоров может быть больше, чем клиентов, — лишние ждут и дожидаются | тест `more concurrent cursors than the pool allows still complete` |
@@ -350,7 +350,7 @@ libmongoc, и убрать его невозможно — batching с возв�
 | Факт | Где проверено |
 |---|---|
 | `bson_mem_vtable_t` содержит **пять** указателей: `malloc`, `calloc`, `realloc`, `free`, `aligned_alloc` — плюс `void *padding[3]` | `bson/memory.h:28` |
-| `staticCFunction` заполняет все пять; счётчик держится в top-level `AtomicLong`, потому что захват контекста в `staticCFunction` недоступен | [BsonAllocations](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonAllocations.kt) |
+| `staticCFunction` заполняет все пять; счётчик держится в top-level `AtomicLong`, потому что захват контекста в `staticCFunction` недоступен | [BsonAllocations](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonAllocations.kt) |
 | Round-trip `Document → bson_t → Document` возвращает **ровно** все блоки: 100 проходов, дельта 0 | тест `round trip returns every allocation` |
 | Исключение посреди сборки документа тоже не оставляет блоков | тест `a failure midway through building does not leak the partial document` |
 
@@ -387,7 +387,7 @@ libmongoc, и убрать его невозможно — batching с возв�
 и NUL в ней **не представим**, поэтому кодек его теперь явно отвергает, а не обрезает молча.
 
 **Чему это учит про сами тесты.** Ни один из существовавших тестов этот баг не видел и не мог:
-[BsonRoundTripTest](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt)
+[BsonRoundTripTest](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonRoundTripTest.kt)
 гоняет значения, подобранные руками, — то есть ровно те, о которых автор подумал; дифференциальный
 тест сравнивал документ, в котором NUL не было; счётчик аллокаций проверяет память, а не
 содержимое. Баг жил в зазоре между «о чём подумал автор» и «что допускает формат», и закрывается
@@ -402,7 +402,7 @@ NUL добавлен и в алфавит генератора, и в этало
 |---|---|
 | «All the specs in this repository are available under the Creative Commons Attribution-NonCommercial-ShareAlike 3.0 United States License» | [README mongodb/specifications](https://github.com/mongodb/specifications) |
 | В CRUD-наборе unified-формата 175 файлов; под наши операции подходят 6 «простых» | листинг `source/crud/tests/unified` через GitHub API |
-| Файлы читаются libbson напрямую (`bson_json_reader_new_from_file`) — парсер тащить не надо | [SpecTestRunner](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/spec/SpecTestRunner.kt) |
+| Файлы читаются libbson напрямую (`bson_json_reader_new_from_file`) — парсер тащить не надо | [SpecTestRunner](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/spec/SpecTestRunner.kt) |
 
 **Следствие.** NonCommercial + ShareAlike несовместимы с распространением библиотеки под
 пермиссивной лицензией, а mongkn рассчитывает на публикацию (M-18). Поэтому файлы **не лежат
@@ -755,7 +755,7 @@ KSP и KotlinPoet вычищены из сборки, `MongoCollection` живё
 без JVM-модулей на критическом пути.
 
 Знание, которое было исполняемым в процессоре, переехало в KDoc
-[MongoCollection](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt)
+[MongoCollection](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoCollection.kt)
 и в [api-collection](../api/api-collection.md), раздел 3: правила снятия формы, отбрасываемые
 параметры и — отдельным абзацем — ловушка с двумя одноимёнными перегрузками `updateOne`.
 Это ровно та цена, которая была названа выше: знание перестало проверяться компилятором.
@@ -793,6 +793,23 @@ KSP и KotlinPoet вычищены из сборки, `MongoCollection` живё
 
 Обратное запрещено: int64, не помещающийся в `Int`, даёт `SerializationException`, а не
 обрезанное значение. Тихая порча данных хуже отказа.
+
+### Р12. Координаты — `ru.workinprogress.mongkn`, пакеты переименованы под них
+
+Было `io.github.mongkn` и в пакетах, и в `group`. Решение: `ru.workinprogress.mongkn` —
+как у соседних проектов, публикуемых в тот же приватный Reposilite, — и пакеты переименованы
+следом, чтобы groupId и namespace не разъезжались.
+
+Что всплыло при переименовании:
+
+- `group` в корневом build-файле подпроектами **не наследуется**: по умолчанию подпроект берёт
+  группой имя корневого проекта, и артефакты уехали бы в `mongkn`. Поймано на
+  `publishToMavenLocal` до отправки на сервер; лечится `allprojects { group = … }`;
+- пакет cinterop остался `mongkn.cinterop`. Он генерируется и используется только внутри
+  модуля, наружу не торчит, а переименование стоило бы правок во всех импортах ради нуля.
+
+Лицензия не выбрана — репозиторий приватный, внешних потребителей нет. Секции `licenses`
+в POM поэтому нет: пустая или выдуманная хуже отсутствующей.
 
 ---
 

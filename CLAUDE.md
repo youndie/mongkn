@@ -60,6 +60,18 @@ docker run -d --name mongkn-it -p 27017:27017 mongo:8
 заводить руками (`by creating`) — их создаёт стандартный шаблон иерархии KMP, а ручной ломает
 резолв; и имя теста в обратных кавычках на Kotlin/Native не может содержать запятую.
 
+## Публикация
+
+`ru.workinprogress.mongkn`, приватный Reposilite. Креды берутся из `REPOSILITE_USER`
+и `REPOSILITE_SECRET` (окружение или Gradle-свойства) — в репозитории их нет и быть не должно.
+
+```bash
+./gradlew publishAllPublicationsToReposilitePrivateRepository
+```
+
+Перед отправкой на сервер стоит прогнать `publishToMavenLocal` и посмотреть координаты:
+`group` подпроектами не наследуется, и артефакты однажды уже уехали не туда.
+
 ## Правило про документацию
 
 > **`main` описывает то, что есть.**

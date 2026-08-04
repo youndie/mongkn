@@ -48,10 +48,10 @@ Gradle-свойства ей недоступны. Если переменной
 
 | Файл | Что там |
 |---|---|
-| [ReferenceDocument.kt](../../mongkn-difftest/src/main/kotlin/io/github/mongkn/difftest/ReferenceDocument.kt) | эталонный документ: по полю на каждый поддержанный тип BSON |
-| [Seed.kt](../../mongkn-difftest/src/main/kotlin/io/github/mongkn/difftest/Seed.kt) | фаза A |
-| [Verify.kt](../../mongkn-difftest/src/main/kotlin/io/github/mongkn/difftest/Verify.kt) | фаза C, расхождения печатаются по полям |
-| [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoDifferentialTest.kt) | фаза B |
+| [ReferenceDocument.kt](../../mongkn-difftest/src/main/kotlin/ru/workinprogress/mongkn/difftest/ReferenceDocument.kt) | эталонный документ: по полю на каждый поддержанный тип BSON |
+| [Seed.kt](../../mongkn-difftest/src/main/kotlin/ru/workinprogress/mongkn/difftest/Seed.kt) | фаза A |
+| [Verify.kt](../../mongkn-difftest/src/main/kotlin/ru/workinprogress/mongkn/difftest/Verify.kt) | фаза C, расхождения печатаются по полям |
+| [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoDifferentialTest.kt) | фаза B |
 
 ## 4. Локальный запуск
 

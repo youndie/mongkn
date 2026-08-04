@@ -11,7 +11,7 @@ depends_on:
   - libmongoc (системная библиотека, 2.x)
   - libbson (системная библиотека, 2.x)
 publishes:
-  - klib io.github.mongkn:mongkn-core (пока не публикуется)
+  - klib ru.workinprogress.mongkn:mongkn-core (пока не публикуется)
 ---
 
 # mongkn-core
@@ -43,21 +43,21 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 |---|---|
 | [mongkn-core/build.gradle.kts](../../mongkn-core/build.gradle.kts) | разрешение путей к libmongoc (`findIncludeDir` / `findLibName`), выбор хостового таргета, `linkerOpts` |
 | [src/nativeInterop/cinterop/mongoc.def](../../mongkn-core/src/nativeInterop/cinterop/mongoc.def) | какие заголовки попадают в klib; путей и имён библиотек здесь намеренно нет |
-| [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) | одноразовый жизненный цикл драйвера: `NEW → INITIALIZING → READY → SHUT_DOWN` |
-| [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) | владение `mongoc_client_pool_t`, `withClient` (pop/push), собственный пул потоков |
-| [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) | реализация `insertOne` и `find`; здесь же вся работа с курсором |
-| [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) | публичная поверхность; KDoc несёт правила, по которым форма снята с официального драйвера |
-| [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt) | иерархия значений и `Document` |
-| [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) | перевод в `bson_t` и обратно; правила владения указателями |
-| [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt) | минимальный билдер (`document { put(...) }`) |
-| [src/nativeMain/kotlin/io/github/mongkn/MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoException.kt) | подъём `bson_error_t` в исключение |
-| [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod. Проверяют ожидания автора |
-| [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoDifferentialTest.kt) | сверка с официальным драйвером — фаза B, см. [mongkn-difftest](mongkn-difftest.md) |
-| [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
-| [bson/BsonAllocations.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonAllocations.kt) | считающий аллокатор libbson — единственное, что видит утечки |
-| [spec/SpecTestRunner.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/spec/SpecTestRunner.kt) | раннер официальных spec-тестов MongoDB; частичный, отчёт печатает непокрытое |
+| [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/Mongkn.kt) | одноразовый жизненный цикл драйвера: `NEW → INITIALIZING → READY → SHUT_DOWN` |
+| [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoClient.kt) | владение `mongoc_client_pool_t`, `withClient` (pop/push), собственный пул потоков |
+| [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/CollectionOps.kt) | реализация `insertOne` и `find`; здесь же вся работа с курсором |
+| [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoCollection.kt) | публичная поверхность; KDoc несёт правила, по которым форма снята с официального драйвера |
+| [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/BsonValue.kt) | иерархия значений и `Document` |
+| [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/BsonCodec.kt) | перевод в `bson_t` и обратно; правила владения указателями |
+| [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/bson/DocumentBuilder.kt) | минимальный билдер (`document { put(...) }`) |
+| [src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoException.kt](../../mongkn-core/src/nativeMain/kotlin/ru/workinprogress/mongkn/MongoException.kt) | подъём `bson_error_t` в исключение |
+| [MongoIntegrationTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoIntegrationTest.kt) | сценарии фичи против настоящего mongod. Проверяют ожидания автора |
+| [MongoDifferentialTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoDifferentialTest.kt) | сверка с официальным драйвером — фаза B, см. [mongkn-difftest](mongkn-difftest.md) |
+| [MongoConcurrencyTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/MongoConcurrencyTest.kt) | стресс-тест пула: 200 одновременных операций на одном клиенте |
+| [bson/BsonAllocations.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonAllocations.kt) | считающий аллокатор libbson — единственное, что видит утечки |
+| [spec/SpecTestRunner.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/spec/SpecTestRunner.kt) | раннер официальных spec-тестов MongoDB; частичный, отчёт печатает непокрытое |
 | [spec-tests.gradle.kts](../../mongkn-core/spec-tests.gradle.kts) | загрузка spec-тестов в `build/` — в репозиторий они не кладутся из-за лицензии |
-| [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/io/github/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
+| [BsonRoundTripTest.kt](../../mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/bson/BsonRoundTripTest.kt) | критерий приёмки M-04: round-trip без потери типов |
 
 ## 3. Как устроено
 

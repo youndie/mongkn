@@ -59,6 +59,30 @@ fun main() = runBlocking {
 docker run -d --name mongkn-it -p 27017:27017 mongo:8
 ```
 
+## Подключение
+
+```kotlin
+repositories {
+    maven("https://maven.internal/private") {
+        credentials {
+            username = System.getenv("REPOSILITE_USER")
+            password = System.getenv("REPOSILITE_SECRET")
+        }
+    }
+}
+
+dependencies {
+    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.0-SNAPSHOT")
+    implementation("ru.workinprogress.mongkn:mongkn-extensions:0.1.0-SNAPSHOT") // infix-DSL, по желанию
+}
+```
+
+Публикация:
+
+```bash
+./gradlew publishAllPublicationsToReposilitePrivateRepository
+```
+
 ## Тесты
 
 ```bash

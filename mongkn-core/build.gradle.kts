@@ -5,6 +5,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Публикация в приватный Reposilite — общая для всех выкладываемых модулей.
+apply(from = rootProject.file("publishing.gradle.kts"))
+
 // Загрузка официальных spec-тестов MongoDB — вынесена, потому что там своя история
 // про лицензию и про то, почему файлы не лежат в репозитории.
 apply(from = "spec-tests.gradle.kts")
