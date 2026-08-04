@@ -11,9 +11,8 @@ mirrors: com.mongodb.kotlin.client.coroutine (mongodb-driver-kotlin-coroutine 5.
 
 # API — client / database / collection
 
-> **Статус: реализовано.** Вехи M1–M3 закрыты, всё перечисленное ниже есть в коде и покрыто
-> тестами (19 тестов, из них 10 интеграционных против настоящего mongod). Документ остаётся
-> входом для генератора из M5.
+> **Статус: реализовано.** Шесть операций, 25 тестов, из них 16 интеграционных против
+> настоящего mongod. Поверхность генерируется — см. раздел 4.
 
 Здесь «API» — не HTTP, а публичная поверхность библиотеки: то, что видит пользователь `mongkn`.
 Форма снята с официального корутинного драйвера (`com.mongodb.kotlin.client.coroutine`), потому
@@ -71,10 +70,14 @@ BsonValue
 
 ### 2.3 Операции
 
-| Сигнатура | Отличие от драфта |
+| Сигнатура | Заметки |
 |---|---|
-| `suspend fun MongoCollection.insertOne(document: Document): InsertOneResult` | драфт предлагал `Boolean`; сервер отдаёт `insertedId` (Р3) |
-| `fun MongoCollection.find(filter: Document = Document()): Flow<Document>` | как в драфте |
+| `suspend fun insertOne(document: Document): InsertOneResult` | драфт предлагал `Boolean`; сервер отдаёт `insertedId` (Р3) |
+| `suspend fun insertMany(documents: List<Document>): InsertManyResult` | пустой список отвергается до обращения к серверу |
+| `suspend fun updateOne(filter: Document, update: Document): UpdateResult` | обновление **документом**, не агрегационным конвейером — выбор перегрузки сделан генератором механически (§1.10) |
+| `suspend fun deleteOne(filter: Document): DeleteResult` | |
+| `suspend fun countDocuments(filter: Document = Document()): Long` | единственная операция, где libmongoc отдаёт результат возвращаемым значением, а ошибку — отрицательным числом |
+| `fun find(filter: Document = Document()): Flow<Document>` | как в драфте |
 
 `InsertOneResult` несёт `insertedId: BsonValue` — `BsonObjectId` от сервера либо то значение
 `_id`, которое задал вызывающий (проверено тестом).

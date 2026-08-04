@@ -80,14 +80,19 @@ internal class MongoApiGeneratorProcessor(
      * Выбирает перегрузку, с которой снимается форма.
      *
      * У официального драйвера каждая операция продублирована вариантом с `ClientSession`
-     * (проверено по jar 5.9.1), а `find` вдобавок имеет вариант с `Class<R>`. Берём самую
-     * короткую без сессии — это и есть базовая форма.
+     * (проверено по jar 5.9.1), а `find` вдобавок имеет вариант с `Class<R>`. Сессии отбрасываем.
+     *
+     * Сортировка по числу списочных параметров — не косметика: у `updateOne` две перегрузки
+     * одинаковой длины, `(Bson filter, Bson update)` и `(Bson filter, List<Bson> pipeline)`.
+     * Без этого правила выбор между ними зависел бы от порядка объявления в jar, то есть был бы
+     * случайным. Нужна первая — обновление документом, а не агрегационным конвейером.
      */
     private fun KSClassDeclaration.pickOverload(name: String): KSFunctionDeclaration? =
         getDeclaredFunctions()
             .filter { it.simpleName.asString() == name }
             .filterNot { fn -> fn.parameters.any { it.typeName().endsWith("ClientSession") } }
-            .minByOrNull { it.parameters.size }
+            .sortedWith(compareBy({ fn -> fn.parameters.count { it.isList() } }, { it.parameters.size }))
+            .firstOrNull()
 
     private fun mirror(operation: String, source: KSFunctionDeclaration): FunSpec {
         val parameters = source.parameters
@@ -144,8 +149,12 @@ internal class MongoApiGeneratorProcessor(
         return type.startsWith("com.mongodb.client.model.") || type == "java.lang.Class" || type == "kotlin.reflect.KClass"
     }
 
+    private fun KSValueParameter.isList(): Boolean = typeName() in LIST_TYPES
+
     private fun mapType(jvmType: String, parameter: KSValueParameter): TypeName = when {
         jvmType == BSON -> DOCUMENT
+        // Списочный параметр переносим только у insertMany — это List<Document>.
+        jvmType in LIST_TYPES -> LIST.parameterizedBy(DOCUMENT)
         // Параметр типа T (класс документа) — у нас документ всегда Document.
         parameter.type.resolve().declaration is KSTypeParameter -> DOCUMENT
         // Молча отображать незнакомый тип в Document нельзя: это ровно тот случай, когда
@@ -155,8 +164,8 @@ internal class MongoApiGeneratorProcessor(
 
     private fun mapReturnType(source: KSFunctionDeclaration): TypeName {
         val returned = source.returnType?.resolve()?.declaration?.qualifiedName?.asString()
+        RESULTS[returned]?.let { return it }
         return when (returned) {
-            INSERT_ONE_RESULT -> OUR_INSERT_ONE_RESULT
             // FindFlow<T> реализует Flow<T> (проверено по jar 5.9.1), поэтому Flow<Document> —
             // не упрощение формы, а её подмножество: расширить до чейнинга можно потом,
             // не ломая вызывающих.
@@ -174,13 +183,22 @@ internal class MongoApiGeneratorProcessor(
     private companion object {
         const val OFFICIAL_COLLECTION = "com.mongodb.kotlin.client.coroutine.MongoCollection"
         const val BSON = "org.bson.conversions.Bson"
-        const val INSERT_ONE_RESULT = "com.mongodb.client.result.InsertOneResult"
         const val FIND_FLOW = "com.mongodb.kotlin.client.coroutine.FindFlow"
 
         const val PACKAGE = "io.github.mongkn"
 
+        /** Списочные типы: KSP отдаёт то Kotlin-, то Java-представление. */
+        val LIST_TYPES = setOf("kotlin.collections.List", "java.util.List")
+
         /** Операции, которые прототип поддерживает. Расширяется вместе с `CollectionOps`. */
-        val SUPPORTED = listOf("insertOne", "find")
+        val SUPPORTED = listOf(
+            "insertOne",
+            "insertMany",
+            "updateOne",
+            "deleteOne",
+            "countDocuments",
+            "find",
+        )
 
         /** Что делегирующий вызов передаёт первым — контекст операции. */
         val RUNTIME_PREFIX = listOf("client", "databaseName", "name")
@@ -190,11 +208,20 @@ internal class MongoApiGeneratorProcessor(
         val FLOW = ClassName("kotlinx.coroutines.flow", "Flow")
         val MONGO_CLIENT = ClassName(PACKAGE, "MongoClient")
         val COLLECTION_OPS = ClassName(PACKAGE, "CollectionOps")
-        val OUR_INSERT_ONE_RESULT = ClassName(PACKAGE, "InsertOneResult")
+        val LIST = ClassName("kotlin.collections", "List")
+
+        /** Перевод типа результата: официальный → наш. */
+        val RESULTS: Map<String, TypeName> = mapOf(
+            "com.mongodb.client.result.InsertOneResult" to ClassName(PACKAGE, "InsertOneResult"),
+            "com.mongodb.client.result.InsertManyResult" to ClassName(PACKAGE, "InsertManyResult"),
+            "com.mongodb.client.result.UpdateResult" to ClassName(PACKAGE, "UpdateResult"),
+            "com.mongodb.client.result.DeleteResult" to ClassName(PACKAGE, "DeleteResult"),
+            "kotlin.Long" to ClassName("kotlin", "Long"),
+        )
 
         /** Значения по умолчанию: у официального `find` фильтр тоже необязателен. */
-        val DEFAULTS: Map<Pair<String, String>, CodeBlock> =
-            mapOf(("find" to "filter") to CodeBlock.of("%T()", DOCUMENT))
+        val DEFAULTS: Map<Pair<String, String>, CodeBlock> = listOf("find", "countDocuments")
+            .associate { (it to "filter") to CodeBlock.of("%T()", DOCUMENT) }
 
         const val FILE_HEADER =
             "Сгенерировано mongkn-codegen. Не редактировать руками.\n" +

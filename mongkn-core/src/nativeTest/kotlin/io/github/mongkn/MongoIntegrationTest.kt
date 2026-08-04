@@ -195,6 +195,75 @@ class MongoIntegrationTest {
     }
 
     @Test
+    fun `insertMany reports how many documents landed`() = runTest {
+        val collection = connect().freshCollection("insert_many")
+
+        val result = collection.insertMany(List(3) { i -> document { put("n", i) } })
+
+        assertEquals(3L, result.insertedCount)
+        assertEquals(3L, collection.countDocuments())
+    }
+
+    @Test
+    fun `insertMany rejects an empty list before touching the server`() = runTest {
+        val collection = connect().freshCollection("insert_many_empty")
+
+        assertFailsWith<IllegalArgumentException> { collection.insertMany(emptyList()) }
+    }
+
+    @Test
+    fun `updateOne reports matched and modified counts`() = runTest {
+        val collection = connect().freshCollection("update")
+        collection.insertMany(List(2) { i -> document { put("n", i); put("tag", "old") } })
+
+        val result = collection.updateOne(
+            filter = document { put("n", 0) },
+            update = document { putDocument("\u0024set") { put("tag", "new") } },
+        )
+
+        assertEquals(1L, result.matchedCount)
+        assertEquals(1L, result.modifiedCount)
+        assertEquals(null, result.upsertedId)
+        assertEquals(BsonString("new"), collection.find(document { put("n", 0) }).first()["tag"])
+        // Второй документ не тронут — updateOne обновляет ровно один.
+        assertEquals(BsonString("old"), collection.find(document { put("n", 1) }).first()["tag"])
+    }
+
+    @Test
+    fun `updateOne matching nothing reports zero counts rather than failing`() = runTest {
+        val collection = connect().freshCollection("update_miss")
+
+        val result = collection.updateOne(
+            filter = document { put("missing", true) },
+            update = document { putDocument("\u0024set") { put("tag", "new") } },
+        )
+
+        assertEquals(0L, result.matchedCount)
+        assertEquals(0L, result.modifiedCount)
+    }
+
+    @Test
+    fun `deleteOne removes exactly one document`() = runTest {
+        val collection = connect().freshCollection("delete")
+        collection.insertMany(List(3) { document { put("tag", "same") } })
+
+        val result = collection.deleteOne(document { put("tag", "same") })
+
+        assertEquals(1L, result.deletedCount)
+        assertEquals(2L, collection.countDocuments())
+    }
+
+    @Test
+    fun `countDocuments honours the filter`() = runTest {
+        val collection = connect().freshCollection("count")
+        collection.insertMany(listOf(1, 1, 2).map { n -> document { put("n", n) } })
+
+        assertEquals(3L, collection.countDocuments())
+        assertEquals(2L, collection.countDocuments(document { put("n", 1) }))
+        assertEquals(0L, collection.countDocuments(document { put("n", 99) }))
+    }
+
+    @Test
     fun `closed client rejects further operations`() = runTest {
         val client = connect()
         val collection = client.freshCollection("closed")

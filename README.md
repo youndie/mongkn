@@ -7,10 +7,11 @@ MongoDB для Kotlin/Native — обвязка над официальным C-
 только на JVM. `mongkn` пытается сделать так, чтобы `cinterop` к libmongoc был написан один раз
 и спрятан за `suspend fun insertOne(...)` и `fun find(...): Flow<Document>`.
 
-**Статус: рабочий прототип.** Закрыты вехи M0–M5: `cinterop`, модель BSON, клиент на пуле
-соединений, `insertOne` и `find` как `Flow`, а поверхность `MongoCollection` **генерируется**
-по сигнатурам официального JVM-драйвера (KSP + KotlinPoet). 19 тестов, из них 10 интеграционных
-против настоящего mongod. Дальше — выпуск (M6) и эргономика (M7), см. [BACKLOG.md](BACKLOG.md).
+**Статус: рабочий прототип.** Шесть операций (`insertOne`, `insertMany`, `updateOne`,
+`deleteOne`, `countDocuments`, `find`), 25 тестов, из них 16 интеграционных против настоящего
+mongod. Поверхность `MongoCollection` **генерируется** по сигнатурам официального JVM-драйвера
+(KSP + KotlinPoet) — но выгода от этого оказалась меньше ожидаемой, замер в
+[ресёрче §1.10](docs/research/research-architecture.md). Дальше — [BACKLOG.md](BACKLOG.md).
 
 ```kotlin
 fun main() = runBlocking {
