@@ -5,25 +5,6 @@ plugins {
 }
 
 /**
- * Сгенерированный `MongoCollection` приезжает из `:mongkn-api-spec` — там на classpath лежит
- * официальный JVM-драйвер, с которого снимается форма API (решение Р5).
- *
- * Передаётся конфигурацией, а не путём в чужой `buildDir`: так Gradle сам знает, что перед
- * компиляцией надо прогнать `kspKotlin`, и межпроектная связь остаётся объявленной.
- */
-val nativeApiSources: Configuration by configurations.creating {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-    attributes {
-        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "mongkn-native-api-sources"))
-    }
-}
-
-dependencies {
-    nativeApiSources(project(":mongkn-api-spec"))
-}
-
-/**
  * Где искать заголовки и библиотеки mongo-c-driver.
  *
  * pkg-config в системе может отсутствовать (на машине разработки его нет — brew ставит только
@@ -119,9 +100,6 @@ kotlin {
     // начинает резолвиться против common-метаданных, где `Dispatchers.IO` объявлен internal.
     // Каталоги `src/nativeMain/kotlin` и `src/nativeTest/kotlin` подхватываются шаблоном сами.
     sourceSets {
-        nativeMain {
-            kotlin.srcDir(nativeApiSources)
-        }
         commonMain.dependencies {
             implementation(libs.coroutines.core)
         }
@@ -134,6 +112,11 @@ kotlin {
 
 tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
     dependsOn(seedDiffReference)
+    // Корректность этих тестов зависит от состояния mongod, а его Gradle не отслеживает.
+    // Без этой строки задача может оказаться UP-TO-DATE и не отработать, тогда как фаза A
+    // уже вычистила коллекции, — и фаза C падает на пустой `written`. Ровно так и случилось
+    // при первом же инкрементальном прогоне после удаления генератора.
+    outputs.upToDateWhen { false }
     // Путь к фикстуре нативный тест получает через окружение: Gradle-свойства ему недоступны.
     environment(
         "MONGKN_DIFF_FIXTURE",

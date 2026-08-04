@@ -50,7 +50,8 @@ tags: [mvp]
 | Модуль | Код |
 |---|---|
 | mongkn-core | [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) — реализация `insertOne` и `find` целиком |
-| mongkn-codegen | публичный `MongoCollection` **генерируется** — [mongkn-codegen](../services/mongkn-codegen.md) |
+| mongkn-core | [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) — публичная поверхность |
+| mongkn-difftest | [сверка с официальным драйвером](../services/mongkn-difftest.md) как с эталоном |
 | mongkn-core | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) — пул клиентов и граница потоков |
 | mongkn-core | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) — конверсия и владение указателями |
 | mongkn-core | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) — жизненный цикл драйвера |

@@ -8,14 +8,13 @@ MongoDB для Kotlin/Native — обвязка над официальным C-
 и спрятан за `suspend fun insertOne(...)` и `fun find(...): Flow<Document>`.
 
 **Статус: рабочий прототип.** Шесть операций (`insertOne`, `insertMany`, `updateOne`,
-`deleteOne`, `countDocuments`, `find`), 25 тестов, из них 16 интеграционных против настоящего
-mongod. Поверхность `MongoCollection` пока генерируется по сигнатурам официального JVM-драйвера
-(KSP + KotlinPoet), но от этого плана решено отказаться: выгода оказалась меньше ожидаемой,
-а главное — генератор проверяет форму API, а не поведение. Замер и обоснование —
-[ресёрч §1.10 и решение Р9](docs/research/research-architecture.md).
+`deleteOne`, `countDocuments`, `find`), 28 тестов против настоящего mongod. Форма API снята с официального `mongodb-driver-kotlin-coroutine`, а совпадение с ним проверяется
+**дифференциальными тестами**: один и тот же документ проходит через официальный JVM-драйвер
+и через mongkn на одном mongod, и результаты сверяются в обе стороны.
 
-Дальше приоритет на проверках корректности: дифференциальные тесты против официального
-драйвера и раннер spec-тестов MongoDB. См. [BACKLOG.md](BACKLOG.md).
+Генерация API через KSP была и от неё отказались — обоснование в
+[ресёрче](docs/research/research-architecture.md), решение Р9. Дальше — раннер spec-тестов
+MongoDB и стресс-тест пула, см. [BACKLOG.md](BACKLOG.md).
 
 ```kotlin
 fun main() = runBlocking {
@@ -35,8 +34,7 @@ fun main() = runBlocking {
 | Модуль | Что делает |
 |---|---|
 | `mongkn-core` | Kotlin/Native: cinterop, BSON, клиент, операции |
-| `mongkn-codegen` | JVM: KSP-процессор, печатающий поверхность API |
-| `mongkn-api-spec` | JVM: модуль, на котором запускается процессор (там на classpath официальный драйвер) |
+| `mongkn-difftest` | JVM: эталон для дифференциальных тестов — официальный драйвер |
 
 ## Требования
 

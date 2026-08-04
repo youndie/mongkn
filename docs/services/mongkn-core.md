@@ -26,8 +26,6 @@ publishes:
 
 - маппингом data-классов и `kotlinx.serialization` — это слой над `BsonValue`, вне MVP
   (открытый вопрос 1 ресёрча);
-- генерацией кода — это будущий JVM-модуль (решение Р5 ресёрча), сюда попадают только его
-  результаты;
 - любыми JVM-зависимостями: `java.*` и `org.bson.*` здесь недоступны физически, а не по договорённости.
 
 Главный инвариант: **ни один сырой `CPointer` не покидает модуль**. Наружу уходят только
@@ -48,7 +46,7 @@ Kotlin-значения; всё, что аллоцировано в C, осво�
 | [Mongkn.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/Mongkn.kt) | одноразовый жизненный цикл драйвера: `NEW → INITIALIZING → READY → SHUT_DOWN` |
 | [MongoClient.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoClient.kt) | владение `mongoc_client_pool_t`, `withClient` (pop/push), собственный пул потоков |
 | [CollectionOps.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/CollectionOps.kt) | реализация `insertOne` и `find`; здесь же вся работа с курсором |
-| `MongoCollection` | **генерируется** (пока), исходника в репозитории нет — см. [mongkn-codegen](mongkn-codegen.md). Генерация уходит по решению Р9, задача M-33 |
+| [MongoCollection.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/MongoCollection.kt) | публичная поверхность; KDoc несёт правила, по которым форма снята с официального драйвера |
 | [bson/BsonValue.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonValue.kt) | иерархия значений и `Document` |
 | [bson/BsonCodec.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/BsonCodec.kt) | перевод в `bson_t` и обратно; правила владения указателями |
 | [bson/DocumentBuilder.kt](../../mongkn-core/src/nativeMain/kotlin/io/github/mongkn/bson/DocumentBuilder.kt) | минимальный билдер (`document { put(...) }`) |
@@ -99,10 +97,8 @@ pkg-config на машине разработки нет (ресёрч §1.1), �
 
 Библиотека, не сервис. Публикации пока нет — задача M-18.
 
-**Сборка зависит от `:mongkn-api-spec`:** конфигурация `nativeApiSources` приносит
-сгенерированный `MongoCollection` в source set `nativeMain`. Поэтому `:mongkn-core` нельзя
-собрать в одиночку без JVM-модулей — это цена решения Р5, и именно она снимается решением Р9
-(задача M-33).
+Модуль собирается сам по себе. Так было не всегда: до решения Р9 `MongoCollection` приезжал
+сгенерированным из `:mongkn-api-spec`, и без JVM-модулей `:mongkn-core` не собирался вовсе.
 
 **Что ломается при апгрейде окружения:** `brew upgrade mongo-c-driver` меняет имя каталога
 с заголовками (`mongoc-2.1.1` → `mongoc-2.3.3`), а задача `cinteropMongocMacosArm64` не считает

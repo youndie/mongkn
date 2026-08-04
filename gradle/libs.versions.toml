@@ -3,22 +3,15 @@
 # Поддерживаемый диапазон Gradle для KGP 2.4.0-2.4.10: 7.6.3–9.5.0 → wrapper зафиксирован на 9.5.0.
 kotlin = "2.4.10"
 coroutines = "1.11.0"
-# KSP и KotlinPoet пока не подключены к сборке — веха M5, см. BACKLOG.md.
-# Совместимость KSP 2.3.11 с Kotlin 2.4.10 — гипотеза, проверяется в M5.
-ksp = "2.3.11"
-kotlinpoet = "2.3.0"
-# Официальный JVM-драйвер нужен только процессору генерации как источник сигнатур.
+# Официальный JVM-драйвер — эталон для дифференциальных тестов (:mongkn-difftest).
+# Источником сигнатур для генерации он быть перестал: решение Р9, генератор удалён.
 mongodbDriverKotlin = "5.9.1"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
-ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
-kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
-kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinpoet" }
 mongodb-driver-kotlin-coroutine = { module = "org.mongodb:mongodb-driver-kotlin-coroutine", version.ref = "mongodbDriverKotlin" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
