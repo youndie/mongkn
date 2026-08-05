@@ -149,6 +149,22 @@ kotlin {
             }
         }
 
+        /*
+         * Бенчмарк (M-76) — отдельный **release**-исполняемый файл, а не тест.
+         *
+         * Причина одна и она принципиальная: тестовые бинарники Kotlin/Native собираются
+         * в DEBUG, без инлайнинга и с проверками. Числа, снятые на них, описывают отладочную
+         * сборку и никого не касаются. Держать же весь тестовый набор ещё и в release значило бы
+         * удваивать время каждой сборки ради задачи, которая запускается вручную.
+         *
+         * Собирается из тестового компиляционного набора: бенчмарку нужен и публичный API,
+         * и cinterop напрямую — иначе не с чем сравнивать.
+         */
+        binaries.executable("benchmark", listOf(org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.RELEASE)) {
+            compilation = compilations.getByName("test")
+            entryPoint = "ru.workinprogress.mongkn.benchmark.main"
+        }
+
         binaries.all {
             val mongoc = findLibName("mongoc") ?: error("mongkn: не найдена libmongoc в $libDirs")
             val bson = findLibName("bson") ?: error("mongkn: не найдена libbson в $libDirs")

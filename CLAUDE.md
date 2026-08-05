@@ -58,8 +58,13 @@ docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
 не работают вовсе, и `ChangeStreamTest` будет падать. Для остальных операций разницы нет.
 
 ```bash
-docker run -d --name mongkn-it -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+docker run -d --name mongkn-it --platform linux/arm64 -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
 ```
+
+`--platform` под архитектуру хоста — не украшение. Однажды образ уже оказался `linux/amd64`
+на arm-машине, то есть mongod работал под эмуляцией QEMU: прогон тестов шёл вдвое дольше,
+а замеры производительности выдавали заведомую чушь. Проверить:
+`docker image inspect mongo:8 --format '{{.Architecture}}'`.
 
 ```bash
 docker exec mongkn-it mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
@@ -131,6 +136,20 @@ ktlint в гейте: плагин вешает `ktlintCheck` на `check`, по
 Две вещи ktlint не чинит сам и придётся править руками: **KDoc перед выражением** (не перед
 объявлением) — в `.kts` это частый случай, меняйте на `/* */`; и **два KDoc подряд** —
 обычно след неаккуратной правки.
+
+## Замер производительности
+
+Числа и методика — [docs/performance.md](docs/performance.md). Запуск:
+
+```bash
+./gradlew :mongkn-core:runBenchmarkReleaseExecutableMacosArm64
+```
+
+Бенчмарк — **отдельный release-исполняемый файл, а не тест**: тестовые бинарники Kotlin/Native
+собираются в DEBUG, и снятые на них числа описывают отладочную сборку. Он входит в `assemble`,
+то есть добавляет линковку к сборке при изменении тестовых исходников. Это осознанная цена:
+невкомпилированный бенчмарк тихо сгниёт на первом же рефакторинге внутренних API — так уже
+случилось бы при появлении `Target` в M14.
 
 ## Правило про документацию
 
