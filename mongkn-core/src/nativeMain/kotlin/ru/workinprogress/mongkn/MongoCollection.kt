@@ -56,7 +56,19 @@ public class MongoCollection<T> internal constructor(
      * как у официального драйвера, где коллекция неизменяема.
      */
     private val defaults: Document = BsonDocument(),
+    /**
+     * Сессия, в которой идут операции этой коллекции.
+     *
+     * Влияет на две вещи сразу: операции уходят на закреплённого за сессией клиента (иначе
+     * libmongoc откажется) и получают её `sessionId` в опциях. Второе делается через тот же
+     * механизм [opts], что и все остальные настройки, поэтому ни одна операция не понадобилась
+     * переписывать под сессии.
+     */
+    internal val session: ClientSession? = null,
 ) {
+    /** Через что идут операции: пул клиента либо закреплённый клиент [session]. */
+    private val target = Target(client, session)
+
     private fun withDefaults(extra: Document): MongoCollection<T> =
         MongoCollection(
             client,
@@ -64,6 +76,7 @@ public class MongoCollection<T> internal constructor(
             name,
             codec,
             BsonDocument(defaults.entries.filterNot { it.first in extra } + extra.entries),
+            session,
         )
 
     /** Коллекция с заданной гарантией записи — см. [writeConcern]. */
@@ -83,15 +96,22 @@ public class MongoCollection<T> internal constructor(
     public fun withTimeout(millis: Long): MongoCollection<T> =
         withDefaults(BsonDocument("maxTimeMS" to BsonInt64(millis)))
 
-    /** Опции операции: настройки коллекции плюс то, что передали в сам вызов. */
-    private fun opts(extra: Document): Document =
-        if (extra.isEmpty()) {
+    /**
+     * Опции операции: принадлежность сессии, настройки коллекции и то, что передали в сам вызов.
+     *
+     * Порядок важен по возрастанию приоритета — позже перекрывает раньше, — но `sessionId`
+     * перекрыть нельзя ничем: он идёт последним. Задать его руками через `options` было бы
+     * способом отправить операцию в чужую сессию.
+     */
+    private fun opts(extra: Document): Document {
+        val own = defaults.entries.filterNot { it.first in extra } + extra.entries
+        val sessionOpts = session?.opts?.entries.orEmpty()
+        return if (own.isEmpty() && sessionOpts.isEmpty()) {
             defaults
         } else {
-            BsonDocument(
-                defaults.entries.filterNot { it.first in extra } + extra.entries,
-            )
+            BsonDocument(own.filterNot { entry -> sessionOpts.any { it.first == entry.first } } + sessionOpts)
         }
+    }
 
     /**
      * Переводит документ в [T] и обратно.
@@ -113,7 +133,7 @@ public class MongoCollection<T> internal constructor(
     public suspend fun insertOne(
         document: T,
         options: Document = BsonDocument(),
-    ): InsertOneResult = CollectionOps.insertOne(client, databaseName, name, toDocument(document), opts(options))
+    ): InsertOneResult = CollectionOps.insertOne(target, databaseName, name, toDocument(document), opts(options))
 
     /**
      * Вставляет несколько документов. Пустой список отвергается до обращения к серверу.
@@ -125,7 +145,7 @@ public class MongoCollection<T> internal constructor(
         ordered: Boolean = true,
         options: Document = BsonDocument(),
     ): InsertManyResult =
-        CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument), ordered, opts(options))
+        CollectionOps.insertMany(target, databaseName, name, documents.map(::toDocument), ordered, opts(options))
 
     /**
      * Выполняет несколько разнородных операций записи одним обращением к серверу.
@@ -153,7 +173,7 @@ public class MongoCollection<T> internal constructor(
         options: Document = BsonDocument(),
     ): BulkWriteResult {
         require(requests.isNotEmpty()) { "bulkWrite: список операций пуст" }
-        return CollectionOps.bulkWrite(client, databaseName, name, requests.map(::prepare), ordered, opts(options))
+        return CollectionOps.bulkWrite(target, databaseName, name, requests.map(::prepare), ordered, opts(options))
     }
 
     /**
@@ -195,7 +215,7 @@ public class MongoCollection<T> internal constructor(
         update: Document,
         upsert: Boolean = false,
         options: Document = BsonDocument(),
-    ): UpdateResult = CollectionOps.updateOne(client, databaseName, name, filter, update, upsert, opts(options))
+    ): UpdateResult = CollectionOps.updateOne(target, databaseName, name, filter, update, upsert, opts(options))
 
     /**
      * Обновляет **все** документы, подходящие под фильтр.
@@ -207,7 +227,7 @@ public class MongoCollection<T> internal constructor(
         update: Document,
         upsert: Boolean = false,
         options: Document = BsonDocument(),
-    ): UpdateResult = CollectionOps.updateMany(client, databaseName, name, filter, update, upsert, opts(options))
+    ): UpdateResult = CollectionOps.updateMany(target, databaseName, name, filter, update, upsert, opts(options))
 
     /**
      * Заменяет документ целиком.
@@ -221,13 +241,13 @@ public class MongoCollection<T> internal constructor(
         upsert: Boolean = false,
         options: Document = BsonDocument(),
     ): UpdateResult =
-        CollectionOps.replaceOne(client, databaseName, name, filter, toDocument(replacement), upsert, opts(options))
+        CollectionOps.replaceOne(target, databaseName, name, filter, toDocument(replacement), upsert, opts(options))
 
     /** Удаляет **все** документы, подходящие под фильтр. */
     public suspend fun deleteMany(
         filter: Document,
         options: Document = BsonDocument(),
-    ): DeleteResult = CollectionOps.deleteMany(client, databaseName, name, filter, opts(options))
+    ): DeleteResult = CollectionOps.deleteMany(target, databaseName, name, filter, opts(options))
 
     /**
      * Находит документ, изменяет его и возвращает — до или после изменения.
@@ -245,7 +265,7 @@ public class MongoCollection<T> internal constructor(
     ): T? =
         CollectionOps
             .findOneAndUpdate(
-                client,
+                target,
                 databaseName,
                 name,
                 filter,
@@ -269,7 +289,7 @@ public class MongoCollection<T> internal constructor(
     ): T? =
         CollectionOps
             .findOneAndReplace(
-                client,
+                target,
                 databaseName,
                 name,
                 filter,
@@ -289,7 +309,7 @@ public class MongoCollection<T> internal constructor(
         options: Document = BsonDocument(),
     ): T? =
         CollectionOps
-            .findOneAndDelete(client, databaseName, name, filter, sort, projection, opts(options))
+            .findOneAndDelete(target, databaseName, name, filter, sort, projection, opts(options))
             ?.let(::fromDocument)
 
     /**
@@ -297,13 +317,13 @@ public class MongoCollection<T> internal constructor(
      *
      * Быстрее [countDocuments], но неточна и фильтр не принимает — так устроена сама операция.
      */
-    public suspend fun estimatedDocumentCount(): Long = CollectionOps.estimatedDocumentCount(client, databaseName, name)
+    public suspend fun estimatedDocumentCount(): Long = CollectionOps.estimatedDocumentCount(target, databaseName, name)
 
     /** Уникальные значения поля среди подходящих документов. */
     public suspend fun distinct(
         field: String,
         filter: Document = BsonDocument(),
-    ): List<BsonValue> = CollectionOps.distinct(client, databaseName, name, field, filter)
+    ): List<BsonValue> = CollectionOps.distinct(target, databaseName, name, field, filter)
 
     /**
      * Создаёт индекс и возвращает его имя.
@@ -327,13 +347,13 @@ public class MongoCollection<T> internal constructor(
     public suspend fun createIndexes(
         indexes: List<IndexModel>,
         options: Document = BsonDocument(),
-    ): List<String> = CollectionOps.createIndexes(client, databaseName, name, indexes, opts(options))
+    ): List<String> = CollectionOps.createIndexes(target, databaseName, name, indexes, opts(options))
 
     /** Удаляет индекс по имени. */
     public suspend fun dropIndex(
         indexName: String,
         options: Document = BsonDocument(),
-    ): Unit = CollectionOps.dropIndex(client, databaseName, name, indexName, opts(options))
+    ): Unit = CollectionOps.dropIndex(target, databaseName, name, indexName, opts(options))
 
     /**
      * Удаляет индекс по его ключам.
@@ -355,7 +375,7 @@ public class MongoCollection<T> internal constructor(
 
     /** Перечисляет индексы коллекции — по документу на каждый, как их отдаёт сервер. */
     public fun listIndexes(options: Document = BsonDocument()): Flow<Document> =
-        CollectionOps.listIndexes(client, databaseName, name, opts(options))
+        CollectionOps.listIndexes(target, databaseName, name, opts(options))
 
     /**
      * Подписка на изменения коллекции.
@@ -372,13 +392,15 @@ public class MongoCollection<T> internal constructor(
      */
     public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
         ChangeStreamFlow(
-            source = { stages, options -> CollectionOps.watch(client, databaseName, name, stages, options) },
+            source = { stages, options ->
+                CollectionOps.watch(target, databaseName, name, stages, options)
+            },
             pipeline = pipeline,
-            opts = defaults,
+            opts = opts(BsonDocument()),
         )
 
     /** Удаляет коллекцию целиком. */
-    public suspend fun drop(): Unit = CollectionOps.drop(client, databaseName, name)
+    public suspend fun drop(): Unit = CollectionOps.drop(target, databaseName, name)
 
     /**
      * Переименовывает коллекцию **в той же базе**.
@@ -388,17 +410,17 @@ public class MongoCollection<T> internal constructor(
     public suspend fun renameCollection(
         newName: String,
         dropTarget: Boolean = false,
-    ): Unit = CollectionOps.rename(client, databaseName, name, newName, dropTarget)
+    ): Unit = CollectionOps.rename(target, databaseName, name, newName, dropTarget)
 
     /** Удаляет **один** документ, подходящий под фильтр. */
     public suspend fun deleteOne(
         filter: Document,
         options: Document = BsonDocument(),
-    ): DeleteResult = CollectionOps.deleteOne(client, databaseName, name, filter, opts(options))
+    ): DeleteResult = CollectionOps.deleteOne(target, databaseName, name, filter, opts(options))
 
     /** Считает документы по фильтру. */
     public suspend fun countDocuments(filter: Document = BsonDocument()): Long =
-        CollectionOps.countDocuments(client, databaseName, name, filter, opts(BsonDocument()))
+        CollectionOps.countDocuments(target, databaseName, name, filter, opts(BsonDocument()))
 
     /**
      * Выполняет агрегационный конвейер.
@@ -411,10 +433,10 @@ public class MongoCollection<T> internal constructor(
     public fun aggregate(pipeline: List<Document>): AggregateFlow<T> =
         AggregateFlow(
             source = { stages, opts ->
-                CollectionOps.aggregate(client, databaseName, name, stages, opts).map(::fromDocument)
+                CollectionOps.aggregate(target, databaseName, name, stages, opts).map(::fromDocument)
             },
             pipeline = pipeline,
-            opts = defaults,
+            opts = opts(BsonDocument()),
         )
 
     /** То же, но результат отображается в другой класс — обычный случай для `${'$'}group`. */
@@ -425,11 +447,11 @@ public class MongoCollection<T> internal constructor(
         AggregateFlow(
             source = { stages, opts ->
                 CollectionOps
-                    .aggregate(client, databaseName, name, stages, opts)
+                    .aggregate(target, databaseName, name, stages, opts)
                     .map { decodeFromDocument(codec, it) }
             },
             pipeline = pipeline,
-            opts = defaults,
+            opts = opts(BsonDocument()),
         )
 
     /**
@@ -442,8 +464,10 @@ public class MongoCollection<T> internal constructor(
      */
     public fun find(filter: Document = BsonDocument()): FindFlow<T> =
         FindFlow(
-            source = { query, opts -> CollectionOps.find(client, databaseName, name, query, opts).map(::fromDocument) },
+            source = { query, opts ->
+                CollectionOps.find(target, databaseName, name, query, opts).map(::fromDocument)
+            },
             filter = filter,
-            opts = defaults,
+            opts = opts(BsonDocument()),
         )
 }

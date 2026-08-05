@@ -52,7 +52,7 @@ internal object DatabaseOps {
      * индексы, статистика, административные команды. До неё тесты лезли в cinterop напрямую.
      */
     suspend fun runCommand(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         command: Document,
     ): Document =
@@ -72,7 +72,7 @@ internal object DatabaseOps {
         }
 
     suspend fun createCollection(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         options: Document,
@@ -90,7 +90,7 @@ internal object DatabaseOps {
     }
 
     suspend fun dropDatabase(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
     ) {
         withDatabase(client, databaseName) { database ->
@@ -100,7 +100,7 @@ internal object DatabaseOps {
     }
 
     suspend fun listCollectionNames(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
     ): List<String> =
         withDatabase(client, databaseName) { database ->
@@ -111,7 +111,7 @@ internal object DatabaseOps {
             readStringArray(names)
         }
 
-    suspend fun listDatabaseNames(client: MongoClient): List<String> =
+    suspend fun listDatabaseNames(client: Target): List<String> =
         client.withClient { handle ->
             memScoped {
                 val error = alloc<bson_error_t>()
@@ -135,7 +135,7 @@ internal object DatabaseOps {
      * Флагов, в отличие от коллекционной агрегации, эта функция не принимает вовсе.
      */
     fun aggregate(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         pipeline: List<Document>,
         opts: Document,
@@ -174,7 +174,7 @@ internal object DatabaseOps {
      * @param databaseName `null` — подписка уровня клиента, то есть на все базы сразу.
      */
     fun watch(
-        client: MongoClient,
+        client: Target,
         databaseName: String?,
         pipeline: List<Document>,
         opts: Document,
@@ -226,7 +226,7 @@ internal object DatabaseOps {
         }
 
     private suspend fun <T> withDatabase(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         block: kotlinx.cinterop.MemScope.(CPointer<mongoc_database_t>) -> T,
     ): T =

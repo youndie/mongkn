@@ -12,10 +12,21 @@ import ru.workinprogress.mongkn.bson.Document
 public class MongoDatabase internal constructor(
     internal val client: MongoClient,
     public val name: String,
+    /**
+     * Сессия, в которой пойдут операции этой базы и её коллекций.
+     *
+     * `null` — обычный режим: клиент берётся из пула на каждую операцию. Ненулевое значение
+     * означает, что база получена от [ClientSession], и всё, что через неё делается, уходит
+     * в её транзакцию и на её закреплённого клиента.
+     */
+    internal val session: ClientSession? = null,
 ) {
+    /** Через что идут операции базы: пул клиента либо закреплённый клиент [session]. */
+    private val target = Target(client, session)
+
     /** Коллекция документов без маппинга. */
     public fun getCollection(name: String): MongoCollection<Document> =
-        MongoCollection(client, this.name, name, codec = null)
+        MongoCollection(client, this.name, name, codec = null, session = session)
 
     /**
      * Коллекция, отображаемая в `@Serializable`-класс.
@@ -31,7 +42,7 @@ public class MongoDatabase internal constructor(
     public fun <T> getCollection(
         name: String,
         codec: KSerializer<T>,
-    ): MongoCollection<T> = MongoCollection(client, this.name, name, codec)
+    ): MongoCollection<T> = MongoCollection(client, this.name, name, codec, session = session)
 
     /**
      * Выполняет произвольную команду и возвращает ответ сервера.
@@ -40,16 +51,16 @@ public class MongoDatabase internal constructor(
      * административные команды. Первый ключ документа — имя команды, и порядок здесь значим
      * (решение Р4 — ровно тот случай, ради которого документ упорядоченный).
      */
-    public suspend fun runCommand(command: Document): Document = DatabaseOps.runCommand(client, name, command)
+    public suspend fun runCommand(command: Document): Document = DatabaseOps.runCommand(target, name, command)
 
     /** Создаёт коллекцию явно — например capped или с валидатором. */
     public suspend fun createCollection(
         name: String,
         options: Document = BsonDocument(),
-    ): Unit = DatabaseOps.createCollection(client, this.name, name, options)
+    ): Unit = DatabaseOps.createCollection(target, this.name, name, options)
 
     /** Удаляет базу целиком вместе со всеми коллекциями. */
-    public suspend fun drop(): Unit = DatabaseOps.dropDatabase(client, name)
+    public suspend fun drop(): Unit = DatabaseOps.dropDatabase(target, name)
 
     /**
      * Агрегационный конвейер уровня базы.
@@ -59,7 +70,7 @@ public class MongoDatabase internal constructor(
      */
     public fun aggregate(pipeline: List<Document>): AggregateFlow<Document> =
         AggregateFlow(
-            source = { stages, opts -> DatabaseOps.aggregate(client, name, stages, opts) },
+            source = { stages, opts -> DatabaseOps.aggregate(target, name, stages, opts) },
             pipeline = pipeline,
             opts = BsonDocument(),
         )
@@ -71,11 +82,11 @@ public class MongoDatabase internal constructor(
      */
     public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
         ChangeStreamFlow(
-            source = { stages, options -> DatabaseOps.watch(client, name, stages, options) },
+            source = { stages, options -> DatabaseOps.watch(target, name, stages, options) },
             pipeline = pipeline,
             opts = BsonDocument(),
         )
 
     /** Имена коллекций в этой базе. */
-    public suspend fun listCollectionNames(): List<String> = DatabaseOps.listCollectionNames(client, name)
+    public suspend fun listCollectionNames(): List<String> = DatabaseOps.listCollectionNames(target, name)
 }

@@ -428,6 +428,20 @@ final class ru.workinprogress.mongkn/BulkWriteResult { // ru.workinprogress.mong
     final fun toString(): kotlin/String // ru.workinprogress.mongkn/BulkWriteResult.toString|toString(){}[0]
 }
 
+final class ru.workinprogress.mongkn/ClientSession : kotlin/AutoCloseable { // ru.workinprogress.mongkn/ClientSession|null[0]
+    final val handle // ru.workinprogress.mongkn/ClientSession.handle|{}handle[0]
+        final fun <get-handle>(): kotlinx.cinterop/CPointer<cnames.structs/_mongoc_client_t> // ru.workinprogress.mongkn/ClientSession.handle.<get-handle>|<get-handle>(){}[0]
+    final val inTransaction // ru.workinprogress.mongkn/ClientSession.inTransaction|{}inTransaction[0]
+        final fun <get-inTransaction>(): kotlin/Boolean // ru.workinprogress.mongkn/ClientSession.inTransaction.<get-inTransaction>|<get-inTransaction>(){}[0]
+
+    final fun close() // ru.workinprogress.mongkn/ClientSession.close|close(){}[0]
+    final fun getDatabase(kotlin/String): ru.workinprogress.mongkn/MongoDatabase // ru.workinprogress.mongkn/ClientSession.getDatabase|getDatabase(kotlin.String){}[0]
+    final suspend fun <#A1: kotlin/Any?> withTransaction(kotlin.coroutines/SuspendFunction0<#A1>): #A1 // ru.workinprogress.mongkn/ClientSession.withTransaction|withTransaction(kotlin.coroutines.SuspendFunction0<0:0>){0§<kotlin.Any?>}[0]
+    final suspend fun abortTransaction() // ru.workinprogress.mongkn/ClientSession.abortTransaction|abortTransaction(){}[0]
+    final suspend fun commitTransaction() // ru.workinprogress.mongkn/ClientSession.commitTransaction|commitTransaction(){}[0]
+    final suspend fun startTransaction() // ru.workinprogress.mongkn/ClientSession.startTransaction|startTransaction(){}[0]
+}
+
 final class ru.workinprogress.mongkn/DeleteManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/DeleteManyModel|null[0]
     constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/DeleteManyModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
 
@@ -491,6 +505,7 @@ final class ru.workinprogress.mongkn/MongoClient : kotlin/AutoCloseable { // ru.
     final fun getDatabase(kotlin/String): ru.workinprogress.mongkn/MongoDatabase // ru.workinprogress.mongkn/MongoClient.getDatabase|getDatabase(kotlin.String){}[0]
     final fun watch(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ...): ru.workinprogress.mongkn/ChangeStreamFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoClient.watch|watch(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final suspend fun listDatabaseNames(): kotlin.collections/List<kotlin/String> // ru.workinprogress.mongkn/MongoClient.listDatabaseNames|listDatabaseNames(){}[0]
+    final suspend fun startSession(): ru.workinprogress.mongkn/ClientSession // ru.workinprogress.mongkn/MongoClient.startSession|startSession(){}[0]
 
     final object Companion { // ru.workinprogress.mongkn/MongoClient.Companion|null[0]
         final const val DEFAULT_IO_THREADS // ru.workinprogress.mongkn/MongoClient.Companion.DEFAULT_IO_THREADS|{}DEFAULT_IO_THREADS[0]

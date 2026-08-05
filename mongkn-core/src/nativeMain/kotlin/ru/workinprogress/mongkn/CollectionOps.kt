@@ -103,7 +103,7 @@ import ru.workinprogress.mongkn.bson.toNativeBson
 @OptIn(ExperimentalForeignApi::class, DelicateCoroutinesApi::class)
 internal object CollectionOps {
     suspend fun insertOne(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         document: Document,
@@ -126,7 +126,7 @@ internal object CollectionOps {
         }
 
     suspend fun insertMany(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         documents: List<Document>,
@@ -181,7 +181,7 @@ internal object CollectionOps {
         }
 
     suspend fun updateOne(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -217,7 +217,7 @@ internal object CollectionOps {
         }
 
     suspend fun deleteOne(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -235,7 +235,7 @@ internal object CollectionOps {
         }
 
     suspend fun updateMany(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -273,7 +273,7 @@ internal object CollectionOps {
      * ошибку отдаём как есть, не подменяя своей.
      */
     suspend fun replaceOne(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -304,7 +304,7 @@ internal object CollectionOps {
         }
 
     suspend fun deleteMany(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -328,7 +328,7 @@ internal object CollectionOps {
      * Официальный драйвер держит обе операции по той же причине.
      */
     suspend fun estimatedDocumentCount(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
     ): Long =
@@ -341,7 +341,7 @@ internal object CollectionOps {
         }
 
     suspend fun drop(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
     ) {
@@ -352,7 +352,7 @@ internal object CollectionOps {
     }
 
     suspend fun rename(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         newName: String,
@@ -384,7 +384,7 @@ internal object CollectionOps {
      * и отличить «не нашли» от «нашли пустой документ» можно только так.
      */
     private suspend fun findAndModify(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         body: List<Pair<String, BsonValue>>,
@@ -412,7 +412,7 @@ internal object CollectionOps {
         }
 
     suspend fun findOneAndUpdate(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -440,7 +440,7 @@ internal object CollectionOps {
         )
 
     suspend fun findOneAndReplace(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -468,7 +468,7 @@ internal object CollectionOps {
         )
 
     suspend fun findOneAndDelete(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -496,7 +496,7 @@ internal object CollectionOps {
      * в проекте вызов через `read_command_with_opts`; на нём же потом встанет `runCommand` (M-51).
      */
     suspend fun distinct(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         field: String,
@@ -520,7 +520,7 @@ internal object CollectionOps {
         }
 
     suspend fun countDocuments(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -568,7 +568,7 @@ internal object CollectionOps {
      * корутину (отменяемо, `withTimeout` работает), а не вешает поток в C навсегда (§1.12).
      */
     fun find(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         filter: Document,
@@ -611,7 +611,7 @@ internal object CollectionOps {
      * задавалось, сегодня задаётся ключами `opts`.
      */
     fun aggregate(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         pipeline: List<Document>,
@@ -659,7 +659,7 @@ internal object CollectionOps {
      * склейка ключей, которую собирает сам libmongoc ([defaultIndexName]).
      */
     suspend fun createIndexes(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         models: List<IndexModel>,
@@ -705,7 +705,7 @@ internal object CollectionOps {
 
     /** Удаляет индекс по имени. `*` удаляет все, кроме обязательного индекса по `_id`. */
     suspend fun dropIndex(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         indexName: String,
@@ -727,7 +727,7 @@ internal object CollectionOps {
      * Курсор, поэтому устроено как [find] и [aggregate], а не как обычная операция.
      */
     fun listIndexes(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         opts: Document,
@@ -794,7 +794,7 @@ internal object CollectionOps {
      * (решение Р3): в ответе на bulk сервер их не возвращает вовсе.
      */
     suspend fun bulkWrite(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         requests: List<WriteModel<Document>>,
@@ -947,7 +947,7 @@ internal object CollectionOps {
      * Разрешение семафора берётся как обычно: клиент занят, и пул должен об этом знать.
      */
     fun watch(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         pipeline: List<Document>,
@@ -987,7 +987,7 @@ internal object CollectionOps {
      * тащила бы за собой те же четыре вложенных `try/finally`.
      */
     private suspend inline fun <T> execute(
-        client: MongoClient,
+        client: Target,
         databaseName: String,
         name: String,
         crossinline body: MemScope.(CPointer<mongoc_collection_t>) -> T,

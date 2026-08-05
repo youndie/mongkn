@@ -19,6 +19,7 @@ import mongkn.cinterop.mongoc_client_pool_new_with_error
 import mongkn.cinterop.mongoc_client_pool_pop
 import mongkn.cinterop.mongoc_client_pool_push
 import mongkn.cinterop.mongoc_client_pool_t
+import mongkn.cinterop.mongoc_client_start_session
 import mongkn.cinterop.mongoc_client_t
 import mongkn.cinterop.mongoc_uri_destroy
 import mongkn.cinterop.mongoc_uri_new_with_error
@@ -124,7 +125,7 @@ public class MongoClient(
     public fun getDatabase(name: String): MongoDatabase = MongoDatabase(this, name)
 
     /** Имена баз на сервере. */
-    public suspend fun listDatabaseNames(): List<String> = DatabaseOps.listDatabaseNames(this)
+    public suspend fun listDatabaseNames(): List<String> = DatabaseOps.listDatabaseNames(Target(this, null))
 
     /**
      * Подписка на изменения всего развёртывания — всех баз сразу.
@@ -134,10 +135,60 @@ public class MongoClient(
      */
     public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
         ChangeStreamFlow(
-            source = { stages, options -> DatabaseOps.watch(this, null, stages, options) },
+            source = { stages, options -> DatabaseOps.watch(Target(this, null), null, stages, options) },
             pipeline = pipeline,
             opts = BsonDocument(),
         )
+
+    /**
+     * Открывает логическую сессию.
+     *
+     * Сессия **закрепляет за собой одного клиента из пула** до самого [ClientSession.close]:
+     * libmongoc откажется выполнять операцию сессии через другого клиента. Поэтому закрывать
+     * её обязательно, и лучше через `use` — иначе клиент и разрешение семафора не вернутся
+     * никогда.
+     *
+     * ```
+     * client.startSession().use { session ->
+     *     session.withTransaction { … }
+     * }
+     * ```
+     *
+     * Транзакции требуют replica set; сама сессия работает и на standalone.
+     */
+    public suspend fun startSession(): ClientSession {
+        checkOpen()
+        // Разрешение берётся вручную, а не через withPermit: оно должно пережить эту функцию
+        // и дожить до close(). Всё, что дальше может бросить, обязано его вернуть.
+        permits.acquire()
+        val handle =
+            try {
+                withContext(dispatcher) {
+                    mongoc_client_pool_pop(pool) ?: error("mongoc_client_pool_pop вернул NULL при взятом разрешении")
+                }
+            } catch (e: Throwable) {
+                permits.release()
+                throw e
+            }
+        val session =
+            try {
+                withContext(dispatcher) {
+                    memScoped {
+                        val error = alloc<bson_error_t>()
+                        mongoc_client_start_session(handle, null, error.ptr)
+                            ?: throw MongoException(error.domain, error.code, error.message.toKString())
+                    }
+                }
+            } catch (e: Throwable) {
+                mongoc_client_pool_push(pool, handle)
+                permits.release()
+                throw e
+            }
+        return ClientSession(this, handle, session) {
+            mongoc_client_pool_push(pool, handle)
+            permits.release()
+        }
+    }
 
     /**
      * Уничтожает пул и снимает инициализацию драйвера.
