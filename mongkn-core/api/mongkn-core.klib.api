@@ -22,6 +22,60 @@ final enum class ru.workinprogress.mongkn/CursorType : kotlin/Enum<ru.workinprog
     final fun values(): kotlin/Array<ru.workinprogress.mongkn/CursorType> // ru.workinprogress.mongkn/CursorType.values|values#static(){}[0]
 }
 
+final enum class ru.workinprogress.mongkn/MongknLogLevel : kotlin/Enum<ru.workinprogress.mongkn/MongknLogLevel> { // ru.workinprogress.mongkn/MongknLogLevel|null[0]
+    enum entry CRITICAL // ru.workinprogress.mongkn/MongknLogLevel.CRITICAL|null[0]
+    enum entry DEBUG // ru.workinprogress.mongkn/MongknLogLevel.DEBUG|null[0]
+    enum entry ERROR // ru.workinprogress.mongkn/MongknLogLevel.ERROR|null[0]
+    enum entry INFO // ru.workinprogress.mongkn/MongknLogLevel.INFO|null[0]
+    enum entry MESSAGE // ru.workinprogress.mongkn/MongknLogLevel.MESSAGE|null[0]
+    enum entry UNKNOWN // ru.workinprogress.mongkn/MongknLogLevel.UNKNOWN|null[0]
+    enum entry WARNING // ru.workinprogress.mongkn/MongknLogLevel.WARNING|null[0]
+
+    final val entries // ru.workinprogress.mongkn/MongknLogLevel.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ru.workinprogress.mongkn/MongknLogLevel> // ru.workinprogress.mongkn/MongknLogLevel.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ru.workinprogress.mongkn/MongknLogLevel // ru.workinprogress.mongkn/MongknLogLevel.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ru.workinprogress.mongkn/MongknLogLevel> // ru.workinprogress.mongkn/MongknLogLevel.values|values#static(){}[0]
+}
+
+final enum class ru.workinprogress.mongkn/MongoErrorDomain : kotlin/Enum<ru.workinprogress.mongkn/MongoErrorDomain> { // ru.workinprogress.mongkn/MongoErrorDomain|null[0]
+    enum entry AZURE // ru.workinprogress.mongkn/MongoErrorDomain.AZURE|null[0]
+    enum entry BSON // ru.workinprogress.mongkn/MongoErrorDomain.BSON|null[0]
+    enum entry CLIENT // ru.workinprogress.mongkn/MongoErrorDomain.CLIENT|null[0]
+    enum entry CLIENT_SIDE_ENCRYPTION // ru.workinprogress.mongkn/MongoErrorDomain.CLIENT_SIDE_ENCRYPTION|null[0]
+    enum entry COLLECTION // ru.workinprogress.mongkn/MongoErrorDomain.COLLECTION|null[0]
+    enum entry COMMAND // ru.workinprogress.mongkn/MongoErrorDomain.COMMAND|null[0]
+    enum entry CURSOR // ru.workinprogress.mongkn/MongoErrorDomain.CURSOR|null[0]
+    enum entry GCP // ru.workinprogress.mongkn/MongoErrorDomain.GCP|null[0]
+    enum entry GRIDFS // ru.workinprogress.mongkn/MongoErrorDomain.GRIDFS|null[0]
+    enum entry INSERT // ru.workinprogress.mongkn/MongoErrorDomain.INSERT|null[0]
+    enum entry MATCHER // ru.workinprogress.mongkn/MongoErrorDomain.MATCHER|null[0]
+    enum entry NAMESPACE // ru.workinprogress.mongkn/MongoErrorDomain.NAMESPACE|null[0]
+    enum entry POOL // ru.workinprogress.mongkn/MongoErrorDomain.POOL|null[0]
+    enum entry PROTOCOL // ru.workinprogress.mongkn/MongoErrorDomain.PROTOCOL|null[0]
+    enum entry QUERY // ru.workinprogress.mongkn/MongoErrorDomain.QUERY|null[0]
+    enum entry SASL // ru.workinprogress.mongkn/MongoErrorDomain.SASL|null[0]
+    enum entry SCRAM // ru.workinprogress.mongkn/MongoErrorDomain.SCRAM|null[0]
+    enum entry SERVER // ru.workinprogress.mongkn/MongoErrorDomain.SERVER|null[0]
+    enum entry SERVER_SELECTION // ru.workinprogress.mongkn/MongoErrorDomain.SERVER_SELECTION|null[0]
+    enum entry STREAM // ru.workinprogress.mongkn/MongoErrorDomain.STREAM|null[0]
+    enum entry TRANSACTION // ru.workinprogress.mongkn/MongoErrorDomain.TRANSACTION|null[0]
+    enum entry UNKNOWN // ru.workinprogress.mongkn/MongoErrorDomain.UNKNOWN|null[0]
+    enum entry WRITE_CONCERN // ru.workinprogress.mongkn/MongoErrorDomain.WRITE_CONCERN|null[0]
+
+    final val entries // ru.workinprogress.mongkn/MongoErrorDomain.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ru.workinprogress.mongkn/MongoErrorDomain> // ru.workinprogress.mongkn/MongoErrorDomain.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val value // ru.workinprogress.mongkn/MongoErrorDomain.value|{}value[0]
+        final fun <get-value>(): kotlin/UInt // ru.workinprogress.mongkn/MongoErrorDomain.value.<get-value>|<get-value>(){}[0]
+
+    final fun valueOf(kotlin/String): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoErrorDomain.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ru.workinprogress.mongkn/MongoErrorDomain> // ru.workinprogress.mongkn/MongoErrorDomain.values|values#static(){}[0]
+
+    final object Companion { // ru.workinprogress.mongkn/MongoErrorDomain.Companion|null[0]
+        final fun of(kotlin/UInt): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoErrorDomain.Companion.of|of(kotlin.UInt){}[0]
+    }
+}
+
 final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workinprogress.mongkn/ReturnDocument> { // ru.workinprogress.mongkn/ReturnDocument|null[0]
     enum entry AFTER // ru.workinprogress.mongkn/ReturnDocument.AFTER|null[0]
     enum entry BEFORE // ru.workinprogress.mongkn/ReturnDocument.BEFORE|null[0]
@@ -537,6 +591,10 @@ final class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { 
         final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.code.<get-code>|<get-code>(){}[0]
     final val domain // ru.workinprogress.mongkn/MongoException.domain|{}domain[0]
         final fun <get-domain>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.domain.<get-domain>|<get-domain>(){}[0]
+    final val errorDomain // ru.workinprogress.mongkn/MongoException.errorDomain|{}errorDomain[0]
+        final fun <get-errorDomain>(): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoException.errorDomain.<get-errorDomain>|<get-errorDomain>(){}[0]
+    final val isConnectivity // ru.workinprogress.mongkn/MongoException.isConnectivity|{}isConnectivity[0]
+        final fun <get-isConnectivity>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isConnectivity.<get-isConnectivity>|<get-isConnectivity>(){}[0]
 }
 
 final class ru.workinprogress.mongkn/UpdateManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/UpdateManyModel|null[0]
@@ -618,6 +676,10 @@ final object ru.workinprogress.mongkn/Mongkn { // ru.workinprogress.mongkn/Mongk
 
     final fun initialize() // ru.workinprogress.mongkn/Mongkn.initialize|initialize(){}[0]
     final fun shutdown() // ru.workinprogress.mongkn/Mongkn.shutdown|shutdown(){}[0]
+}
+
+final object ru.workinprogress.mongkn/MongknLog { // ru.workinprogress.mongkn/MongknLog|null[0]
+    final fun setHandler(kotlin/Function3<ru.workinprogress.mongkn/MongknLogLevel, kotlin/String, kotlin/String, kotlin/Unit>?) // ru.workinprogress.mongkn/MongknLog.setHandler|setHandler(kotlin.Function3<ru.workinprogress.mongkn.MongknLogLevel,kotlin.String,kotlin.String,kotlin.Unit>?){}[0]
 }
 
 final fun <#A: kotlin/Any?> ru.workinprogress.mongkn.bson/decodeFromDocument(kotlinx.serialization/KSerializer<#A>, ru.workinprogress.mongkn.bson/BsonDocument): #A // ru.workinprogress.mongkn.bson/decodeFromDocument|decodeFromDocument(kotlinx.serialization.KSerializer<0:0>;ru.workinprogress.mongkn.bson.BsonDocument){0§<kotlin.Any?>}[0]

@@ -134,8 +134,12 @@ class MongoIntegrationTest {
 
             val failure = assertFailsWith<MongoException> { collection.insertOne(doc) }
 
-            // Значения не выдуманы: сняты с прогона против mongo:8 при ресёрче (§1.3).
-            assertEquals(12u, failure.domain, "ожидался MONGOC_ERROR_COLLECTION")
+            // Значения не выдуманы: сняты с прогона против mongo:8. Домен здесь 17
+            // (`MONGOC_ERROR_SERVER`), а не 12 (`MONGOC_ERROR_COLLECTION`), как было при ресёрче:
+            // в M-63 клиент переведён на вторую версию API ошибок, и отказы сервера перестали
+            // маскироваться под домен той операции, в которой случились.
+            assertEquals(17u, failure.domain, "ожидался MONGOC_ERROR_SERVER")
+            assertEquals(MongoErrorDomain.SERVER, failure.errorDomain)
             assertEquals(11000u, failure.code)
             assertTrue(
                 failure.message!!.contains("E11000 duplicate key error collection"),

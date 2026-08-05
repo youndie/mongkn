@@ -58,8 +58,11 @@ docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
 не работают вовсе, и `ChangeStreamTest` будет падать. Для остальных операций разницы нет.
 
 ```bash
-docker run -d --name mongkn-it --platform linux/arm64 -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+docker run -d --name mongkn-it --platform linux/arm64 -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
 ```
+
+`enableTestCommands=1` нужен failpoint'ам: `RetryTest` заказывает серверу сбой через
+`failCommand`, и без этого параметра сервер откажется.
 
 `--platform` под архитектуру хоста — не украшение. Однажды образ уже оказался `linux/amd64`
 на arm-машине, то есть mongod работал под эмуляцией QEMU: прогон тестов шёл вдвое дольше,

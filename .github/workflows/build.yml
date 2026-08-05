@@ -53,7 +53,7 @@ jobs:
       - name: Поднять mongod (Linux)
         if: runner.os == 'Linux'
         run: |
-          docker run -d --name mongod -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+          docker run -d --name mongod -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
           for _ in $(seq 1 30); do docker exec mongod mongosh --quiet --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
           docker exec mongod mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
           for _ in $(seq 1 30); do docker exec mongod mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' && break; sleep 2; done
@@ -64,7 +64,9 @@ jobs:
           brew tap mongodb/brew
           # mongosh отдельной формулой: он нужен для rs.initiate, а с сервером не ставится.
           brew install mongodb-community@8.0 mongosh
-          printf 'replication:\n  replSetName: rs0\n' >> "$(brew --prefix)/etc/mongod.conf"
+          # enableTestCommands нужен failpoint'ам в RetryTest: без него сервер откажется
+          # инсценировать сбой, и проверить ретраи будет нечем.
+          printf 'replication:\n  replSetName: rs0\nsetParameter:\n  enableTestCommands: 1\n' >> "$(brew --prefix)/etc/mongod.conf"
           brew services start mongodb-community@8.0
           # Сервер поднимается не мгновенно, а тесты падают, а не пропускаются, если его нет.
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27017 && break; sleep 2; done

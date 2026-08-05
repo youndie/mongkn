@@ -76,6 +76,7 @@ date: 2026-08-04
 | `mongoc_collection_insert_one` кладёт в `reply` **`{ "insertedCount" : 1, "insertedId" : { "$oid" : "…" } }`** | тот же прогон |
 | Дубликат `_id` даёт `ok=false`, `domain=12`, `code=11000`, `message = "E11000 duplicate key error collection: …"` | тот же прогон |
 | `domain=12` — это `MONGOC_ERROR_COLLECTION` (12-й элемент enum, нумерация явно начата с `= 1`) | `/opt/homebrew/include/mongoc-2.1.1/mongoc/mongoc-error.h`, `mongoc_error_domain_t` |
+| **С M-63 этот прогон даёт `domain=17` (`MONGOC_ERROR_SERVER`), а не 12.** Клиент переведён на вторую версию API ошибок (`mongoc_client_pool_set_error_api`); в первой, наследуемой по умолчанию, отказ **сервера** приходит под доменом той операции, в которой случился, и отличить его от отказа драйвера по домену невозможно | прогон `DiagnosticsTest`, `mongoc-error.h`: `MONGOC_ERROR_SERVER, /* Error API Version 2 only */` |
 | `mongoc_collection_find_with_opts` + `mongoc_cursor_next` отдают вставленные документы, `mongoc_cursor_error` → `false` | тот же прогон |
 | `bson_error_t.message` — `char[512]`, читается из Kotlin как `err.message.toKString()` без ручной возни с байтами | `bson/error.h`: `typedef struct _bson_error_t { uint32_t domain; uint32_t code; char message[…]; uint8_t reserved; }`, `BSON_STATIC_ASSERT2 (error_t, sizeof (bson_error_t) == 512)` |
 | `bson_t` — 128 байт (`uint32 flags; uint32 len; uint8 padding[120]`), рассчитан на размещение на стеке | `bson/bson_t.h` |

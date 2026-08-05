@@ -12,12 +12,14 @@ import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import mongkn.cinterop.MONGOC_ERROR_API_VERSION_2
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.mongoc_client_pool_destroy
 import mongkn.cinterop.mongoc_client_pool_max_size
 import mongkn.cinterop.mongoc_client_pool_new_with_error
 import mongkn.cinterop.mongoc_client_pool_pop
 import mongkn.cinterop.mongoc_client_pool_push
+import mongkn.cinterop.mongoc_client_pool_set_error_api
 import mongkn.cinterop.mongoc_client_pool_t
 import mongkn.cinterop.mongoc_client_start_session
 import mongkn.cinterop.mongoc_client_t
@@ -107,6 +109,20 @@ public class MongoClient(
                         // Выставляем **до** первого pop и ровно в размер семафора: договорённость
                         // «есть разрешение — есть клиент» держится только при их равенстве.
                         mongoc_client_pool_max_size(created, poolSize.toUInt())
+                        /*
+                         * Версия 2 «API ошибок», а не наследуемая по умолчанию первая.
+                         *
+                         * Разница выяснилась замером доменов (M-63): при первой версии ошибка
+                         * **сервера** приходит под доменом той операции, в которой случилась —
+                         * дубликат ключа при вставке даёт `MONGOC_ERROR_COLLECTION`. Отличить
+                         * отказ сервера от отказа драйвера по домену при этом невозможно.
+                         * Вторая версия кладёт такие ошибки в `MONGOC_ERROR_SERVER`, и
+                         * [MongoErrorDomain.SERVER] начинает означать ровно то, что называет.
+                         *
+                         * Ставится на пул до первого `pop`: у клиента, уже взятого из пула,
+                         * настройка своя и наша бы до него не доехала.
+                         */
+                        mongoc_client_pool_set_error_api(created, MONGOC_ERROR_API_VERSION_2)
                         created
                     } finally {
                         // Пул копирует URI себе, так что наш экземпляр больше не нужен —
