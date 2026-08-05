@@ -35,6 +35,21 @@ final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workin
 
 sealed interface ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/BsonValue|null[0]
 
+final class <#A: kotlin/Any?> ru.workinprogress.mongkn/AggregateFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/AggregateFlow|null[0]
+    final fun allowDiskUse(kotlin/Boolean = ...): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.allowDiskUse|allowDiskUse(kotlin.Boolean){}[0]
+    final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.batchSize|batchSize(kotlin.Int){}[0]
+    final fun bypassDocumentValidation(kotlin/Boolean = ...): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.bypassDocumentValidation|bypassDocumentValidation(kotlin.Boolean){}[0]
+    final fun collation(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.collation|collation(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun comment(kotlin/String): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.comment|comment(kotlin.String){}[0]
+    final fun hint(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.hint|hint(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun hintString(kotlin/String): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.hintString|hintString(kotlin.String){}[0]
+    final fun let(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.let|let(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun maxAwaitTime(kotlin/Long): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.maxAwaitTime|maxAwaitTime(kotlin.Long){}[0]
+    final fun maxTime(kotlin/Long): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.maxTime|maxTime(kotlin.Long){}[0]
+    final suspend fun collect(kotlinx.coroutines.flow/FlowCollector<#A>) // ru.workinprogress.mongkn/AggregateFlow.collect|collect(kotlinx.coroutines.flow.FlowCollector<1:0>){}[0]
+    final suspend fun toCollection() // ru.workinprogress.mongkn/AggregateFlow.toCollection|toCollection(){}[0]
+}
+
 final class <#A: kotlin/Any?> ru.workinprogress.mongkn/FindFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/FindFlow|null[0]
     final fun allowDiskUse(kotlin/Boolean = ...): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.allowDiskUse|allowDiskUse(kotlin.Boolean){}[0]
     final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.batchSize|batchSize(kotlin.Int){}[0]
@@ -63,6 +78,8 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.w
     final val name // ru.workinprogress.mongkn/MongoCollection.name|{}name[0]
         final fun <get-name>(): kotlin/String // ru.workinprogress.mongkn/MongoCollection.name.<get-name>|<get-name>(){}[0]
 
+    final fun <#A1: kotlin/Any?> aggregate(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument>, kotlinx.serialization/KSerializer<#A1>): ru.workinprogress.mongkn/AggregateFlow<#A1> // ru.workinprogress.mongkn/MongoCollection.aggregate|aggregate(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>;kotlinx.serialization.KSerializer<0:0>){0§<kotlin.Any?>}[0]
+    final fun aggregate(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument>): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/MongoCollection.aggregate|aggregate(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun find(ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/MongoCollection.find|find(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun withReadConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withReadConcern|withReadConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun withTimeout(kotlin/Long): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withTimeout|withTimeout(kotlin.Long){}[0]
@@ -390,6 +407,7 @@ final class ru.workinprogress.mongkn/MongoDatabase { // ru.workinprogress.mongkn
         final fun <get-name>(): kotlin/String // ru.workinprogress.mongkn/MongoDatabase.name.<get-name>|<get-name>(){}[0]
 
     final fun <#A1: kotlin/Any?> getCollection(kotlin/String, kotlinx.serialization/KSerializer<#A1>): ru.workinprogress.mongkn/MongoCollection<#A1> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String;kotlinx.serialization.KSerializer<0:0>){0§<kotlin.Any?>}[0]
+    final fun aggregate(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument>): ru.workinprogress.mongkn/AggregateFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoDatabase.aggregate|aggregate(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun getCollection(kotlin/String): ru.workinprogress.mongkn/MongoCollection<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){}[0]
     final inline fun <#A1: reified kotlin/Any?> getCollection(kotlin/String): ru.workinprogress.mongkn/MongoCollection<#A1> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){0§<kotlin.Any?>}[0]
     final suspend fun createCollection(kotlin/String, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/MongoDatabase.createCollection|createCollection(kotlin.String;ru.workinprogress.mongkn.bson.BsonDocument){}[0]

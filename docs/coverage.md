@@ -15,16 +15,17 @@ date: 2026-08-05
 вообще работала — cinterop, память, потоки, BSON, маппинг классов, публикация, CI, — сделано
 и проверено. Операций реализована половина, и почти все они под официальным spec-покрытием.
 
-## Операции коллекции — 15 из 30
+## Операции коллекции — 16 из 30
 
 | Реализовано | Нет |
 |---|---|
 | `insertOne`, `insertMany` | `bulkWrite` |
-| `updateOne`, `updateMany`, `replaceOne` | `aggregate`, `mapReduce` |
+| `updateOne`, `updateMany`, `replaceOne` | `mapReduce` (объявлен устаревшим) |
 | `deleteOne`, `deleteMany` | `watch` |
 | `find`, `countDocuments`, `estimatedDocumentCount` | индексы: `createIndex(es)`, `dropIndex(es)`, `listIndexes` |
 | `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
 | `distinct`, `drop`, `renameCollection` | |
+| `aggregate` | |
 
 Каждая операция принимает параметр `options: Document` — туда уходит всё, что libmongoc
 берёт документом опций: `collation`, `hint`, `comment`, `let`, `bypassDocumentValidation`.
@@ -44,8 +45,8 @@ date: 2026-08-05
 
 ## База и клиент
 
-`MongoDatabase` — 5 операций из 9: `getCollection`, `runCommand`, `createCollection`, `drop`,
-`listCollectionNames`. Нет `createView`, `listCollections` (полные документы), `aggregate`,
+`MongoDatabase` — 6 операций из 9: `getCollection`, `runCommand`, `createCollection`, `drop`,
+`listCollectionNames`, `aggregate`. Нет `createView`, `listCollections` (полные документы),
 `watch`; первые две доступны через `runCommand`.
 
 `MongoClient` — создание, `getDatabase`, `close`, `listDatabaseNames`. Нет `listDatabases`
@@ -57,14 +58,20 @@ date: 2026-08-05
 оба дают понятный отказ, а не порчу данных. Всё остальное читается и пишется, включая `binary`
 с подтипом, `decimal128`, `timestamp`, `regex`, `minKey`/`maxKey`.
 
+## `AggregateFlow` — 10 из 13 методов чейнинга
+
+Есть: `batchSize`, `allowDiskUse`, `bypassDocumentValidation`, `collation`, `comment`, `hint`,
+`hintString`, `let`, `maxTime`, `maxAwaitTime`, плюс `toCollection` для конвейеров с `$out`
+и `$merge`. Нет `timeoutMode` (CSOT) и `explain`.
+
 ## Чего нет как подсистем
 
 * **Транзакции и сессии** — `ClientSession` не реализован; у официального драйвера он есть
   перегрузкой у каждой операции.
 * **Change streams** (`watch`) — требуют курсора с иным жизненным циклом.
-* **Мониторинг команд (APM)** — из-за этого 8 официальных spec-сценариев пропускаются (M-39),
+* **Мониторинг команд (APM)** — из-за этого 14 официальных spec-сценариев пропускаются (M-39),
   и это **единственная** оставшаяся причина пропусков.
-* **GridFS**, **client-side field level encryption**, **агрегации**.
+* **GridFS**, **client-side field level encryption**.
 
 ## Что зато сделано целиком
 
@@ -77,14 +84,14 @@ date: 2026-08-05
 | Маппинг классов | `kotlinx.serialization`, свой древесный формат |
 | Эргономика | infix-DSL с проверкой имён полей |
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
-| Соответствие спецификации | **44** официальных сценария MongoDB; непокрытыми остались только требующие APM |
+| Соответствие спецификации | **45** официальных сценариев MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 125 тестов на двух платформах, ABI-валидация, ktlint в гейте |
+| Проверки | 134 теста на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 
 Добавить операцию сегодня стоит недорого: ~15 строк в `CollectionOps` по образцу соседей
-плюс метод в `MongoCollection`. Дорогими остаются подсистемы: сессии, агрегации,
+плюс метод в `MongoCollection`. Дорогими остаются подсистемы: сессии,
 change streams, APM.
 
 Одна оговорка про опции. Они проверены на том, что сервер их **видит**: тесты задают значения,

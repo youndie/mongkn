@@ -274,6 +274,38 @@ public class MongoCollection<T> internal constructor(
         CollectionOps.countDocuments(client, databaseName, name, filter, opts(BsonDocument()))
 
     /**
+     * Выполняет агрегационный конвейер.
+     *
+     * Результат типизирован тем же [T], что и коллекция, — как у официального драйвера.
+     * Это удобно для конвейеров, которые документ фильтруют (`${'$'}match`, `${'$'}sort`), и неверно
+     * для тех, что его перестраивают (`${'$'}group`, `${'$'}project`): под них берите перегрузку
+     * с сериализатором или коллекцию `Document`.
+     */
+    public fun aggregate(pipeline: List<Document>): AggregateFlow<T> =
+        AggregateFlow(
+            source = { stages, opts ->
+                CollectionOps.aggregate(client, databaseName, name, stages, opts).map(::fromDocument)
+            },
+            pipeline = pipeline,
+            opts = defaults,
+        )
+
+    /** То же, но результат отображается в другой класс — обычный случай для `${'$'}group`. */
+    public fun <R> aggregate(
+        pipeline: List<Document>,
+        codec: KSerializer<R>,
+    ): AggregateFlow<R> =
+        AggregateFlow(
+            source = { stages, opts ->
+                CollectionOps
+                    .aggregate(client, databaseName, name, stages, opts)
+                    .map { decodeFromDocument(codec, it) }
+            },
+            pipeline = pipeline,
+            opts = defaults,
+        )
+
+    /**
      * Читает документы по фильтру.
      *
      * Курсор освобождается при любом исходе сбора потока, включая отмену, — см. [CollectionOps].

@@ -51,6 +51,19 @@ public class MongoDatabase internal constructor(
     /** Удаляет базу целиком вместе со всеми коллекциями. */
     public suspend fun drop(): Unit = DatabaseOps.dropDatabase(client, name)
 
+    /**
+     * Агрегационный конвейер уровня базы.
+     *
+     * Нужен стадиям, которым не с чего начинать в коллекции: `${'$'}currentOp`,
+     * `${'$'}listLocalSessions`, `${'$'}documents`.
+     */
+    public fun aggregate(pipeline: List<Document>): AggregateFlow<Document> =
+        AggregateFlow(
+            source = { stages, opts -> DatabaseOps.aggregate(client, name, stages, opts) },
+            pipeline = pipeline,
+            opts = BsonDocument(),
+        )
+
     /** Имена коллекций в этой базе. */
     public suspend fun listCollectionNames(): List<String> = DatabaseOps.listCollectionNames(client, name)
 }

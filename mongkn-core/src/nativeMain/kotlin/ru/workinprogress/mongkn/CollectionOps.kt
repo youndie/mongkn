@@ -21,12 +21,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import mongkn.cinterop.MONGOC_QUERY_NONE
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.bson_oid_init
 import mongkn.cinterop.bson_oid_t
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_collection
+import mongkn.cinterop.mongoc_collection_aggregate
 import mongkn.cinterop.mongoc_collection_count_documents
 import mongkn.cinterop.mongoc_collection_delete_many
 import mongkn.cinterop.mongoc_collection_delete_one
@@ -562,26 +564,58 @@ internal object CollectionOps {
                             val cursor =
                                 mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, null)
                                     ?: error("mongoc_collection_find_with_opts вернул NULL")
-                            try {
-                                memScoped {
-                                    val current = allocPointerTo<bson_t>()
-                                    while (mongoc_cursor_next(cursor, current.ptr)) {
-                                        val document =
-                                            current.value?.toDocument()
-                                                ?: error("mongoc_cursor_next отдал NULL при true")
-                                        emit(document)
-                                    }
-                                    // Курсор заканчивается и по исчерпанию, и по ошибке — различить
-                                    // их можно только здесь.
-                                    val error = alloc<bson_error_t>()
-                                    if (mongoc_cursor_error(cursor, error.ptr)) fail(error.ptr)
-                                }
-                            } finally {
-                                mongoc_cursor_destroy(cursor)
-                            }
+                            drainCursor(cursor)
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativeFilter)
+                        }
+                    } finally {
+                        mongoc_collection_destroy(collection)
+                    }
+                }
+            }
+        }.flowOn(client.dispatcher)
+
+    /**
+     * Агрегационный конвейер над коллекцией.
+     *
+     * Устроена как [find] — тот же курсор, то же удержание клиента и разрешения на всё время
+     * сбора, — и отличается только тем, что уходит на сервер: вместо фильтра конвейер стадий.
+     *
+     * Конвейер передаётся документом — см. [pipelineDocument].
+     *
+     * `MONGOC_QUERY_NONE`: флаги здесь — наследие протокола OP_QUERY, а всё, что через них
+     * задавалось, сегодня задаётся ключами `opts`.
+     */
+    fun aggregate(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        pipeline: List<Document>,
+        opts: Document,
+    ): Flow<Document> =
+        flow {
+            client.withPermit {
+                client.useClient { handle ->
+                    val collection =
+                        mongoc_client_get_collection(handle, databaseName, name)
+                            ?: error("mongoc_client_get_collection вернул NULL")
+                    try {
+                        val nativePipeline = pipelineDocument(pipeline).toNativeBson()
+                        val nativeOpts = opts.toNativeBson()
+                        try {
+                            val cursor =
+                                mongoc_collection_aggregate(
+                                    collection,
+                                    MONGOC_QUERY_NONE,
+                                    nativePipeline,
+                                    nativeOpts,
+                                    null,
+                                ) ?: error("mongoc_collection_aggregate вернул NULL")
+                            drainCursor(cursor)
+                        } finally {
+                            bson_destroy(nativeOpts)
+                            bson_destroy(nativePipeline)
                         }
                     } finally {
                         mongoc_collection_destroy(collection)

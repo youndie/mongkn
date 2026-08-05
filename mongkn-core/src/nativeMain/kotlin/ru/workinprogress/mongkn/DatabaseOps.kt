@@ -10,12 +10,16 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.bson_strfreev
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_database
 import mongkn.cinterop.mongoc_client_get_database_names_with_opts
+import mongkn.cinterop.mongoc_database_aggregate
 import mongkn.cinterop.mongoc_database_command_simple
 import mongkn.cinterop.mongoc_database_create_collection
 import mongkn.cinterop.mongoc_database_destroy
@@ -111,6 +115,49 @@ internal object DatabaseOps {
                 readStringArray(names)
             }
         }
+
+    /**
+     * Агрегационный конвейер уровня базы.
+     *
+     * Нужен ради стадий, которым коллекция не с чего начинать: `$currentOp`, `$listLocalSessions`,
+     * `$documents`. На проводе это команда `aggregate: 1`.
+     *
+     * Через [withDatabase] не идёт: тот `suspend`, а здесь нужен холодный `Flow`, внутри которого
+     * происходит эмиссия. Поэтому дескриптор базы открывается и закрывается прямо здесь, а клиент
+     * и разрешение семафора удерживаются всё время сбора — как в [CollectionOps.find].
+     *
+     * Флагов, в отличие от коллекционной агрегации, эта функция не принимает вовсе.
+     */
+    fun aggregate(
+        client: MongoClient,
+        databaseName: String,
+        pipeline: List<Document>,
+        opts: Document,
+    ): Flow<Document> =
+        flow {
+            client.withPermit {
+                client.useClient { handle ->
+                    val database =
+                        mongoc_client_get_database(handle, databaseName)
+                            ?: error("mongoc_client_get_database вернул NULL")
+                    try {
+                        val nativePipeline = pipelineDocument(pipeline).toNativeBson()
+                        val nativeOpts = opts.toNativeBson()
+                        try {
+                            val cursor =
+                                mongoc_database_aggregate(database, nativePipeline, nativeOpts, null)
+                                    ?: error("mongoc_database_aggregate вернул NULL")
+                            drainCursor(cursor)
+                        } finally {
+                            bson_destroy(nativeOpts)
+                            bson_destroy(nativePipeline)
+                        }
+                    } finally {
+                        mongoc_database_destroy(database)
+                    }
+                }
+            }
+        }.flowOn(client.dispatcher)
 
     /**
      * Читает `char**`, завершённый NULL, и освобождает его.

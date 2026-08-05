@@ -28,6 +28,8 @@ val specTestFiles =
         "findOneAndDelete.json",
         "findOneAndReplace.json",
         "distinct.json",
+        // Веха M12.
+        "aggregate.json",
     )
 
 val specTestsDir: Provider<Directory> = layout.buildDirectory.dir("spec-tests")

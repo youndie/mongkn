@@ -369,6 +369,17 @@ class SpecTestRunner(
                 BsonArray(query.toList())
             }
 
+            "aggregate" -> {
+                var pipeline =
+                    collection.aggregate(arguments.arrayOf("pipeline").filterIsInstance<BsonDocument>())
+                arguments.intOf("batchSize")?.let { pipeline = pipeline.batchSize(it) }
+                (arguments["allowDiskUse"] as? BsonBoolean)?.let { pipeline = pipeline.allowDiskUse(it.value) }
+                (arguments["let"] as? BsonDocument)?.let { pipeline = pipeline.let(it) }
+                (arguments["comment"] as? BsonString)?.let { pipeline = pipeline.comment(it.value) }
+                (arguments["hint"] as? BsonDocument)?.let { pipeline = pipeline.hint(it) }
+                BsonArray(pipeline.toList())
+            }
+
             "countDocuments" -> {
                 BsonInt64(collection.countDocuments(arguments.documentOf("filter")))
             }
@@ -478,6 +489,8 @@ class SpecTestRunner(
                 "findOneAndDelete" to setOf("filter", "sort", "projection"),
                 "distinct" to setOf("fieldName", "filter"),
                 "estimatedDocumentCount" to emptySet(),
+                // Веха M12. `pipeline` обязателен, остальное — опции, которые мы учитываем.
+                "aggregate" to setOf("pipeline", "batchSize", "allowDiskUse", "let", "comment", "hint"),
             )
     }
 }
