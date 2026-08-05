@@ -118,7 +118,16 @@ internal object CollectionOps {
             withBson(prepared) { payload ->
                 withBson(opts) { options ->
                     withReply { reply, error ->
-                        if (!mongoc_collection_insert_one(collection, payload, options, reply, error)) fail(error)
+                        if (!mongoc_collection_insert_one(
+                                collection,
+                                payload,
+                                options,
+                                reply,
+                                error,
+                            )
+                        ) {
+                            raise(error, reply)
+                        }
                         InsertOneResult(prepared.required("_id"))
                     }
                 }
@@ -154,7 +163,7 @@ internal object CollectionOps {
                                 reply,
                                 error,
                             )
-                        if (!ok) fail(error)
+                        if (!ok) raise(error, reply)
                         InsertManyResult(
                             insertedCount = reply.toDocument().count("insertedCount"),
                             insertedIds = prepared.map { it.required("_id") },
@@ -203,7 +212,7 @@ internal object CollectionOps {
                                     reply,
                                     error,
                                 )
-                            if (!ok) fail(error)
+                            if (!ok) raise(error, reply)
                             val answer = reply.toDocument()
                             UpdateResult(
                                 matchedCount = answer.count("matchedCount"),
@@ -227,7 +236,16 @@ internal object CollectionOps {
             withBson(filter) { selector ->
                 withBson(opts) { nativeOpts ->
                     withReply { reply, error ->
-                        if (!mongoc_collection_delete_one(collection, selector, nativeOpts, reply, error)) fail(error)
+                        if (!mongoc_collection_delete_one(
+                                collection,
+                                selector,
+                                nativeOpts,
+                                reply,
+                                error,
+                            )
+                        ) {
+                            raise(error, reply)
+                        }
                         DeleteResult(reply.toDocument().count("deletedCount"))
                     }
                 }
@@ -257,7 +275,7 @@ internal object CollectionOps {
                                     reply,
                                     error,
                                 )
-                            if (!ok) fail(error)
+                            if (!ok) raise(error, reply)
                             reply.toDocument().toUpdateResult()
                         }
                     }
@@ -295,7 +313,7 @@ internal object CollectionOps {
                                     reply,
                                     error,
                                 )
-                            if (!ok) fail(error)
+                            if (!ok) raise(error, reply)
                             reply.toDocument().toUpdateResult()
                         }
                     }
@@ -314,7 +332,16 @@ internal object CollectionOps {
             withBson(filter) { selector ->
                 withBson(opts) { nativeOpts ->
                     withReply { reply, error ->
-                        if (!mongoc_collection_delete_many(collection, selector, nativeOpts, reply, error)) fail(error)
+                        if (!mongoc_collection_delete_many(
+                                collection,
+                                selector,
+                                nativeOpts,
+                                reply,
+                                error,
+                            )
+                        ) {
+                            raise(error, reply)
+                        }
                         DeleteResult(reply.toDocument().count("deletedCount"))
                     }
                 }
@@ -335,7 +362,7 @@ internal object CollectionOps {
         execute(client, databaseName, name) { collection ->
             withReply { reply, error ->
                 val count = mongoc_collection_estimated_document_count(collection, null, null, reply, error)
-                if (count < 0) fail(error)
+                if (count < 0) raise(error, reply)
                 count
             }
         }
@@ -404,7 +431,7 @@ internal object CollectionOps {
                                 reply,
                                 error,
                             )
-                        if (!ok) fail(error)
+                        if (!ok) raise(error, reply)
                         reply.toDocument()["value"] as? BsonDocument
                     }
                 }
@@ -701,7 +728,7 @@ internal object CollectionOps {
                                 reply,
                                 error,
                             )
-                        if (!ok) fail(error)
+                        if (!ok) raise(error, reply)
                     }
                 }
                 models.map { model ->
@@ -1100,6 +1127,12 @@ internal object CollectionOps {
         }
     }
 
+    /**
+     * Поднимает ошибку **без** меток: ответа сервера здесь нет.
+     *
+     * Там, где ответ есть (блоки [withReply]), надо звать [raise] с ним — иначе повторы
+     * транзакций не увидят `TransientTransactionError` и не сработают.
+     */
     private fun fail(error: CPointer<bson_error_t>): Nothing {
         val value = error.pointed
         throw MongoException(value.domain, value.code, value.message.toKString())

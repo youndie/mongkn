@@ -27,6 +27,8 @@ import mongkn.cinterop.mongoc_client_session_t
 import mongkn.cinterop.mongoc_client_t
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.toDocument
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * Логическая сессия — область, внутри которой операции связаны между собой.
@@ -134,14 +136,21 @@ public class ClientSession internal constructor(
         }
     }
 
-    /** Фиксирует транзакцию. */
+    /**
+     * Фиксирует транзакцию.
+     *
+     * Ошибка приходит с метками сервера — по ним [withTransaction] решает, повторять ли
+     * фиксацию (`UnknownTransactionCommitResult`) или всю транзакцию целиком.
+     */
     public suspend fun commitTransaction() {
         onSession {
             memScoped {
                 val error = alloc<bson_error_t>()
                 val reply = alloc<bson_t>()
                 try {
-                    if (!mongoc_client_session_commit_transaction(session, reply.ptr, error.ptr)) fail(error.ptr)
+                    if (!mongoc_client_session_commit_transaction(session, reply.ptr, error.ptr)) {
+                        raise(error.ptr, reply.ptr)
+                    }
                 } finally {
                     bson_destroy(reply.ptr)
                 }
@@ -160,32 +169,63 @@ public class ClientSession internal constructor(
     }
 
     /**
-     * Выполняет [body] в транзакции: фиксирует при нормальном завершении, откатывает при любом
-     * исключении.
+     * Выполняет [body] в транзакции, повторяя её при сбоях, которые сервер объявил временными.
+     *
+     * Реализует ту же логику, что `withTransaction` официального драйвера, и по тем же меткам:
+     *
+     * * `TransientTransactionError` — транзакция не удалась целиком, но повторить её **с начала**
+     *   имеет смысл. Тело выполняется заново;
+     * * `UnknownTransactionCommitResult` — исход фиксации неизвестен (например оборвалась связь
+     *   после отправки). Повторяется **только фиксация**: тело уже отработало, и выполнять его
+     *   второй раз было бы ошибкой.
+     *
+     * Решение принимается по меткам, а не по кодам ошибок: одна и та же ошибка бывает и временной,
+     * и окончательной в зависимости от того, что происходило на сервере, — так устроена
+     * спецификация, и разбирать коды самим значило бы завести второй источник истины.
+     *
+     * Повторы ограничены по времени ([RETRY_WINDOW_MILLIS], как в спецификации), а не по числу
+     * попыток: сбой, который длится две минуты, — это уже не временный сбой.
+     *
+     * **Почему не `mongoc_client_session_with_transaction`.** У libmongoc эта логика есть готовой,
+     * но принимает она C-коллбэк, который обязан выполнить тело синхронно. Наше тело — suspend,
+     * и вызвать его изнутри коллбэка нечем: коллбэк уже выполняется на потоке сессии и под её
+     * мьютексом, поэтому любая операция внутри упёрлась бы в тот же мьютекс и встала намертво.
+     * Так что логика повторена на Kotlin — это осознанное дублирование, а не незнание.
      *
      * Откат делается «по возможности»: если транзакция уже развалилась на стороне сервера,
      * `abortTransaction` сам отдаст ошибку, и она не должна подменить собой исходную причину.
-     * Поэтому неуспех отката подавляется — наружу уходит то исключение, из-за которого мы
-     * вообще откатываемся.
-     *
-     * Повторов **нет**. Официальный драйвер умеет перезапускать транзакцию по меткам
-     * `TransientTransactionError` и `UnknownTransactionCommitResult`; у нас этого пока не будет —
-     * см. M-73 в бэклоге. Пока считайте, что упавшую транзакцию перезапускает вызывающий.
      */
     public suspend fun <T> withTransaction(
         options: TransactionOptions? = null,
         body: suspend () -> T,
     ): T {
-        startTransaction(options)
-        val result =
-            try {
-                body()
-            } catch (e: Throwable) {
-                runCatching { abortTransaction() }
-                throw e
+        val deadline = TimeSource.Monotonic.markNow() + RETRY_WINDOW_MILLIS.milliseconds
+        while (true) {
+            startTransaction(options)
+            val result =
+                try {
+                    body()
+                } catch (e: MongoException) {
+                    runCatching { abortTransaction() }
+                    if (e.isTransientTransaction && deadline.hasNotPassedNow()) continue
+                    throw e
+                } catch (e: Throwable) {
+                    runCatching { abortTransaction() }
+                    throw e
+                }
+
+            // Фиксация повторяется отдельно от тела: при неизвестном исходе тело уже отработало.
+            while (true) {
+                try {
+                    commitTransaction()
+                    return result
+                } catch (e: MongoException) {
+                    if (e.isUnknownTransactionCommitResult && deadline.hasNotPassedNow()) continue
+                    if (e.isTransientTransaction && deadline.hasNotPassedNow()) break
+                    throw e
+                }
             }
-        commitTransaction()
-        return result
+        }
     }
 
     /**
@@ -224,6 +264,16 @@ public class ClientSession internal constructor(
         mongoc_client_session_destroy(session)
         dispatcher.close()
         release()
+    }
+
+    private companion object {
+        /**
+         * Сколько всего отводится на повторы, как в спецификации.
+         *
+         * Ограничение по времени, а не по числу попыток: сбой, который длится две минуты,
+         * временным уже не является.
+         */
+        const val RETRY_WINDOW_MILLIS: Long = 120_000
     }
 
     private fun fail(error: CPointer<bson_error_t>): Nothing {

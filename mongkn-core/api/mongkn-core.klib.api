@@ -745,7 +745,7 @@ final class ru.workinprogress.mongkn/UpdateResult { // ru.workinprogress.mongkn/
 }
 
 open class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { // ru.workinprogress.mongkn/MongoException|null[0]
-    constructor <init>(kotlin/UInt, kotlin/UInt, kotlin/String) // ru.workinprogress.mongkn/MongoException.<init>|<init>(kotlin.UInt;kotlin.UInt;kotlin.String){}[0]
+    constructor <init>(kotlin/UInt, kotlin/UInt, kotlin/String, kotlin.collections/Set<kotlin/String> = ...) // ru.workinprogress.mongkn/MongoException.<init>|<init>(kotlin.UInt;kotlin.UInt;kotlin.String;kotlin.collections.Set<kotlin.String>){}[0]
 
     final val code // ru.workinprogress.mongkn/MongoException.code|{}code[0]
         final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.code.<get-code>|<get-code>(){}[0]
@@ -755,6 +755,14 @@ open class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { /
         final fun <get-errorDomain>(): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoException.errorDomain.<get-errorDomain>|<get-errorDomain>(){}[0]
     final val isConnectivity // ru.workinprogress.mongkn/MongoException.isConnectivity|{}isConnectivity[0]
         final fun <get-isConnectivity>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isConnectivity.<get-isConnectivity>|<get-isConnectivity>(){}[0]
+    final val isTransientTransaction // ru.workinprogress.mongkn/MongoException.isTransientTransaction|{}isTransientTransaction[0]
+        final fun <get-isTransientTransaction>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isTransientTransaction.<get-isTransientTransaction>|<get-isTransientTransaction>(){}[0]
+    final val isUnknownTransactionCommitResult // ru.workinprogress.mongkn/MongoException.isUnknownTransactionCommitResult|{}isUnknownTransactionCommitResult[0]
+        final fun <get-isUnknownTransactionCommitResult>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isUnknownTransactionCommitResult.<get-isUnknownTransactionCommitResult>|<get-isUnknownTransactionCommitResult>(){}[0]
+    final val labels // ru.workinprogress.mongkn/MongoException.labels|{}labels[0]
+        final fun <get-labels>(): kotlin.collections/Set<kotlin/String> // ru.workinprogress.mongkn/MongoException.labels.<get-labels>|<get-labels>(){}[0]
+
+    final object Companion // ru.workinprogress.mongkn/MongoException.Companion|null[0]
 }
 
 final object ru.workinprogress.mongkn.bson/BsonMaxKey : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonMaxKey|null[0]

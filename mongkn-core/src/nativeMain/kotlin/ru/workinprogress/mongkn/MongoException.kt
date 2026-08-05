@@ -21,7 +21,24 @@ public open class MongoException(
     public val domain: UInt,
     public val code: UInt,
     message: String,
+    /**
+     * Метки ошибки, присланные сервером, — `errorLabels` из ответа.
+     *
+     * Единственный **надёжный** способ понять, стоит ли операцию повторять: коды ошибок
+     * для этого не годятся, потому что одна и та же ошибка бывает и повторяемой, и нет
+     * в зависимости от того, что происходило на сервере. Так решает спецификация, и так же
+     * решаем мы — см. [isTransientTransaction] и [isUnknownTransactionCommitResult].
+     *
+     * Пусто, если ответа сервера не было вовсе (обрыв связи, отказ выбора сервера).
+     */
+    public val labels: Set<String> = emptySet(),
 ) : RuntimeException("[$domain/$code] $message") {
+    /** Транзакция не удалась целиком, но повторить её с начала имеет смысл. */
+    public val isTransientTransaction: Boolean get() = TRANSIENT_TRANSACTION in labels
+
+    /** Исход фиксации неизвестен: повторить надо **фиксацию**, а не всю транзакцию. */
+    public val isUnknownTransactionCommitResult: Boolean get() = UNKNOWN_COMMIT in labels
+
     /** Область ошибки в читаемом виде. Неизвестный домен даёт [MongoErrorDomain.UNKNOWN]. */
     public val errorDomain: MongoErrorDomain get() = MongoErrorDomain.of(domain)
 
@@ -40,4 +57,9 @@ public open class MongoException(
                     MongoErrorDomain.SERVER_SELECTION,
                     MongoErrorDomain.POOL,
                 )
+
+    public companion object {
+        internal const val TRANSIENT_TRANSACTION: String = "TransientTransactionError"
+        internal const val UNKNOWN_COMMIT: String = "UnknownTransactionCommitResult"
+    }
 }

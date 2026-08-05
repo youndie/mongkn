@@ -298,9 +298,146 @@ class TransactionTest {
             assertTrue("нетТакогоКлюча" in failure.message.orEmpty())
         }
 
+    /** Заказывает серверу один сбой команды с указанными метками. */
+    private suspend fun withFailure(
+        client: MongoClient,
+        command: String,
+        errorCode: Int,
+        labels: List<String>,
+        body: suspend () -> Unit,
+    ) {
+        val admin = client.getDatabase("admin")
+        admin.runCommand(
+            document {
+                put("configureFailPoint", "failCommand")
+                putDocument("mode") { put("times", 1) }
+                putDocument("data") {
+                    putArray("failCommands") { add(command) }
+                    put("errorCode", errorCode)
+                    if (labels.isNotEmpty()) putArray("errorLabels") { labels.forEach(::add) }
+                }
+            },
+        )
+        try {
+            body()
+        } finally {
+            admin.runCommand(
+                document {
+                    put("configureFailPoint", "failCommand")
+                    put("mode", "off")
+                },
+            )
+        }
+    }
+
+    @Test
+    fun `a transient failure makes the transaction run again`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "transient")
+            val outside = client.getDatabase(DATABASE).getCollection(name)
+            var attempts = 0
+
+            client.startSession().use { session ->
+                val inside = session.getDatabase(DATABASE).getCollection(name)
+                withFailure(client, "insert", WRITE_CONFLICT, listOf("TransientTransactionError")) {
+                    session.withTransaction {
+                        attempts++
+                        inside.insertOne(document { put("n", 1) })
+                    }
+                }
+            }
+
+            // Тело выполнилось дважды: первый раз упало временной ошибкой, второй прошёл.
+            assertEquals(2, attempts, "тело транзакции должно было выполниться повторно")
+            assertEquals(listOf(1), numbers(outside))
+        }
+
+    @Test
+    fun `a failure without the transient label is not retried`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "not_transient")
+            var attempts = 0
+
+            client.startSession().use { session ->
+                val inside = session.getDatabase(DATABASE).getCollection(name)
+                // Код выбран так, чтобы сервер **не** счёл ошибку временной. `WriteConflict`
+                // для этого не годится: внутри транзакции сервер сам вешает на него
+                // `TransientTransactionError`, и failpoint эту метку не отнимет — проверено
+                // прогоном, первая версия теста падала именно поэтому.
+                withFailure(client, "insert", BAD_VALUE, emptyList()) {
+                    assertFailsWith<MongoException> {
+                        session.withTransaction {
+                            attempts++
+                            inside.insertOne(document { put("n", 1) })
+                        }
+                    }
+                }
+            }
+
+            // Оборотная сторона: без метки повтора нет. Без этой проверки предыдущий тест
+            // был бы зелёным и при повторе на любую ошибку подряд — а это скрывало бы
+            // настоящие сбои задержкой.
+            assertEquals(1, attempts)
+        }
+
+    @Test
+    fun `an unknown commit result retries only the commit`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "unknown_commit")
+            val outside = client.getDatabase(DATABASE).getCollection(name)
+            var attempts = 0
+
+            client.startSession().use { session ->
+                val inside = session.getDatabase(DATABASE).getCollection(name)
+                withFailure(client, "commitTransaction", WRITE_CONFLICT, listOf("UnknownTransactionCommitResult")) {
+                    session.withTransaction {
+                        attempts++
+                        inside.insertOne(document { put("n", 1) })
+                    }
+                }
+            }
+
+            // Тело выполнено **один** раз: повторялась только фиксация. Выполнить его дважды
+            // означало бы вставить документ дважды.
+            assertEquals(1, attempts, "тело не должно было выполняться повторно")
+            assertEquals(listOf(1), numbers(outside))
+        }
+
+    @Test
+    fun `error labels reach the exception`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "labels")
+
+            val failure =
+                assertFailsWith<MongoException> {
+                    withFailure(client, "insert", WRITE_CONFLICT, listOf("TransientTransactionError")) {
+                        client.getDatabase(DATABASE).getCollection(name).insertOne(document { put("n", 1) })
+                    }
+                }
+
+            // Метки — то, на чём держатся повторы; без них решение принималось бы по кодам,
+            // а один и тот же код бывает и временным, и окончательным.
+            assertTrue(failure.isTransientTransaction, "метки не доехали: ${failure.labels}")
+        }
+
     private companion object {
         const val DATABASE = "mongkn_m14"
         var counter = 0
         var cleaned = false
+
+        /**
+         * `WriteConflict` — типичная временная ошибка внутри транзакции.
+         *
+         * Метку `TransientTransactionError` сервер вешает на неё **сам**, независимо от того,
+         * что просит failpoint.
+         */
+        const val WRITE_CONFLICT = 112
+
+        /** `BadValue` — ошибка запроса, временной сервер её не считает. */
+        const val BAD_VALUE = 2
     }
 }
