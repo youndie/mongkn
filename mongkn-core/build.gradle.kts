@@ -221,6 +221,19 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
     dependsOn("fetchSpecTests")
     // Адрес mongod в CI и в Linux-контейнере не 127.0.0.1 — см. support/TestServer.kt.
     providers.environmentVariable("MONGKN_TEST_HOST").orNull?.let { environment("MONGKN_TEST_HOST", it) }
+    providers.environmentVariable("MONGKN_TEST_AUTH_HOST").orNull?.let { environment("MONGKN_TEST_AUTH_HOST", it) }
+    providers.environmentVariable("MONGKN_TEST_TLS_HOST").orNull?.let { environment("MONGKN_TEST_TLS_HOST", it) }
+    // Путь к сертификатам — абсолютный: `tlsCAFile` в строке подключения относительный не простит,
+    // а рабочий каталог нативного теста не определён.
+    environment(
+        "MONGKN_TLS_DIR",
+        // Корневой build, а не модульный: сертификаты нужны и серверу в контейнере, и тестам,
+        // поэтому лежат в одном очевидном месте на весь репозиторий (см. ci/tls/generate.sh).
+        rootProject.layout.buildDirectory
+            .dir("tls")
+            .get()
+            .asFile.absolutePath,
+    )
     environment(
         "MONGKN_SPEC_TESTS",
         layout.buildDirectory

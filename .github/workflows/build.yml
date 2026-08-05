@@ -101,6 +101,14 @@ jobs:
           "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --auth --fork --logpath /tmp/mongod-auth.log
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
 
+      # Третий сервер — с обязательным TLS. Сертификаты генерируются, а не лежат в репозитории:
+      # серверный живёт 397 дней (политика Apple, иначе Secure Transport на macOS его отвергнет),
+      # и закоммиченный набор через год ломал бы сборку без единой правки кода.
+      - name: Поднять mongod с TLS
+        run: |
+          ./ci/tls/generate.sh "$PWD/build/tls"
+          ./ci/tls/start-server.sh mongod-tls "$PWD/build/tls" -p 27020:27017
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Сборка и тесты

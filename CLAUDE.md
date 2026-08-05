@@ -51,7 +51,7 @@ Kotlin/Native обвязка над MongoDB C-драйвером (`libmongoc`). 
 docker build -t mongkn-ci ci/
 docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
   -e MONGKN_TEST_HOST=mongkn-ci-db:27017 -e MONGKN_TEST_AUTH_HOST=mongkn-ci-auth:27017 \
-  mongkn-ci ./gradlew build
+  -e MONGKN_TEST_TLS_HOST=mongkn-ci-tls:27017 mongkn-ci ./gradlew build
 ```
 
 `--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
@@ -94,6 +94,20 @@ docker exec mongkn-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authen
 ```
 
 Адрес переопределяется через `MONGKN_TEST_AUTH_HOST` — в docker-сети это `mongkn-ci-auth:27017`.
+
+Третий сервер — с обязательным TLS, на порту 27020. Сертификаты **генерируются**, а не лежат
+в репозитории: серверный живёт 397 дней и через год протух бы, сломав сборку без единой правки
+кода. Ограничение на срок — не наше: на macOS драйвер собран с Secure Transport, а тот применяет
+политику Apple и отвергает более долгие серверные сертификаты, показывая
+`CSSMERR_TP_CERT_SUSPENDED` — по тексту не догадаться, что дело в сроке.
+
+```bash
+./ci/tls/generate.sh "$PWD/build/tls" && ./ci/tls/start-server.sh mongkn-tls "$PWD/build/tls" --platform linux/arm64 -p 27020:27017
+```
+
+Для docker-сети — то же имя `mongkn-ci-tls` и `--network mongkn-ci` вместо `-p`, адрес
+переопределяется через `MONGKN_TEST_TLS_HOST`. Остальные грабли TLS-контура описаны
+в шапке `ci/tls/start-server.sh`; каждая из них выглядит как таймаут соединения.
 
 Ещё две грабли, стоившие по сборке каждая: source set'ы `nativeMain` / `nativeTest` **нельзя**
 заводить руками (`by creating`) — их создаёт стандартный шаблон иерархии KMP, а ручной ломает

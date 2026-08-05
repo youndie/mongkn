@@ -1,7 +1,13 @@
 package ru.workinprogress.mongkn.support
 
+import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.toKString
+import platform.posix.fclose
+import platform.posix.fgets
+import platform.posix.fopen
 import platform.posix.getenv
 
 /**
@@ -38,6 +44,43 @@ object TestServer {
     /** Пользователь, пароль которого требует процентного кодирования в URI. */
     const val ODD_USER: String = "mongkn_odd"
     const val ODD_PASSWORD: String = "p@ss:w/rd?#1"
+
+    /** Адрес сервера, требующего TLS. */
+    val tlsHost: String =
+        getenv("MONGKN_TEST_TLS_HOST")?.toKString()?.takeIf { it.isNotBlank() } ?: "127.0.0.1:27020"
+
+    /**
+     * Каталог с сертификатами, сгенерированными `ci/tls/generate.sh`.
+     *
+     * Приходит из Gradle абсолютным путём: рабочий каталог у нативного теста не определён,
+     * а `tlsCAFile` в строке подключения относительный путь не простит.
+     */
+    val tlsDirectory: String = getenv("MONGKN_TLS_DIR")?.toKString().orEmpty()
+
+    /** Имя пользователя x509 — subject клиентского сертификата, как его видит mongod. */
+    val x509User: String = readFile("$tlsDirectory/client-subject.txt").trim()
+
+    /**
+     * Строка подключения к TLS-серверу.
+     *
+     * @param options параметры без ведущего `?`; `tls=true` добавляется всегда.
+     */
+    fun tlsUri(options: String = ""): String =
+        "mongodb://$tlsHost/?tls=true" + if (options.isEmpty()) "" else "&$options"
+
+    private fun readFile(path: String): String {
+        val file = fopen(path, "r") ?: return ""
+        try {
+            val text = StringBuilder()
+            memScoped {
+                val buffer = allocArray<ByteVar>(4096)
+                while (fgets(buffer, 4096, file) != null) text.append(buffer.toKString())
+            }
+            return text.toString()
+        } finally {
+            fclose(file)
+        }
+    }
 
     /** @param options параметры строки подключения без ведущего `?`. */
     fun uri(options: String = ""): String = "mongodb://$host" + if (options.isEmpty()) "" else "/?$options"
