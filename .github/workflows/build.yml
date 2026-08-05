@@ -71,6 +71,34 @@ jobs:
           mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
           for _ in $(seq 1 30); do mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' && break; sleep 2; done
 
+      # Второй сервер — с включённой аутентификацией, на своём порту. Отдельный, а не тот же
+      # самый: включи мы --auth на основном, креды понадобились бы каждому из полутора сотен
+      # остальных тестов, и предмет проверки растворился бы в общем шуме. Креды здесь —
+      # фикстура одноразового контейнера, а не секрет.
+      - name: Поднять mongod с аутентификацией (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name mongod-auth -p 27019:27017 \
+            -e MONGO_INITDB_ROOT_USERNAME=mongkn_test -e MONGO_INITDB_ROOT_PASSWORD=mongkn_secret mongo:8
+          for _ in $(seq 1 30); do docker exec mongod-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
+          docker exec mongod-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin \
+            --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
+
+      # На macOS docker недоступен, поэтому второй mongod поднимается напрямую. Пользователи
+      # заводятся до включения --auth и сервер перезапускается: localhost-исключение на свежем
+      # сервере срабатывает не всегда, а этот порядок детерминирован.
+      - name: Поднять mongod с аутентификацией (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          BIN="$(brew --prefix)/opt/mongodb-community@8.0/bin"
+          mkdir -p /tmp/mongo-auth
+          "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --fork --logpath /tmp/mongod-auth.log
+          for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
+          mongosh --quiet --port 27019 --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_test", pwd:"mongkn_secret", roles:[{role:"root", db:"admin"}]}); db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
+          "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --shutdown
+          "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --auth --fork --logpath /tmp/mongod-auth.log
+          for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Сборка и тесты

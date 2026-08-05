@@ -47,7 +47,8 @@ Kotlin/Native обвязка над MongoDB C-драйвером (`libmongoc`). 
 ```bash
 docker build -t mongkn-ci ci/
 docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
-  -e MONGKN_TEST_HOST=mongkn-ci-db:27017 mongkn-ci ./gradlew build
+  -e MONGKN_TEST_HOST=mongkn-ci-db:27017 -e MONGKN_TEST_AUTH_HOST=mongkn-ci-auth:27017 \
+  mongkn-ci ./gradlew build
 ```
 
 `--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
@@ -67,6 +68,21 @@ docker exec mongkn-it mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_
 Адрес члена задаётся **явно**: иначе сервер объявит себя под своим hostname, драйвер пойдёт
 по объявленному адресу и не достучится. Для сервера в docker-сети (`mongkn-ci-db`) подставьте
 его имя вместо `127.0.0.1`.
+
+Отдельно нужен **второй** сервер — с аутентификацией, на порту 27019. Отдельный, а не тот же
+самый: включи мы `--auth` на основном, креды понадобились бы каждому тесту, и `AuthenticationTest`
+проверял бы не аутентификацию, а общий фон. Логин и пароль здесь — фикстура одноразового
+контейнера, а не секрет; настоящие креды лежат в `~/.zshrc` и в репозиторий не попадают.
+
+```bash
+docker run -d --name mongkn-auth -p 27019:27017 -e MONGO_INITDB_ROOT_USERNAME=mongkn_test -e MONGO_INITDB_ROOT_PASSWORD=mongkn_secret mongo:8
+```
+
+```bash
+docker exec mongkn-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
+```
+
+Адрес переопределяется через `MONGKN_TEST_AUTH_HOST` — в docker-сети это `mongkn-ci-auth:27017`.
 
 Ещё две грабли, стоившие по сборке каждая: source set'ы `nativeMain` / `nativeTest` **нельзя**
 заводить руками (`by creating`) — их создаёт стандартный шаблон иерархии KMP, а ручной ломает
