@@ -18,7 +18,6 @@ import kotlin.test.assertTrue
  * ни один из них не содержит лишнего поля во вложенном документе.
  */
 class SpecMatcherTest {
-
     private val doc = BsonDocument("a" to BsonInt32(1), "b" to BsonString("x"))
 
     @Test

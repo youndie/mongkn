@@ -16,7 +16,6 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalForeignApi::class)
 class BsonDecimalShapeTest {
-
     private fun roundTrip(value: BsonDecimal128): BsonDecimal128 {
         val native = BsonDocument("d" to value).toNativeBson()
         try {

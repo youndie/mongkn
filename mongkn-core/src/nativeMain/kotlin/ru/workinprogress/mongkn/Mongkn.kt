@@ -2,12 +2,12 @@ package ru.workinprogress.mongkn
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.toKString
-import kotlin.concurrent.atomics.AtomicInt
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import mongkn.cinterop.bson_get_version
 import mongkn.cinterop.mongoc_cleanup
 import mongkn.cinterop.mongoc_get_version
 import mongkn.cinterop.mongoc_init
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
  * Глобальная инициализация libmongoc.
@@ -26,7 +26,6 @@ import mongkn.cinterop.mongoc_init
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
 public object Mongkn {
-
     private const val NEW = 0
     private const val INITIALIZING = 1
     private const val READY = 2
@@ -43,19 +42,30 @@ public object Mongkn {
     public fun initialize() {
         while (true) {
             when (state.load()) {
-                READY -> return
-                SHUT_DOWN -> error(
-                    "Mongkn.shutdown() уже вызван: libmongoc не поддерживает повторный " +
-                        "mongoc_init() после mongoc_cleanup()"
-                )
-                NEW -> if (state.compareAndSet(NEW, INITIALIZING)) {
-                    mongoc_init()
-                    state.store(READY)
+                READY -> {
                     return
                 }
+
+                SHUT_DOWN -> {
+                    error(
+                        "Mongkn.shutdown() уже вызван: libmongoc не поддерживает повторный " +
+                            "mongoc_init() после mongoc_cleanup()",
+                    )
+                }
+
+                NEW -> {
+                    if (state.compareAndSet(NEW, INITIALIZING)) {
+                        mongoc_init()
+                        state.store(READY)
+                        return
+                    }
+                }
+
                 // INITIALIZING: другой поток внутри mongoc_init(), ждём его. Ожидание активное
                 // намеренно — инициализация занимает микросекунды и случается один раз.
-                else -> Unit
+                else -> {
+                    Unit
+                }
             }
         }
     }

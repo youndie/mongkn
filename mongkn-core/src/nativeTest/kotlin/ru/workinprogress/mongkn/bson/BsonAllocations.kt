@@ -2,15 +2,13 @@ package ru.workinprogress.mongkn.bson
 
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.COpaquePointerVar
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.value
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.nativeHeap
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.staticCFunction
-import kotlin.concurrent.atomics.AtomicLong
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlinx.cinterop.value
 import mongkn.cinterop.bson_mem_restore_vtable
 import mongkn.cinterop.bson_mem_set_vtable
 import mongkn.cinterop.bson_mem_vtable_t
@@ -20,6 +18,8 @@ import platform.posix.malloc
 import platform.posix.posix_memalign
 import platform.posix.realloc
 import platform.posix.size_t
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
  * Считающий аллокатор libbson — единственный способ увидеть утечку.
@@ -37,7 +37,6 @@ import platform.posix.size_t
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
 object BsonAllocations {
-
     /** Сколько блоков libbson сейчас держит невозвращёнными. */
     val live: Long get() = liveAllocations.load()
 
@@ -74,13 +73,14 @@ object BsonAllocations {
      * `aligned_alloc` заполнять **обязательно**: libbson 2.x его вызывает, и NULL в этом поле
      * означает падение на первом же выравненном выделении, а не мягкую деградацию.
      */
-    private val vtable: bson_mem_vtable_t = nativeHeap.alloc<bson_mem_vtable_t>().apply {
-        malloc = countingMalloc
-        calloc = countingCalloc
-        realloc = countingRealloc
-        free = countingFree
-        aligned_alloc = countingAlignedAlloc
-    }
+    private val vtable: bson_mem_vtable_t =
+        nativeHeap.alloc<bson_mem_vtable_t>().apply {
+            malloc = countingMalloc
+            calloc = countingCalloc
+            realloc = countingRealloc
+            free = countingFree
+            aligned_alloc = countingAlignedAlloc
+        }
 }
 
 /**
@@ -91,49 +91,58 @@ object BsonAllocations {
 private val liveAllocations = AtomicLong(0)
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
-private val countingMalloc = staticCFunction { bytes: size_t ->
-    malloc(bytes)?.also { liveAllocations.fetchAndAdd(1) }
-}
+private val countingMalloc =
+    staticCFunction { bytes: size_t ->
+        malloc(bytes)?.also { liveAllocations.fetchAndAdd(1) }
+    }
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
-private val countingCalloc = staticCFunction { count: size_t, bytes: size_t ->
-    calloc(count, bytes)?.also { liveAllocations.fetchAndAdd(1) }
-}
+private val countingCalloc =
+    staticCFunction { count: size_t, bytes: size_t ->
+        calloc(count, bytes)?.also { liveAllocations.fetchAndAdd(1) }
+    }
 
 /**
  * `realloc` — единственный, где учёт неочевиден: с нулевым указателем это выделение,
  * с нулевым размером — освобождение, в остальных случаях число блоков не меняется.
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
-private val countingRealloc = staticCFunction { mem: COpaquePointer?, bytes: size_t ->
-    val result = realloc(mem, bytes)
-    when {
-        mem == null && result != null -> liveAllocations.fetchAndAdd(1)
-        mem != null && bytes.toULong() == 0uL -> liveAllocations.fetchAndAdd(-1)
+private val countingRealloc =
+    staticCFunction { mem: COpaquePointer?, bytes: size_t ->
+        val result = realloc(mem, bytes)
+        when {
+            mem == null && result != null -> liveAllocations.fetchAndAdd(1)
+            mem != null && bytes.toULong() == 0uL -> liveAllocations.fetchAndAdd(-1)
+        }
+        result
     }
-    result
-}
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
-private val countingFree = staticCFunction { mem: COpaquePointer? ->
-    // free(NULL) законен и ничего не освобождает — считать его нельзя.
-    if (mem != null) {
-        liveAllocations.fetchAndAdd(-1)
-        free(mem)
+private val countingFree =
+    staticCFunction { mem: COpaquePointer? ->
+        // free(NULL) законен и ничего не освобождает — считать его нельзя.
+        if (mem != null) {
+            liveAllocations.fetchAndAdd(-1)
+            free(mem)
+        }
     }
-}
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
-private val countingAlignedAlloc = staticCFunction { alignment: size_t, bytes: size_t ->
-    alignedAlloc(alignment, bytes)?.also { liveAllocations.fetchAndAdd(1) }
-}
+private val countingAlignedAlloc =
+    staticCFunction { alignment: size_t, bytes: size_t ->
+        alignedAlloc(alignment, bytes)?.also { liveAllocations.fetchAndAdd(1) }
+    }
 
 /**
  * `aligned_alloc` из C11 на разных платформах ведёт себя по-разному в краевых случаях,
  * а `posix_memalign` доступен везде и освобождается обычным `free`.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun alignedAlloc(alignment: size_t, bytes: size_t): COpaquePointer? = memScoped {
-    val slot = alloc<COpaquePointerVar>()
-    if (posix_memalign(slot.ptr, alignment, bytes) == 0) slot.value else null
-}
+private fun alignedAlloc(
+    alignment: size_t,
+    bytes: size_t,
+): COpaquePointer? =
+    memScoped {
+        val slot = alloc<COpaquePointerVar>()
+        if (posix_memalign(slot.ptr, alignment, bytes) == 0) slot.value else null
+    }

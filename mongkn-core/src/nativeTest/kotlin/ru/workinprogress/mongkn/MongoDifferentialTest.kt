@@ -1,19 +1,5 @@
 package ru.workinprogress.mongkn
 
-import ru.workinprogress.mongkn.support.TestServer
-import ru.workinprogress.mongkn.bson.BsonBinary
-import ru.workinprogress.mongkn.bson.BsonDateTime
-import ru.workinprogress.mongkn.bson.BsonDecimal128
-import ru.workinprogress.mongkn.bson.BsonMaxKey
-import ru.workinprogress.mongkn.bson.BsonMinKey
-import ru.workinprogress.mongkn.bson.BsonRegex
-import ru.workinprogress.mongkn.bson.BsonTimestamp
-import ru.workinprogress.mongkn.bson.BsonDocument
-import ru.workinprogress.mongkn.bson.BsonInt64
-import ru.workinprogress.mongkn.bson.BsonObjectId
-import ru.workinprogress.mongkn.bson.Document
-import ru.workinprogress.mongkn.bson.document
-import ru.workinprogress.mongkn.bson.toDocument
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -29,6 +15,20 @@ import mongkn.cinterop.bson_json_reader_new_from_file
 import mongkn.cinterop.bson_json_reader_read
 import mongkn.cinterop.bson_t
 import platform.posix.getenv
+import ru.workinprogress.mongkn.bson.BsonBinary
+import ru.workinprogress.mongkn.bson.BsonDateTime
+import ru.workinprogress.mongkn.bson.BsonDecimal128
+import ru.workinprogress.mongkn.bson.BsonDocument
+import ru.workinprogress.mongkn.bson.BsonInt64
+import ru.workinprogress.mongkn.bson.BsonMaxKey
+import ru.workinprogress.mongkn.bson.BsonMinKey
+import ru.workinprogress.mongkn.bson.BsonObjectId
+import ru.workinprogress.mongkn.bson.BsonRegex
+import ru.workinprogress.mongkn.bson.BsonTimestamp
+import ru.workinprogress.mongkn.bson.Document
+import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.bson.toDocument
+import ru.workinprogress.mongkn.support.TestServer
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,7 +56,6 @@ import kotlin.test.assertEquals
  */
 @OptIn(ExperimentalForeignApi::class)
 class MongoDifferentialTest {
-
     private val uri = TestServer.uri("serverSelectionTimeoutMS=3000")
 
     private val clients = mutableListOf<MongoClient>()
@@ -70,77 +69,85 @@ class MongoDifferentialTest {
     private fun connect(): MongoClient = MongoClient(uri).also { clients += it }
 
     /** Тот же документ, что собирает официальный драйвер, — но средствами mongkn. */
-    private val expected: Document = document {
-        put("_id", BsonObjectId.parse("6a71efcbb173221a58058212"))
-        put("string", "kotlin-native")
-        put("emptyString", "")
-        put("unicode", "документ ✓")
-        put("embeddedNul", "a\u0000b")
-        put("int32", 42)
-        put("int32Negative", -1)
-        put("int64", 9_000_000_000L)
-        put("double", 3.5)
-        put("boolTrue", true)
-        put("boolFalse", false)
-        putNull("nothing")
-        put("when", BsonDateTime(1_700_000_000_000L))
-        put("oid", BsonObjectId.parse("000000000000000000000001"))
-        putDocument("nested") {
-            put("a", 1)
-            putDocument("deeper") { put("b", "two") }
+    private val expected: Document =
+        document {
+            put("_id", BsonObjectId.parse("6a71efcbb173221a58058212"))
+            put("string", "kotlin-native")
+            put("emptyString", "")
+            put("unicode", "документ ✓")
+            put("embeddedNul", "a\u0000b")
+            put("int32", 42)
+            put("int32Negative", -1)
+            put("int64", 9_000_000_000L)
+            put("double", 3.5)
+            put("boolTrue", true)
+            put("boolFalse", false)
+            putNull("nothing")
+            put("when", BsonDateTime(1_700_000_000_000L))
+            put("oid", BsonObjectId.parse("000000000000000000000001"))
+            putDocument("nested") {
+                put("a", 1)
+                putDocument("deeper") { put("b", "two") }
+            }
+            putArray("array") {
+                add(1)
+                add("two")
+                add(3.0)
+                addDocument { put("four", true) }
+                addArray { add(5L) }
+            }
+            put("binaryGeneric", BsonBinary(BsonBinary.GENERIC, byteArrayOf(1, 2, 3)))
+            put("binaryUuid", BsonBinary(BsonBinary.UUID, ByteArray(16) { it.toByte() }))
+            put("decimal", BsonDecimal128("1234567890.123456789"))
+            put("timestamp", BsonTimestamp(seconds = 1_700_000_000u, increment = 7u))
+            put("regex", BsonRegex("^a.*z$", "im"))
+            put("minKey", BsonMinKey)
+            put("maxKey", BsonMaxKey)
+            putArray("emptyArray") {}
+            putDocument("emptyDocument") {}
         }
-        putArray("array") {
-            add(1)
-            add("two")
-            add(3.0)
-            addDocument { put("four", true) }
-            addArray { add(5L) }
+
+    @Test
+    fun `mongkn reads exactly what the official driver wrote`() =
+        runTest {
+            val collection = connect().getDatabase(DATABASE).getCollection(REFERENCE)
+
+            val fromServer = collection.find().first()
+
+            // Сверка с фикстурой — это сверка с тем, что официальный драйвер сам считает
+            // каноническим представлением своего документа.
+            assertEquals(readFixture(), fromServer, "документ с сервера разошёлся с фикстурой эталона")
+            assertEquals(expected, fromServer, "документ с сервера разошёлся с ожидаемым в mongkn")
         }
-        put("binaryGeneric", BsonBinary(BsonBinary.GENERIC, byteArrayOf(1, 2, 3)))
-        put("binaryUuid", BsonBinary(BsonBinary.UUID, ByteArray(16) { it.toByte() }))
-        put("decimal", BsonDecimal128("1234567890.123456789"))
-        put("timestamp", BsonTimestamp(seconds = 1_700_000_000u, increment = 7u))
-        put("regex", BsonRegex("^a.*z$", "im"))
-        put("minKey", BsonMinKey)
-        put("maxKey", BsonMaxKey)
-        putArray("emptyArray") {}
-        putDocument("emptyDocument") {}
-    }
 
     @Test
-    fun `mongkn reads exactly what the official driver wrote`() = runTest {
-        val collection = connect().getDatabase(DATABASE).getCollection(REFERENCE)
+    fun `mongkn writes a document for the official driver to verify`() =
+        runTest {
+            val collection = connect().getDatabase(DATABASE).getCollection(WRITTEN)
 
-        val fromServer = collection.find().first()
+            val result = collection.insertOne(expected)
 
-        // Сверка с фикстурой — это сверка с тем, что официальный драйвер сам считает
-        // каноническим представлением своего документа.
-        assertEquals(readFixture(), fromServer, "документ с сервера разошёлся с фикстурой эталона")
-        assertEquals(expected, fromServer, "документ с сервера разошёлся с ожидаемым в mongkn")
-    }
-
-    @Test
-    fun `mongkn writes a document for the official driver to verify`() = runTest {
-        val collection = connect().getDatabase(DATABASE).getCollection(WRITTEN)
-
-        val result = collection.insertOne(expected)
-
-        // _id задан явно, поэтому сервер обязан вернуть его же — заодно проверка Р3.
-        assertEquals(BsonObjectId.parse("6a71efcbb173221a58058212"), result.insertedId)
-        // Сверку выполнит фаза C: `:mongkn-difftest:verifyDiffWritten`.
-    }
+            // _id задан явно, поэтому сервер обязан вернуть его же — заодно проверка Р3.
+            assertEquals(BsonObjectId.parse("6a71efcbb173221a58058212"), result.insertedId)
+            // Сверку выполнит фаза C: `:mongkn-difftest:verifyDiffWritten`.
+        }
 
     @Test
-    fun `int64 does not degrade to int32 through a real server round trip`() = runTest {
-        val collection = connect().getDatabase(DATABASE).getCollection(REFERENCE)
+    fun `int64 does not degrade to int32 through a real server round trip`() =
+        runTest {
+            val collection = connect().getDatabase(DATABASE).getCollection(REFERENCE)
 
-        val fromServer = collection.find().first()
+            val fromServer = collection.find().first()
 
-        // Самое ценное различие, ради которого заведена sealed-иерархия (решение Р4):
-        // на Map<String, Any> оно бы не пережило ни один из двух переходов.
-        assertEquals(BsonInt64(9_000_000_000L), fromServer["int64"])
-        assertEquals(ru.workinprogress.mongkn.bson.BsonInt32(42), fromServer["int32"])
-    }
+            // Самое ценное различие, ради которого заведена sealed-иерархия (решение Р4):
+            // на Map<String, Any> оно бы не пережило ни один из двух переходов.
+            assertEquals(BsonInt64(9_000_000_000L), fromServer["int64"])
+            assertEquals(
+                ru.workinprogress.mongkn.bson
+                    .BsonInt32(42),
+                fromServer["int32"],
+            )
+        }
 
     /**
      * Читает фикстуру, выгруженную эталоном.
@@ -149,31 +156,34 @@ class MongoDifferentialTest {
      * слинкован. Побочная выгода: сравнение получается по значениям, а не по тексту, так что
      * различия в пробелах и экранировании ничего не ломают.
      */
-    private fun readFixture(): BsonDocument = memScoped {
-        val path = getenv(FIXTURE_ENV)?.toKString()
-            ?: error(
-                "не задана переменная $FIXTURE_ENV: тест запущен в обход " +
-                    ":mongkn-difftest:seedDiffReference"
-            )
-        val error = alloc<bson_error_t>()
-        val reader = bson_json_reader_new_from_file(path, error.ptr)
-            ?: error("не открылась фикстура $path: ${error.message.toKString()}")
-        try {
-            val target = alloc<bson_t>()
-            bson_init(target.ptr)
+    private fun readFixture(): BsonDocument =
+        memScoped {
+            val path =
+                getenv(FIXTURE_ENV)?.toKString()
+                    ?: error(
+                        "не задана переменная $FIXTURE_ENV: тест запущен в обход " +
+                            ":mongkn-difftest:seedDiffReference",
+                    )
+            val error = alloc<bson_error_t>()
+            val reader =
+                bson_json_reader_new_from_file(path, error.ptr)
+                    ?: error("не открылась фикстура $path: ${error.message.toKString()}")
             try {
-                when (bson_json_reader_read(reader, target.ptr, error.ptr)) {
-                    1 -> target.ptr.toDocument()
-                    0 -> error("фикстура $path пуста")
-                    else -> error("фикстура $path не разобралась: ${error.message.toKString()}")
+                val target = alloc<bson_t>()
+                bson_init(target.ptr)
+                try {
+                    when (bson_json_reader_read(reader, target.ptr, error.ptr)) {
+                        1 -> target.ptr.toDocument()
+                        0 -> error("фикстура $path пуста")
+                        else -> error("фикстура $path не разобралась: ${error.message.toKString()}")
+                    }
+                } finally {
+                    bson_destroy(target.ptr)
                 }
             } finally {
-                bson_destroy(target.ptr)
+                bson_json_reader_destroy(reader)
             }
-        } finally {
-            bson_json_reader_destroy(reader)
         }
-    }
 
     private companion object {
         const val DATABASE = "mongkn_diff"

@@ -4,7 +4,6 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class MongknInitTest {
-
     /**
      * [Mongkn.shutdown] здесь намеренно не вызывается: он терминальный на весь процесс, а тесты
      * живут в одном процессе — вызов отсюда сломал бы интеграционные тесты, причём в зависимости

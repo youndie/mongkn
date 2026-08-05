@@ -19,7 +19,6 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalForeignApi::class)
 class BsonPropertyTest {
-
     private fun roundTrip(source: BsonDocument): BsonDocument {
         val native = source.toNativeBson()
         try {
@@ -29,7 +28,10 @@ class BsonPropertyTest {
         }
     }
 
-    private fun assertSurvives(source: BsonDocument, hint: String = "") {
+    private fun assertSurvives(
+        source: BsonDocument,
+        hint: String = "",
+    ) {
         assertEquals(source, roundTrip(source), hint.ifEmpty { "round-trip изменил документ" })
     }
 
@@ -47,7 +49,7 @@ class BsonPropertyTest {
                 put("emoji 🐘", 5)
                 put("with space", 6)
                 put("a".repeat(1_000), 7)
-            }
+            },
         )
     }
 
@@ -64,7 +66,7 @@ class BsonPropertyTest {
                 put("unicode", "документ ✓ 🐘 ﷽")
                 put("surrogate", "\uD83D\uDE00")
                 put("long", "x".repeat(100_000))
-            }
+            },
         )
     }
 
@@ -77,7 +79,7 @@ class BsonPropertyTest {
                 put("embedded", "a\u0000b")
                 put("leading", "\u0000tail")
                 put("onlyNul", "\u0000")
-            }
+            },
         )
     }
 
@@ -85,9 +87,10 @@ class BsonPropertyTest {
     fun `a key containing NUL is rejected rather than silently truncated`() {
         // Ключ в BSON — C-строка, NUL в ней не представим. Обрезать молча значило бы записать
         // не тот документ, который просили, без единого признака ошибки.
-        val failure = assertFailsWith<IllegalArgumentException> {
-            BsonDocument("bad\u0000key" to BsonInt32(1)).toNativeBson()
-        }
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                BsonDocument("bad\u0000key" to BsonInt32(1)).toNativeBson()
+            }
         assertTrue(failure.message!!.contains("NUL"), "message=${failure.message}")
     }
 
@@ -103,19 +106,20 @@ class BsonPropertyTest {
                 put("doubleMax", Double.MAX_VALUE)
                 put("doubleMin", Double.MIN_VALUE)
                 put("epsilon", 2.220446049250313e-16)
-            }
+            },
         )
     }
 
     @Test
     fun `special doubles survive`() {
-        val source = document {
-            put("nan", Double.NaN)
-            put("posInf", Double.POSITIVE_INFINITY)
-            put("negInf", Double.NEGATIVE_INFINITY)
-            put("negZero", -0.0)
-            put("posZero", 0.0)
-        }
+        val source =
+            document {
+                put("nan", Double.NaN)
+                put("posInf", Double.POSITIVE_INFINITY)
+                put("negInf", Double.NEGATIVE_INFINITY)
+                put("negZero", -0.0)
+                put("posZero", 0.0)
+            }
 
         val result = roundTrip(source)
 
@@ -136,7 +140,7 @@ class BsonPropertyTest {
                 put("beforeEpoch", BsonDateTime(-1_000_000_000_000L))
                 put("far", BsonDateTime(Long.MAX_VALUE))
                 put("farBack", BsonDateTime(Long.MIN_VALUE))
-            }
+            },
         )
     }
 
@@ -147,19 +151,20 @@ class BsonPropertyTest {
                 put("zeroes", BsonObjectId.parse("000000000000000000000000"))
                 put("ffff", BsonObjectId.parse("ffffffffffffffffffffffff"))
                 put("mixed", BsonObjectId.parse("0123456789abcdef01234567"))
-            }
+            },
         )
     }
 
     @Test
     fun `duplicate keys are preserved in order`() {
         // BSON формально допускает повторяющиеся ключи, и наш BsonDocument их не запрещает.
-        val source = BsonDocument(
-            "same" to BsonInt32(1),
-            "same" to BsonInt32(2),
-            "other" to BsonString("x"),
-            "same" to BsonInt32(3),
-        )
+        val source =
+            BsonDocument(
+                "same" to BsonInt32(1),
+                "same" to BsonInt32(2),
+                "other" to BsonString("x"),
+                "same" to BsonInt32(3),
+            )
 
         val result = roundTrip(source)
 
@@ -207,27 +212,33 @@ class BsonPropertyTest {
         val random = Random(SEED)
         val documents = List(200) { randomDocument(random, depth = 0) }
 
-        val leaked = BsonAllocations.delta {
-            for (source in documents) {
-                val native = source.toNativeBson()
-                try {
-                    native.toDocument()
-                } finally {
-                    bson_destroy(native)
+        val leaked =
+            BsonAllocations.delta {
+                for (source in documents) {
+                    val native = source.toNativeBson()
+                    try {
+                        native.toDocument()
+                    } finally {
+                        bson_destroy(native)
+                    }
                 }
             }
-        }
 
         assertEquals(0L, leaked, "случайные документы оставили $leaked блоков")
     }
 
-    private fun randomDocument(random: Random, depth: Int): BsonDocument =
+    private fun randomDocument(
+        random: Random,
+        depth: Int,
+    ): BsonDocument =
         BsonDocument((0 until random.nextInt(0, 8)).map { randomKey(random) to randomValue(random, depth) })
 
-    private fun randomKey(random: Random): String =
-        KEY_ALPHABET.random(random).toString() + random.nextInt(0, 100)
+    private fun randomKey(random: Random): String = KEY_ALPHABET.random(random).toString() + random.nextInt(0, 100)
 
-    private fun randomValue(random: Random, depth: Int): BsonValue {
+    private fun randomValue(
+        random: Random,
+        depth: Int,
+    ): BsonValue {
         // Глубину ограничиваем, иначе генератор изредка строит документ на десятки уровней
         // и тест начинает измерять стек, а не кодек.
         val leafOnly = depth >= 3

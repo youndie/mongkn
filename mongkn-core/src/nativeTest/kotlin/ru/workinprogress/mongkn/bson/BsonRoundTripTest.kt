@@ -16,7 +16,6 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalForeignApi::class)
 class BsonRoundTripTest {
-
     private fun roundTrip(source: BsonDocument): BsonDocument {
         val native = source.toNativeBson()
         try {
@@ -28,27 +27,29 @@ class BsonRoundTripTest {
 
     @Test
     fun `scalars survive the round trip`() {
-        val source = document {
-            put("string", "kotlin-native")
-            put("int32", 42)
-            put("int64", 9_000_000_000L)
-            put("double", 3.5)
-            put("boolTrue", true)
-            put("boolFalse", false)
-            putNull("nothing")
-            put("when", BsonDateTime(1_700_000_000_000L))
-            put("id", BsonObjectId.parse("6a71efcbb173221a58058212"))
-        }
+        val source =
+            document {
+                put("string", "kotlin-native")
+                put("int32", 42)
+                put("int64", 9_000_000_000L)
+                put("double", 3.5)
+                put("boolTrue", true)
+                put("boolFalse", false)
+                putNull("nothing")
+                put("when", BsonDateTime(1_700_000_000_000L))
+                put("id", BsonObjectId.parse("6a71efcbb173221a58058212"))
+            }
 
         assertEquals(source, roundTrip(source))
     }
 
     @Test
     fun `int32 and int64 do not collapse into one type`() {
-        val source = document {
-            put("small", 1)
-            put("big", 1L)
-        }
+        val source =
+            document {
+                put("small", 1)
+                put("big", 1L)
+            }
 
         val result = roundTrip(source)
 
@@ -61,32 +62,34 @@ class BsonRoundTripTest {
 
     @Test
     fun `nested documents and arrays survive the round trip`() {
-        val source = document {
-            put("name", "outer")
-            putDocument("nested") {
-                put("a", 1)
-                putDocument("deeper") { put("b", "two") }
+        val source =
+            document {
+                put("name", "outer")
+                putDocument("nested") {
+                    put("a", 1)
+                    putDocument("deeper") { put("b", "two") }
+                }
+                putArray("mixed") {
+                    add(1)
+                    add("two")
+                    add(3.0)
+                    addDocument { put("four", true) }
+                    addArray { add(5L) }
+                }
+                putArray("empty") {}
             }
-            putArray("mixed") {
-                add(1)
-                add("two")
-                add(3.0)
-                addDocument { put("four", true) }
-                addArray { add(5L) }
-            }
-            putArray("empty") {}
-        }
 
         assertEquals(source, roundTrip(source))
     }
 
     @Test
     fun `key order is preserved`() {
-        val source = BsonDocument(
-            "z" to BsonInt32(1),
-            "a" to BsonInt32(2),
-            "m" to BsonInt32(3),
-        )
+        val source =
+            BsonDocument(
+                "z" to BsonInt32(1),
+                "a" to BsonInt32(2),
+                "m" to BsonInt32(3),
+            )
 
         // Порядок значим: в командах сервера первый ключ определяет саму команду.
         assertEquals(listOf("z", "a", "m"), roundTrip(source).keys)
@@ -124,10 +127,11 @@ class BsonRoundTripTest {
 
     @Test
     fun `document lookup returns first match and reports membership`() {
-        val doc = document {
-            put("a", 1)
-            put("b", "two")
-        }
+        val doc =
+            document {
+                put("a", 1)
+                put("b", "two")
+            }
 
         assertEquals(BsonInt32(1), doc["a"])
         assertEquals(BsonString("two"), doc["b"])

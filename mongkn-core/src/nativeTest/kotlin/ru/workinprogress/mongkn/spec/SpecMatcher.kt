@@ -20,7 +20,6 @@ import ru.workinprogress.mongkn.bson.BsonValue
  * (см. [SpecMatcherTest]).
  */
 internal object SpecMatcher {
-
     /**
      * Сравнение по правилам unified test format — в том объёме, который нужен выбранным файлам.
      *
@@ -28,7 +27,11 @@ internal object SpecMatcher {
      *   вернуть больше, чем перечислено в сценарии. Во вложенных документах и в `outcome`
      *   сравнение строгое.
      */
-    fun matches(expected: BsonValue, actual: BsonValue?, root: Boolean = false): Boolean {
+    fun matches(
+        expected: BsonValue,
+        actual: BsonValue?,
+        root: Boolean = false,
+    ): Boolean {
         if (expected is BsonDocument && expected.size == 1) {
             val (operator, argument) = expected.entries.single()
             when (operator) {
@@ -47,23 +50,33 @@ internal object SpecMatcher {
                 root || extraKeys(expected, actual).isEmpty()
             }
 
-            is BsonArray -> actual is BsonArray && expected.size == actual.size &&
-                expected.values.indices.all { matches(expected[it], actual[it]) }
+            is BsonArray -> {
+                actual is BsonArray && expected.size == actual.size &&
+                    expected.values.indices.all { matches(expected[it], actual[it]) }
+            }
 
-            else -> expected == actual
+            else -> {
+                expected == actual
+            }
         }
     }
 
     /** Ключи, которые есть в фактическом документе и которых нет в ожидаемом. */
-    private fun extraKeys(expected: BsonDocument, actual: BsonDocument): List<String> =
-        actual.keys.filterNot { it in expected }
+    private fun extraKeys(
+        expected: BsonDocument,
+        actual: BsonDocument,
+    ): List<String> = actual.keys.filterNot { it in expected }
 
-    private fun matchesType(argument: BsonValue, actual: BsonValue?): Boolean {
-        val names = when (argument) {
-            is BsonString -> listOf(argument.value)
-            is BsonArray -> argument.values.filterIsInstance<BsonString>().map { it.value }
-            else -> return false
-        }
+    private fun matchesType(
+        argument: BsonValue,
+        actual: BsonValue?,
+    ): Boolean {
+        val names =
+            when (argument) {
+                is BsonString -> listOf(argument.value)
+                is BsonArray -> argument.values.filterIsInstance<BsonString>().map { it.value }
+                else -> return false
+            }
         return names.any { name ->
             when (name) {
                 "int" -> actual is BsonInt32
@@ -80,5 +93,4 @@ internal object SpecMatcher {
             }
         }
     }
-
 }

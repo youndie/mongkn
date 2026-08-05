@@ -1,7 +1,7 @@
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 
-/**
+/*
  * Публикация в приватный Reposilite (M-18).
  *
  * Координаты и способ передачи кредов повторяют соглашение соседних проектов: URL

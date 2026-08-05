@@ -4,6 +4,9 @@
 kotlin = "2.4.10"
 coroutines = "1.11.0"
 serialization = "1.11.0"
+# CLI ktlint и Gradle-плагин версионируются независимо: плагин лишь запускает CLI указанной версии.
+ktlint = "1.8.0"
+ktlintGradle = "14.2.0"
 # Официальный JVM-драйвер — эталон для дифференциальных тестов (:mongkn-difftest).
 # Источником сигнатур для генерации он быть перестал: решение Р9, генератор удалён.
 mongodbDriverKotlin = "5.9.1"
@@ -18,3 +21,4 @@ mongodb-driver-kotlin-coroutine = { module = "org.mongodb:mongodb-driver-kotlin-
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }

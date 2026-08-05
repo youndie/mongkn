@@ -1,11 +1,11 @@
 package ru.workinprogress.mongkn
 
+import kotlinx.coroutines.flow.Flow
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonInt64
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
-import kotlinx.coroutines.flow.Flow
 
 /**
  * Результат [MongoCollection.find] с чейнингом опций.
@@ -29,7 +29,6 @@ public class FindFlow<T> internal constructor(
     private val filter: Document,
     private val opts: Document,
 ) : Flow<T> by source(filter, opts) {
-
     /** Не больше указанного числа документов. */
     public fun limit(count: Int): FindFlow<T> = withOption("limit", BsonInt64(count.toLong()))
 
@@ -51,9 +50,13 @@ public class FindFlow<T> internal constructor(
      * `BsonDocument` допускает повторяющиеся ключи, а mongoc в опциях их не ждёт: без замены
      * `limit(1).limit(2)` отправил бы документ с двумя `limit`.
      */
-    private fun withOption(name: String, value: BsonValue): FindFlow<T> = FindFlow(
-        source = source,
-        filter = filter,
-        opts = BsonDocument(opts.entries.filterNot { it.first == name } + (name to value)),
-    )
+    private fun withOption(
+        name: String,
+        value: BsonValue,
+    ): FindFlow<T> =
+        FindFlow(
+            source = source,
+            filter = filter,
+            opts = BsonDocument(opts.entries.filterNot { it.first == name } + (name to value)),
+        )
 }

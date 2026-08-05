@@ -24,52 +24,68 @@ internal class BsonValueDecoder(
     private val value: BsonValue,
     override val serializersModule: SerializersModule = EmptySerializersModule(),
 ) : AbstractDecoder() {
+    override fun decodeValue(): Any =
+        when (value) {
+            is BsonString -> value.value
+            is BsonInt32 -> value.value
+            is BsonInt64 -> value.value
+            is BsonDouble -> value.value
+            is BsonBoolean -> value.value
+            else -> throw SerializationException("mongkn: $value не скаляр")
+        }
 
-    override fun decodeValue(): Any = when (value) {
-        is BsonString -> value.value
-        is BsonInt32 -> value.value
-        is BsonInt64 -> value.value
-        is BsonDouble -> value.value
-        is BsonBoolean -> value.value
-        else -> throw SerializationException("mongkn: $value не скаляр")
-    }
+/*
+ * Строка — и, отдельным случаем, ObjectId.
+ *
+ * [BsonObjectIdSerializer] описывает себя как строку, поэтому на чтении просит именно её.
+ * Отдаём шестнадцатеричную запись, из которой он соберёт обратно тот же ObjectId. Записью
+ * при этом занимается не он: [BsonValueEncoder] пропускает [BsonValue] мимо сериализации,
+ * чтобы `_id` в базе остался ObjectId, а не текстом.
+ */
+    override fun decodeString(): String =
+        when (value) {
+            is BsonString -> value.value
+            is BsonObjectId -> value.hex
+            else -> throw SerializationException("mongkn: ожидалась строка, получено $value")
+        }
 
-    /**
-     * Строка — и, отдельным случаем, ObjectId.
-     *
-     * [BsonObjectIdSerializer] описывает себя как строку, поэтому на чтении просит именно её.
-     * Отдаём шестнадцатеричную запись, из которой он соберёт обратно тот же ObjectId. Записью
-     * при этом занимается не он: [BsonValueEncoder] пропускает [BsonValue] мимо сериализации,
-     * чтобы `_id` в базе остался ObjectId, а не текстом.
-     */
-    override fun decodeString(): String = when (value) {
-        is BsonString -> value.value
-        is BsonObjectId -> value.hex
-        else -> throw SerializationException("mongkn: ожидалась строка, получено $value")
-    }
+    override fun decodeInt(): Int =
+        when (value) {
+            is BsonInt32 -> {
+                value.value
+            }
 
-    override fun decodeInt(): Int = when (value) {
-        is BsonInt32 -> value.value
-        // Сужение int64 → Int молча потеряло бы данные.
-        is BsonInt64 -> value.value.toInt().also {
-            if (it.toLong() != value.value) {
-                throw SerializationException("mongkn: ${value.value} не помещается в Int")
+            // Сужение int64 → Int молча потеряло бы данные.
+            is BsonInt64 -> {
+                value.value.toInt().also {
+                    if (it.toLong() != value.value) {
+                        throw SerializationException("mongkn: ${value.value} не помещается в Int")
+                    }
+                }
+            }
+
+            else -> {
+                throw SerializationException("mongkn: ожидалось целое, получено $value")
             }
         }
-        else -> throw SerializationException("mongkn: ожидалось целое, получено $value")
-    }
 
     override fun decodeLong(): Long = asLong()
+
     override fun decodeShort(): Short = decodeInt().toShort()
+
     override fun decodeByte(): Byte = decodeInt().toByte()
+
     override fun decodeFloat(): Float = asDouble().toFloat()
+
     override fun decodeDouble(): Double = asDouble()
 
-    override fun decodeBoolean(): Boolean = (value as? BsonBoolean)?.value
-        ?: throw SerializationException("mongkn: ожидался boolean, получено $value")
+    override fun decodeBoolean(): Boolean =
+        (value as? BsonBoolean)?.value
+            ?: throw SerializationException("mongkn: ожидался boolean, получено $value")
 
-    override fun decodeChar(): Char = decodeString().singleOrNull()
-        ?: throw SerializationException("mongkn: ожидался один символ, получено $value")
+    override fun decodeChar(): Char =
+        decodeString().singleOrNull()
+            ?: throw SerializationException("mongkn: ожидался один символ, получено $value")
 
     override fun decodeNotNullMark(): Boolean = value != BsonNull
 
@@ -81,7 +97,7 @@ internal class BsonValueDecoder(
         if (index == CompositeDecoder.UNKNOWN_NAME) {
             throw SerializationException(
                 "mongkn: '$name' не входит в ${enumDescriptor.serialName}; " +
-                    "известны ${(0 until enumDescriptor.elementsCount).map(enumDescriptor::getElementName)}"
+                    "известны ${(0 until enumDescriptor.elementsCount).map(enumDescriptor::getElementName)}",
             )
         }
         return index
@@ -90,49 +106,67 @@ internal class BsonValueDecoder(
     override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
         error("mongkn: элементы читает составной декодер")
 
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder = when (descriptor.kind) {
-        StructureKind.CLASS, StructureKind.OBJECT -> DocumentDecoder(
-            document = value as? BsonDocument
-                ?: throw SerializationException("mongkn: ожидался документ для ${descriptor.serialName}, получено $value"),
-            descriptor = descriptor,
-            serializersModule = serializersModule,
-        )
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder =
+        when (descriptor.kind) {
+            StructureKind.CLASS, StructureKind.OBJECT -> {
+                DocumentDecoder(
+                    document =
+                        value as? BsonDocument
+                            ?: throw SerializationException(
+                                "mongkn: ожидался документ для ${descriptor.serialName}, получено $value",
+                            ),
+                    descriptor = descriptor,
+                    serializersModule = serializersModule,
+                )
+            }
 
-        StructureKind.LIST -> SequenceDecoder(
-            values = (value as? BsonArray)?.values
-                ?: throw SerializationException("mongkn: ожидался массив, получено $value"),
-            serializersModule = serializersModule,
-        )
+            StructureKind.LIST -> {
+                SequenceDecoder(
+                    values =
+                        (value as? BsonArray)?.values
+                            ?: throw SerializationException("mongkn: ожидался массив, получено $value"),
+                    serializersModule = serializersModule,
+                )
+            }
 
-        // Map на проводе — документ; разворачиваем его в плоскую последовательность
-        // ключ, значение, ключ, значение — именно так его ждёт kotlinx.serialization.
-        StructureKind.MAP -> SequenceDecoder(
-            values = (value as? BsonDocument)?.entries?.flatMap { (key, item) -> listOf(BsonString(key), item) }
-                ?: throw SerializationException("mongkn: ожидался документ для Map, получено $value"),
-            serializersModule = serializersModule,
-            valuesPerEntry = 2,
-        )
+            // Map на проводе — документ; разворачиваем его в плоскую последовательность
+            // ключ, значение, ключ, значение — именно так его ждёт kotlinx.serialization.
+            StructureKind.MAP -> {
+                SequenceDecoder(
+                    values =
+                        (value as? BsonDocument)?.entries?.flatMap { (key, item) -> listOf(BsonString(key), item) }
+                            ?: throw SerializationException("mongkn: ожидался документ для Map, получено $value"),
+                    serializersModule = serializersModule,
+                    valuesPerEntry = 2,
+                )
+            }
 
-        is PolymorphicKind -> throw SerializationException(
-            "mongkn: полиморфная десериализация не поддержана (${descriptor.serialName})"
-        )
+            is PolymorphicKind -> {
+                throw SerializationException(
+                    "mongkn: полиморфная десериализация не поддержана (${descriptor.serialName})",
+                )
+            }
 
-        else -> throw SerializationException("mongkn: структура ${descriptor.kind} не поддержана")
-    }
+            else -> {
+                throw SerializationException("mongkn: структура ${descriptor.kind} не поддержана")
+            }
+        }
 
-    private fun asLong(): Long = when (value) {
-        is BsonInt64 -> value.value
-        is BsonInt32 -> value.value.toLong()
-        is BsonDateTime -> value.epochMillis
-        else -> throw SerializationException("mongkn: ожидалось целое, получено $value")
-    }
+    private fun asLong(): Long =
+        when (value) {
+            is BsonInt64 -> value.value
+            is BsonInt32 -> value.value.toLong()
+            is BsonDateTime -> value.epochMillis
+            else -> throw SerializationException("mongkn: ожидалось целое, получено $value")
+        }
 
-    private fun asDouble(): Double = when (value) {
-        is BsonDouble -> value.value
-        is BsonInt32 -> value.value.toDouble()
-        is BsonInt64 -> value.value.toDouble()
-        else -> throw SerializationException("mongkn: ожидалось число, получено $value")
-    }
+    private fun asDouble(): Double =
+        when (value) {
+            is BsonDouble -> value.value
+            is BsonInt32 -> value.value.toDouble()
+            is BsonInt64 -> value.value.toDouble()
+            else -> throw SerializationException("mongkn: ожидалось число, получено $value")
+        }
 
     /**
      * Читает документ по описанию класса, сопоставляя поля по именам.
@@ -147,7 +181,6 @@ internal class BsonValueDecoder(
         private val descriptor: SerialDescriptor,
         override val serializersModule: SerializersModule,
     ) : AbstractDecoder() {
-
         /** Куда дошёл обход описания. */
         private var scan = 0
 
@@ -168,14 +201,23 @@ internal class BsonValueDecoder(
         }
 
         override fun decodeString(): String = field().decodeString()
+
         override fun decodeInt(): Int = field().decodeInt()
+
         override fun decodeLong(): Long = field().decodeLong()
+
         override fun decodeDouble(): Double = field().decodeDouble()
+
         override fun decodeFloat(): Float = field().decodeFloat()
+
         override fun decodeBoolean(): Boolean = field().decodeBoolean()
+
         override fun decodeShort(): Short = field().decodeShort()
+
         override fun decodeByte(): Byte = field().decodeByte()
+
         override fun decodeChar(): Char = field().decodeChar()
+
         // decodeNullableSerializableElement в AbstractDecoder тоже final: он опирается
         // на decodeNotNullMark() составного декодера, поэтому достаточно правильно ответить здесь.
         override fun decodeNotNullMark(): Boolean = field().decodeNotNullMark()
@@ -189,7 +231,6 @@ internal class BsonValueDecoder(
             current = index
             return deserializer.deserialize(field())
         }
-
 
         private fun field(): BsonValueDecoder =
             BsonValueDecoder(document[descriptor.getElementName(current)] ?: BsonNull, serializersModule)
@@ -215,7 +256,6 @@ internal class BsonValueDecoder(
          */
         private val valuesPerEntry: Int = 1,
     ) : AbstractDecoder() {
-
         private var current = 0
 
         override fun decodeSequentially(): Boolean = true
@@ -226,14 +266,23 @@ internal class BsonValueDecoder(
             if (current < values.size) current else CompositeDecoder.DECODE_DONE
 
         override fun decodeString(): String = next().decodeString()
+
         override fun decodeInt(): Int = next().decodeInt()
+
         override fun decodeLong(): Long = next().decodeLong()
+
         override fun decodeDouble(): Double = next().decodeDouble()
+
         override fun decodeFloat(): Float = next().decodeFloat()
+
         override fun decodeBoolean(): Boolean = next().decodeBoolean()
+
         override fun decodeShort(): Short = next().decodeShort()
+
         override fun decodeByte(): Byte = next().decodeByte()
+
         override fun decodeChar(): Char = next().decodeChar()
+
         // Границу проверяем явно: фреймворк успевает спросить про null уже после того,
         // как все элементы прочитаны, и без проверки это IndexOutOfBounds на пустом месте.
         override fun decodeNotNullMark(): Boolean = current < values.size && values[current] != BsonNull
@@ -245,11 +294,12 @@ internal class BsonValueDecoder(
             previousValue: T?,
         ): T = deserializer.deserialize(next())
 
-
         private fun next(): BsonValueDecoder = BsonValueDecoder(values[current++], serializersModule)
     }
 }
 
 /** Читает значение из документа. */
-public fun <T> decodeFromDocument(deserializer: KSerializer<T>, document: Document): T =
-    deserializer.deserialize(BsonValueDecoder(document))
+public fun <T> decodeFromDocument(
+    deserializer: KSerializer<T>,
+    document: Document,
+): T = deserializer.deserialize(BsonValueDecoder(document))

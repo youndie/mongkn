@@ -27,7 +27,6 @@ import kotlinx.serialization.modules.SerializersModule
 internal class BsonValueEncoder(
     override val serializersModule: SerializersModule = EmptySerializersModule(),
 ) : AbstractEncoder() {
-
     /** Куда складывать очередное значение. Меняется при входе в структуру. */
     private var sink: (BsonValue) -> Unit = { result = it }
 
@@ -35,39 +34,62 @@ internal class BsonValueEncoder(
 
     fun encoded(): BsonValue = result
 
-    override fun encodeValue(value: Any) {
+    override fun encodeValue(value: Any): Unit =
         throw SerializationException("mongkn: тип ${value::class.simpleName} не поддержан в BSON")
-    }
 
     override fun encodeString(value: String) = sink(BsonString(value))
+
     override fun encodeInt(value: Int) = sink(BsonInt32(value))
+
     override fun encodeLong(value: Long) = sink(BsonInt64(value))
+
     override fun encodeDouble(value: Double) = sink(BsonDouble(value))
+
     override fun encodeBoolean(value: Boolean) = sink(BsonBoolean(value))
+
     override fun encodeFloat(value: Float) = sink(BsonDouble(value.toDouble()))
+
     // BSON не различает мелкие целые: и Byte, и Short едут как int32 — так же делает
     // официальный драйвер.
     override fun encodeByte(value: Byte) = sink(BsonInt32(value.toInt()))
+
     override fun encodeShort(value: Short) = sink(BsonInt32(value.toInt()))
+
     override fun encodeChar(value: Char) = sink(BsonString(value.toString()))
+
     override fun encodeNull() = sink(BsonNull)
 
     /** Enum кладётся именем, а не порядковым номером: номер ломается при правке порядка констант. */
-    override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) =
-        sink(BsonString(enumDescriptor.getElementName(index)))
+    override fun encodeEnum(
+        enumDescriptor: SerialDescriptor,
+        index: Int,
+    ) = sink(BsonString(enumDescriptor.getElementName(index)))
 
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
         val parentSink = sink
         return when (descriptor.kind) {
-            StructureKind.LIST -> ArrayEncoder(serializersModule) { parentSink(it) }
-            StructureKind.MAP -> MapEncoder(serializersModule) { parentSink(it) }
-            StructureKind.CLASS, StructureKind.OBJECT ->
+            StructureKind.LIST -> {
+                ArrayEncoder(serializersModule) { parentSink(it) }
+            }
+
+            StructureKind.MAP -> {
+                MapEncoder(serializersModule) { parentSink(it) }
+            }
+
+            StructureKind.CLASS, StructureKind.OBJECT -> {
                 DocumentEncoder(serializersModule) { parentSink(it) }
-            is PolymorphicKind -> throw SerializationException(
-                "mongkn: полиморфная сериализация не поддержана (${descriptor.serialName}). " +
-                    "Форма дискриминатора должна совпадать с официальным драйвером — это отдельная сверка."
-            )
-            else -> throw SerializationException("mongkn: структура ${descriptor.kind} не поддержана")
+            }
+
+            is PolymorphicKind -> {
+                throw SerializationException(
+                    "mongkn: полиморфная сериализация не поддержана (${descriptor.serialName}). " +
+                        "Форма дискриминатора должна совпадать с официальным драйвером — это отдельная сверка.",
+                )
+            }
+
+            else -> {
+                throw SerializationException("mongkn: структура ${descriptor.kind} не поддержана")
+            }
         }
     }
 
@@ -76,11 +98,13 @@ internal class BsonValueEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
     ) : AbstractEncoder() {
-
         private val entries = mutableListOf<Pair<String, BsonValue>>()
         private var key: String? = null
 
-        override fun encodeElement(descriptor: SerialDescriptor, index: Int): Boolean {
+        override fun encodeElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+        ): Boolean {
             key = descriptor.getElementName(index)
             return true
         }
@@ -89,8 +113,10 @@ internal class BsonValueEncoder(
 
         override fun encodeNull() = put(BsonNull)
 
-        override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) =
-            put(BsonString(enumDescriptor.getElementName(index)))
+        override fun encodeEnum(
+            enumDescriptor: SerialDescriptor,
+            index: Int,
+        ) = put(BsonString(enumDescriptor.getElementName(index)))
 
         override fun <T> encodeSerializableElement(
             descriptor: SerialDescriptor,
@@ -119,12 +145,20 @@ internal class BsonValueEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
     ) : AbstractEncoder() {
-
         private val values = mutableListOf<BsonValue>()
 
-        override fun encodeValue(value: Any) { values += scalar(value) }
-        override fun encodeNull() { values += BsonNull }
-        override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {
+        override fun encodeValue(value: Any) {
+            values += scalar(value)
+        }
+
+        override fun encodeNull() {
+            values += BsonNull
+        }
+
+        override fun encodeEnum(
+            enumDescriptor: SerialDescriptor,
+            index: Int,
+        ) {
             values += BsonString(enumDescriptor.getElementName(index))
         }
 
@@ -153,14 +187,17 @@ internal class BsonValueEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
     ) : AbstractEncoder() {
-
         private val entries = mutableListOf<Pair<String, BsonValue>>()
         private var key: String? = null
 
         override fun encodeValue(value: Any) = accept(scalar(value))
+
         override fun encodeNull() = accept(BsonNull)
-        override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) =
-            accept(BsonString(enumDescriptor.getElementName(index)))
+
+        override fun encodeEnum(
+            enumDescriptor: SerialDescriptor,
+            index: Int,
+        ) = accept(BsonString(enumDescriptor.getElementName(index)))
 
         override fun <T> encodeSerializableElement(
             descriptor: SerialDescriptor,
@@ -188,19 +225,20 @@ internal class BsonValueEncoder(
     }
 
     private companion object {
-        fun scalar(value: Any): BsonValue = when (value) {
-            is String -> BsonString(value)
-            is Int -> BsonInt32(value)
-            is Long -> BsonInt64(value)
-            is Double -> BsonDouble(value)
-            is Float -> BsonDouble(value.toDouble())
-            is Boolean -> BsonBoolean(value)
-            is Byte -> BsonInt32(value.toInt())
-            is Short -> BsonInt32(value.toInt())
-            is Char -> BsonString(value.toString())
-            is BsonValue -> value
-            else -> throw SerializationException("mongkn: тип ${value::class.simpleName} не поддержан в BSON")
-        }
+        fun scalar(value: Any): BsonValue =
+            when (value) {
+                is String -> BsonString(value)
+                is Int -> BsonInt32(value)
+                is Long -> BsonInt64(value)
+                is Double -> BsonDouble(value)
+                is Float -> BsonDouble(value.toDouble())
+                is Boolean -> BsonBoolean(value)
+                is Byte -> BsonInt32(value.toInt())
+                is Short -> BsonInt32(value.toInt())
+                is Char -> BsonString(value.toString())
+                is BsonValue -> value
+                else -> throw SerializationException("mongkn: тип ${value::class.simpleName} не поддержан в BSON")
+            }
     }
 }
 
@@ -216,6 +254,9 @@ internal fun <T> encodeToBsonValue(
  * @throws SerializationException если на верхнем уровне получился не документ — например, при
  *   попытке положить в коллекцию список или число.
  */
-public fun <T> encodeToDocument(serializer: KSerializer<T>, value: T): Document =
+public fun <T> encodeToDocument(
+    serializer: KSerializer<T>,
+    value: T,
+): Document =
     encodeToBsonValue(serializer, value) as? BsonDocument
         ?: throw SerializationException("mongkn: в коллекцию можно класть только документ, а не скаляр или массив")

@@ -1,12 +1,12 @@
 package ru.workinprogress.mongkn
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.KSerializer
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.decodeFromDocument
 import ru.workinprogress.mongkn.bson.encodeToDocument
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.serialization.KSerializer
 
 /**
  * Коллекция MongoDB.
@@ -47,7 +47,6 @@ public class MongoCollection<T> internal constructor(
     public val name: String,
     private val codec: KSerializer<T>?,
 ) {
-
     /**
      * Переводит документ в [T] и обратно.
      *
@@ -68,20 +67,29 @@ public class MongoCollection<T> internal constructor(
     public suspend fun insertOne(document: T): InsertOneResult =
         CollectionOps.insertOne(client, databaseName, name, toDocument(document))
 
-    /** Вставляет несколько документов. Пустой список отвергается до обращения к серверу. */
-    /** @param ordered `false` — продолжать вставку после первой ошибки. */
-    public suspend fun insertMany(documents: List<T>, ordered: Boolean = true): InsertManyResult =
-        CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument), ordered)
+    /**
+     * Вставляет несколько документов. Пустой список отвергается до обращения к серверу.
+     *
+     * @param ordered `false` — продолжать вставку после первой ошибки.
+     */
+    public suspend fun insertMany(
+        documents: List<T>,
+        ordered: Boolean = true,
+    ): InsertManyResult = CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument), ordered)
 
     /**
      * Обновляет **один** документ, подходящий под фильтр.
      *
      * [update] — документ операторов обновления (`{"${'$'}set": …}`), а не агрегационный конвейер:
      * у официального драйвера это разные перегрузки, см. KDoc класса.
+     *
+     * @param upsert `true` — создать документ, если под фильтр ничего не подошло.
      */
-    /** @param upsert `true` — создать документ, если под фильтр ничего не подошло. */
-    public suspend fun updateOne(filter: Document, update: Document, upsert: Boolean = false): UpdateResult =
-        CollectionOps.updateOne(client, databaseName, name, filter, update, upsert)
+    public suspend fun updateOne(
+        filter: Document,
+        update: Document,
+        upsert: Boolean = false,
+    ): UpdateResult = CollectionOps.updateOne(client, databaseName, name, filter, update, upsert)
 
     /** Удаляет **один** документ, подходящий под фильтр. */
     public suspend fun deleteOne(filter: Document): DeleteResult =
@@ -99,9 +107,10 @@ public class MongoCollection<T> internal constructor(
      * Возвращает [FindFlow] — он **является** `Flow`, поэтому `find().toList()` работает как
      * прежде, а `find().sort(…).limit(…)` добавился сверху (решение Р8).
      */
-    public fun find(filter: Document = BsonDocument()): FindFlow<T> = FindFlow(
-        source = { query, opts -> CollectionOps.find(client, databaseName, name, query, opts).map(::fromDocument) },
-        filter = filter,
-        opts = BsonDocument(),
-    )
+    public fun find(filter: Document = BsonDocument()): FindFlow<T> =
+        FindFlow(
+            source = { query, opts -> CollectionOps.find(client, databaseName, name, query, opts).map(::fromDocument) },
+            filter = filter,
+            opts = BsonDocument(),
+        )
 }

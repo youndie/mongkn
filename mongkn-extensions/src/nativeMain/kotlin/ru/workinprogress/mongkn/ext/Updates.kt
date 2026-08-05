@@ -3,7 +3,7 @@ package ru.workinprogress.mongkn.ext
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
 
-/**
+/*
  * Документы обновления в инфиксной записи.
  *
  * ```
@@ -16,14 +16,11 @@ import ru.workinprogress.mongkn.bson.Document
 /** `$set` — установить значение поля. */
 public infix fun String.setTo(value: Any?): Document = update("\$set", this, value)
 
-
 /** `$inc` — увеличить числовое поле. */
 public infix fun String.incBy(delta: Number): Document = update("\$inc", this, delta)
 
-
 /** `$unset` — убрать поле. Значение оператору безразлично, договорённость — пустая строка. */
 public fun unset(field: String): Document = update("\$unset", field, "")
-
 
 /**
  * Складывает несколько обновлений в один документ.
@@ -36,13 +33,17 @@ public fun combine(vararg updates: Document): Document {
     val merged = linkedMapOf<String, MutableList<Pair<String, ru.workinprogress.mongkn.bson.BsonValue>>>()
     for (update in updates) {
         for ((operator, body) in update.entries) {
-            val fields = (body as? BsonDocument)?.entries
-                ?: throw IllegalArgumentException("mongkn: тело оператора $operator не документ: $body")
+            val fields =
+                (body as? BsonDocument)?.entries
+                    ?: throw IllegalArgumentException("mongkn: тело оператора $operator не документ: $body")
             merged.getOrPut(operator) { mutableListOf() } += fields
         }
     }
     return BsonDocument(merged.map { (operator, fields) -> operator to BsonDocument(fields.toList()) })
 }
 
-private fun update(operator: String, field: String, value: Any?): Document =
-    BsonDocument(operator to BsonDocument(field to bsonOf(value)))
+private fun update(
+    operator: String,
+    field: String,
+    value: Any?,
+): Document = BsonDocument(operator to BsonDocument(field to bsonOf(value)))

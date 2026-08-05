@@ -16,24 +16,45 @@ import kotlin.test.assertTrue
  * читали бы разные документы из одной коллекции.
  */
 class BsonSerializationTest {
-
     @Serializable
-    data class Person(val name: String, val born: Int, val alias: String? = null)
+    data class Person(
+        val name: String,
+        val born: Int,
+        val alias: String? = null,
+    )
 
     @Serializable
     enum class Kind { PRIMARY, SECONDARY }
 
     @Serializable
-    data class Nested(val id: Long, val person: Person, val tags: List<String>, val kind: Kind)
+    data class Nested(
+        val id: Long,
+        val person: Person,
+        val tags: List<String>,
+        val kind: Kind,
+    )
 
     @Serializable
-    data class Numbers(val i: Int, val l: Long, val d: Double, val f: Float, val b: Byte, val s: Short)
+    data class Numbers(
+        val i: Int,
+        val l: Long,
+        val d: Double,
+        val f: Float,
+        val b: Byte,
+        val s: Short,
+    )
 
     @Serializable
-    data class WithMap(val labels: Map<String, String>, val counts: Map<String, Int>)
+    data class WithMap(
+        val labels: Map<String, String>,
+        val counts: Map<String, Int>,
+    )
 
     @Serializable
-    data class WithRaw(val name: String, val id: BsonObjectId)
+    data class WithRaw(
+        val name: String,
+        val id: BsonObjectId,
+    )
 
     private inline fun <reified T> roundTrip(value: T): T =
         decodeFromDocument(serializer<T>(), encodeToDocument(serializer<T>(), value))
@@ -64,12 +85,13 @@ class BsonSerializationTest {
 
     @Test
     fun `nested classes lists and enums survive`() {
-        val value = Nested(
-            id = 9_000_000_000L,
-            person = Person("Ada", 1815),
-            tags = listOf("math", "engine", ""),
-            kind = Kind.SECONDARY,
-        )
+        val value =
+            Nested(
+                id = 9_000_000_000L,
+                person = Person("Ada", 1815),
+                tags = listOf("math", "engine", ""),
+                kind = Kind.SECONDARY,
+            )
 
         assertEquals(value, roundTrip(value))
     }
@@ -84,16 +106,18 @@ class BsonSerializationTest {
 
     @Test
     fun `unknown enum constant fails loudly`() {
-        val document = BsonDocument(
-            "id" to BsonInt64(1),
-            "person" to BsonDocument("name" to BsonString("x"), "born" to BsonInt32(1)),
-            "tags" to BsonArray(emptyList()),
-            "kind" to BsonString("TERTIARY"),
-        )
+        val document =
+            BsonDocument(
+                "id" to BsonInt64(1),
+                "person" to BsonDocument("name" to BsonString("x"), "born" to BsonInt32(1)),
+                "tags" to BsonArray(emptyList()),
+                "kind" to BsonString("TERTIARY"),
+            )
 
-        val failure = assertFailsWith<SerializationException> {
-            decodeFromDocument(serializer<Nested>(), document)
-        }
+        val failure =
+            assertFailsWith<SerializationException> {
+                decodeFromDocument(serializer<Nested>(), document)
+            }
         assertTrue(failure.message!!.contains("TERTIARY"), "message=${failure.message}")
     }
 
@@ -115,20 +139,30 @@ class BsonSerializationTest {
     @Test
     fun `int32 from the server fits a Long field`() {
         // Сервер и другие драйверы вольны положить int32 туда, где в классе объявлен Long.
-        val document = BsonDocument(
-            "i" to BsonInt32(1), "l" to BsonInt32(2), "d" to BsonInt32(3),
-            "f" to BsonInt32(4), "b" to BsonInt32(6), "s" to BsonInt32(7),
-        )
+        val document =
+            BsonDocument(
+                "i" to BsonInt32(1),
+                "l" to BsonInt32(2),
+                "d" to BsonInt32(3),
+                "f" to BsonInt32(4),
+                "b" to BsonInt32(6),
+                "s" to BsonInt32(7),
+            )
 
         assertEquals(Numbers(1, 2L, 3.0, 4.0f, 6, 7), decodeFromDocument(serializer<Numbers>(), document))
     }
 
     @Test
     fun `narrowing int64 into an Int field is refused rather than silently truncated`() {
-        val document = BsonDocument(
-            "i" to BsonInt64(Long.MAX_VALUE), "l" to BsonInt64(1), "d" to BsonDouble(1.0),
-            "f" to BsonDouble(1.0), "b" to BsonInt32(1), "s" to BsonInt32(1),
-        )
+        val document =
+            BsonDocument(
+                "i" to BsonInt64(Long.MAX_VALUE),
+                "l" to BsonInt64(1),
+                "d" to BsonDouble(1.0),
+                "f" to BsonDouble(1.0),
+                "b" to BsonInt32(1),
+                "s" to BsonInt32(1),
+            )
 
         assertFailsWith<SerializationException> { decodeFromDocument(serializer<Numbers>(), document) }
     }
@@ -165,11 +199,12 @@ class BsonSerializationTest {
     @Test
     fun `extra fields in the document are ignored`() {
         // Документ в базе живёт дольше класса: новое поле не должно ронять чтение старым кодом.
-        val document = BsonDocument(
-            "name" to BsonString("Ada"),
-            "born" to BsonInt32(1815),
-            "addedLater" to BsonString("что-то ещё"),
-        )
+        val document =
+            BsonDocument(
+                "name" to BsonString("Ada"),
+                "born" to BsonInt32(1815),
+                "addedLater" to BsonString("что-то ещё"),
+            )
 
         assertEquals(Person("Ada", 1815), decodeFromDocument(serializer<Person>(), document))
     }

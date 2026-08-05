@@ -22,9 +22,10 @@ dependencies {
  *
  * Порядок задан зависимостями задач в `:mongkn-core`, а не соглашением.
  */
-val diffUri: String = providers.gradleProperty("mongkn.diff.uri").orNull
-    ?: providers.environmentVariable("MONGKN_TEST_HOST").map { "mongodb://$it" }.orNull
-    ?: "mongodb://127.0.0.1:27017"
+val diffUri: String =
+    providers.gradleProperty("mongkn.diff.uri").orNull
+        ?: providers.environmentVariable("MONGKN_TEST_HOST").map { "mongodb://$it" }.orNull
+        ?: "mongodb://127.0.0.1:27017"
 
 /** Файл фикстуры. Путь отдаётся нативной стороне переменной окружения — см. `:mongkn-core`. */
 val diffFixture: Provider<RegularFile> = layout.buildDirectory.file("diff/reference.json")

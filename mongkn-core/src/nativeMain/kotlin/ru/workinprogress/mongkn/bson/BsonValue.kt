@@ -13,20 +13,32 @@ package ru.workinprogress.mongkn.bson
  */
 public sealed interface BsonValue
 
-public data class BsonString(public val value: String) : BsonValue
+public data class BsonString(
+    public val value: String,
+) : BsonValue
 
-public data class BsonInt32(public val value: Int) : BsonValue
+public data class BsonInt32(
+    public val value: Int,
+) : BsonValue
 
-public data class BsonInt64(public val value: Long) : BsonValue
+public data class BsonInt64(
+    public val value: Long,
+) : BsonValue
 
-public data class BsonDouble(public val value: Double) : BsonValue
+public data class BsonDouble(
+    public val value: Double,
+) : BsonValue
 
-public data class BsonBoolean(public val value: Boolean) : BsonValue
+public data class BsonBoolean(
+    public val value: Boolean,
+) : BsonValue
 
 public data object BsonNull : BsonValue
 
 /** Момент времени как число миллисекунд от эпохи — так BSON его и хранит (`int64`). */
-public data class BsonDateTime(public val epochMillis: Long) : BsonValue
+public data class BsonDateTime(
+    public val epochMillis: Long,
+) : BsonValue
 
 /**
  * 12-байтовый ObjectId.
@@ -35,8 +47,9 @@ public data class BsonDateTime(public val epochMillis: Long) : BsonValue
  * содержимому — иначе round-trip-тест из M-04 будет ложно падать.
  */
 @kotlinx.serialization.Serializable(with = BsonObjectIdSerializer::class)
-public class BsonObjectId(bytes: ByteArray) : BsonValue {
-
+public class BsonObjectId(
+    bytes: ByteArray,
+) : BsonValue {
     init {
         require(bytes.size == SIZE) { "ObjectId должен быть $SIZE байт, получено ${bytes.size}" }
     }
@@ -47,10 +60,11 @@ public class BsonObjectId(bytes: ByteArray) : BsonValue {
 
     /** Каноническое 24-символьное шестнадцатеричное представление. */
     public val hex: String
-        get() = bytes.joinToString("") { b ->
-            val v = b.toInt() and 0xFF
-            HEX[v shr 4].toString() + HEX[v and 0x0F]
-        }
+        get() =
+            bytes.joinToString("") { b ->
+                val v = b.toInt() and 0xFF
+                HEX[v shr 4].toString() + HEX[v and 0x0F]
+            }
 
     override fun equals(other: Any?): Boolean =
         this === other || (other is BsonObjectId && bytes.contentEquals(other.bytes))
@@ -66,12 +80,13 @@ public class BsonObjectId(bytes: ByteArray) : BsonValue {
         /** Разбирает каноническое 24-символьное представление. */
         public fun parse(hex: String): BsonObjectId {
             require(hex.length == SIZE * 2) { "ObjectId должен быть ${SIZE * 2} символов, получено ${hex.length}" }
-            val bytes = ByteArray(SIZE) { i ->
-                val hi = HEX.indexOf(hex[i * 2].lowercaseChar())
-                val lo = HEX.indexOf(hex[i * 2 + 1].lowercaseChar())
-                require(hi >= 0 && lo >= 0) { "ObjectId содержит не-шестнадцатеричный символ: $hex" }
-                ((hi shl 4) or lo).toByte()
-            }
+            val bytes =
+                ByteArray(SIZE) { i ->
+                    val hi = HEX.indexOf(hex[i * 2].lowercaseChar())
+                    val lo = HEX.indexOf(hex[i * 2 + 1].lowercaseChar())
+                    require(hi >= 0 && lo >= 0) { "ObjectId содержит не-шестнадцатеричный символ: $hex" }
+                    ((hi shl 4) or lo).toByte()
+                }
             return BsonObjectId(bytes)
         }
     }
@@ -86,8 +101,10 @@ public class BsonObjectId(bytes: ByteArray) : BsonValue {
  *
  * Не `data class`: у `ByteArray` равенство ссылочное.
  */
-public class BsonBinary(public val subtype: UByte, bytes: ByteArray) : BsonValue {
-
+public class BsonBinary(
+    public val subtype: UByte,
+    bytes: ByteArray,
+) : BsonValue {
     private val bytes: ByteArray = bytes.copyOf()
 
     public fun toByteArray(): ByteArray = bytes.copyOf()
@@ -104,8 +121,10 @@ public class BsonBinary(public val subtype: UByte, bytes: ByteArray) : BsonValue
     public companion object {
         /** Обычные байты. */
         public const val GENERIC: UByte = 0x00u
+
         /** UUID в каноническом представлении. */
         public const val UUID: UByte = 0x04u
+
         /** Поле, зашифрованное client-side field level encryption. */
         public const val ENCRYPTED: UByte = 0x06u
     }
@@ -124,18 +143,17 @@ public class BsonBinary(public val subtype: UByte, bytes: ByteArray) : BsonValue
  *
  * @throws IllegalArgumentException если строка не разбирается как decimal128.
  */
-public class BsonDecimal128 private constructor(public val value: String) : BsonValue {
-
-    override fun equals(other: Any?): Boolean =
-        this === other || (other is BsonDecimal128 && value == other.value)
+public class BsonDecimal128 private constructor(
+    public val value: String,
+) : BsonValue {
+    override fun equals(other: Any?): Boolean = this === other || (other is BsonDecimal128 && value == other.value)
 
     override fun hashCode(): Int = value.hashCode()
 
     override fun toString(): String = "BsonDecimal128($value)"
 
     public companion object {
-        public operator fun invoke(text: String): BsonDecimal128 =
-            BsonDecimal128(canonicalDecimal128(text))
+        public operator fun invoke(text: String): BsonDecimal128 = BsonDecimal128(canonicalDecimal128(text))
     }
 }
 
@@ -143,16 +161,26 @@ public class BsonDecimal128 private constructor(public val value: String) : Bson
  * Внутренний тип MongoDB для оплога и репликации: пара «секунды от эпохи» и «счётчик внутри
  * секунды». С [BsonDateTime] не путать — у них разное назначение и разное представление.
  */
-public data class BsonTimestamp(public val seconds: UInt, public val increment: UInt) : BsonValue
+public data class BsonTimestamp(
+    public val seconds: UInt,
+    public val increment: UInt,
+) : BsonValue
 
 /** Регулярное выражение: шаблон и флаги (`i`, `m`, `s`, `x`, `u`). */
-public data class BsonRegex(public val pattern: String, public val options: String = "") : BsonValue
+public data class BsonRegex(
+    public val pattern: String,
+    public val options: String = "",
+) : BsonValue
 
 /** Хранимый JavaScript. */
-public data class BsonCode(public val code: String) : BsonValue
+public data class BsonCode(
+    public val code: String,
+) : BsonValue
 
 /** Устаревший строковый тип. Читается, потому что встречается в старых коллекциях. */
-public data class BsonSymbol(public val value: String) : BsonValue
+public data class BsonSymbol(
+    public val value: String,
+) : BsonValue
 
 /** Устаревший маркер «значение не определено». */
 public data object BsonUndefined : BsonValue
@@ -164,16 +192,17 @@ public data object BsonMinKey : BsonValue
 public data object BsonMaxKey : BsonValue
 
 /** Массив BSON. На проводе это документ с ключами `"0"`, `"1"`, … — см. [BsonCodec]. */
-public class BsonArray(public val values: List<BsonValue>) : BsonValue, Iterable<BsonValue> {
-
+public class BsonArray(
+    public val values: List<BsonValue>,
+) : BsonValue,
+    Iterable<BsonValue> {
     override fun iterator(): Iterator<BsonValue> = values.iterator()
 
     public val size: Int get() = values.size
 
     public operator fun get(index: Int): BsonValue = values[index]
 
-    override fun equals(other: Any?): Boolean =
-        this === other || (other is BsonArray && values == other.values)
+    override fun equals(other: Any?): Boolean = this === other || (other is BsonArray && values == other.values)
 
     override fun hashCode(): Int = values.hashCode()
 
@@ -191,8 +220,8 @@ public class BsonArray(public val values: List<BsonValue>) : BsonValue, Iterable
  */
 public class BsonDocument(
     public val entries: List<Pair<String, BsonValue>>,
-) : BsonValue, Iterable<Pair<String, BsonValue>> {
-
+) : BsonValue,
+    Iterable<Pair<String, BsonValue>> {
     public constructor(vararg entries: Pair<String, BsonValue>) : this(entries.toList())
 
     override fun iterator(): Iterator<Pair<String, BsonValue>> = entries.iterator()
@@ -208,13 +237,11 @@ public class BsonDocument(
 
     public operator fun contains(key: String): Boolean = entries.any { it.first == key }
 
-    override fun equals(other: Any?): Boolean =
-        this === other || (other is BsonDocument && entries == other.entries)
+    override fun equals(other: Any?): Boolean = this === other || (other is BsonDocument && entries == other.entries)
 
     override fun hashCode(): Int = entries.hashCode()
 
-    override fun toString(): String =
-        entries.joinToString(prefix = "{", postfix = "}") { (k, v) -> "$k: $v" }
+    override fun toString(): String = entries.joinToString(prefix = "{", postfix = "}") { (k, v) -> "$k: $v" }
 }
 
 /** Документ MongoDB. Отдельного типа нет — это тот же [BsonDocument]. */
@@ -245,7 +272,10 @@ public object BsonObjectIdSerializer : kotlinx.serialization.KSerializer<BsonObj
             kotlinx.serialization.descriptors.PrimitiveKind.STRING,
         )
 
-    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: BsonObjectId) {
+    override fun serialize(
+        encoder: kotlinx.serialization.encoding.Encoder,
+        value: BsonObjectId,
+    ) {
         encoder.encodeString(value.hex)
     }
 

@@ -13,10 +13,8 @@ import platform.posix.getenv
  */
 @OptIn(ExperimentalForeignApi::class)
 object TestServer {
-
     val host: String = getenv("MONGKN_TEST_HOST")?.toKString()?.takeIf { it.isNotBlank() } ?: "127.0.0.1:27017"
 
     /** @param options параметры строки подключения без ведущего `?`. */
-    fun uri(options: String = ""): String =
-        "mongodb://$host" + if (options.isEmpty()) "" else "/?$options"
+    fun uri(options: String = ""): String = "mongodb://$host" + if (options.isEmpty()) "" else "/?$options"
 }

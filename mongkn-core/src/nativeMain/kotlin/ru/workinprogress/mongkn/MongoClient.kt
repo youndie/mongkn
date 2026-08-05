@@ -6,8 +6,6 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
-import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlinx.coroutines.CloseableCoroutineDispatcher
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.newFixedThreadPoolContext
@@ -24,6 +22,8 @@ import mongkn.cinterop.mongoc_client_pool_t
 import mongkn.cinterop.mongoc_client_t
 import mongkn.cinterop.mongoc_uri_destroy
 import mongkn.cinterop.mongoc_uri_new_with_error
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
  * Точка входа в MongoDB.
@@ -47,7 +47,6 @@ public class MongoClient(
     ioThreads: Int = DEFAULT_IO_THREADS,
     maxConcurrentClients: Int = DEFAULT_MAX_CONCURRENT_CLIENTS,
 ) : AutoCloseable {
-
     private val closed = AtomicBoolean(false)
 
     internal val pool: CPointer<mongoc_client_pool_t>
@@ -91,45 +90,48 @@ public class MongoClient(
 
     init {
         Mongkn.initialize()
-        pool = try {
-            memScoped {
-                val error = alloc<bson_error_t>()
-                val uri = mongoc_uri_new_with_error(connectionString, error.ptr)
-                    ?: throw MongoException(error.domain, error.code, error.message.toKString())
-                try {
-                    val created = mongoc_client_pool_new_with_error(uri, error.ptr)
-                        ?: throw MongoException(error.domain, error.code, error.message.toKString())
-                    // Выставляем **до** первого pop и ровно в размер семафора: договорённость
-                    // «есть разрешение — есть клиент» держится только при их равенстве.
-                    mongoc_client_pool_max_size(created, poolSize.toUInt())
-                    created
-                } finally {
-                    // Пул копирует URI себе, так что наш экземпляр больше не нужен —
-                    // и он утечёт, если не уничтожить его здесь.
-                    mongoc_uri_destroy(uri)
+        pool =
+            try {
+                memScoped {
+                    val error = alloc<bson_error_t>()
+                    val uri =
+                        mongoc_uri_new_with_error(connectionString, error.ptr)
+                            ?: throw MongoException(error.domain, error.code, error.message.toKString())
+                    try {
+                        val created =
+                            mongoc_client_pool_new_with_error(uri, error.ptr)
+                                ?: throw MongoException(error.domain, error.code, error.message.toKString())
+                        // Выставляем **до** первого pop и ровно в размер семафора: договорённость
+                        // «есть разрешение — есть клиент» держится только при их равенстве.
+                        mongoc_client_pool_max_size(created, poolSize.toUInt())
+                        created
+                    } finally {
+                        // Пул копирует URI себе, так что наш экземпляр больше не нужен —
+                        // и он утечёт, если не уничтожить его здесь.
+                        mongoc_uri_destroy(uri)
+                    }
                 }
+            } catch (e: Throwable) {
+                // Конструктор не завершится, а значит close() никто не вызовет — прибираем сами.
+                // Mongkn.shutdown() здесь звать нельзя: он терминальный на весь процесс.
+                dispatcher.close()
+                throw e
             }
-        } catch (e: Throwable) {
-            // Конструктор не завершится, а значит close() никто не вызовет — прибираем сами.
-            // Mongkn.shutdown() здесь звать нельзя: он терминальный на весь процесс.
-            dispatcher.close()
-            throw e
-        }
     }
 
     public fun getDatabase(name: String): MongoDatabase = MongoDatabase(this, name)
 
-    /**
-     * Уничтожает пул и снимает инициализацию драйвера.
-     *
-     * `mongoc_client_pool_destroy` — единственная непотокобезопасная операция пула, поэтому
-     * закрывать клиента можно только из одного потока и только после того, как завершены все
-     * операции. Повторный вызов ничего не делает.
-     *
-     * [Mongkn.shutdown] отсюда **не** вызывается: он терминальный на весь процесс, и после него
-     * ни один новый [MongoClient] не заработает. Закрытие одного клиента не должно ронять
-     * остальные.
-     */
+/*
+ * Уничтожает пул и снимает инициализацию драйвера.
+ *
+ * `mongoc_client_pool_destroy` — единственная непотокобезопасная операция пула, поэтому
+ * закрывать клиента можно только из одного потока и только после того, как завершены все
+ * операции. Повторный вызов ничего не делает.
+ *
+ * [Mongkn.shutdown] отсюда **не** вызывается: он терминальный на весь процесс, и после него
+ * ни один новый [MongoClient] не заработает. Закрытие одного клиента не должно ронять
+ * остальные.
+ */
     override fun close() {
         if (closed.compareAndSet(expectedValue = false, newValue = true)) {
             dispatcher.close()
@@ -171,8 +173,9 @@ public class MongoClient(
      * в неинлайновой лямбде его вызвать нельзя.
      */
     internal inline fun <T> useClient(block: (CPointer<mongoc_client_t>) -> T): T {
-        val client = mongoc_client_pool_pop(pool)
-            ?: error("mongoc_client_pool_pop вернул NULL при взятом разрешении")
+        val client =
+            mongoc_client_pool_pop(pool)
+                ?: error("mongoc_client_pool_pop вернул NULL при взятом разрешении")
         try {
             return block(client)
         } finally {

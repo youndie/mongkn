@@ -21,28 +21,30 @@ import java.io.File
  *
  * Аргументы: `<connection-string> <путь к файлу фикстуры>`.
  */
-public fun main(args: Array<String>): Unit = runBlocking {
-    val uri = args.getOrElse(0) { "mongodb://127.0.0.1:27017" }
-    val fixture = File(args.getOrElse(1) { "build/diff/reference.json" })
+public fun main(args: Array<String>): Unit =
+    runBlocking {
+        val uri = args.getOrElse(0) { "mongodb://127.0.0.1:27017" }
+        val fixture = File(args.getOrElse(1) { "build/diff/reference.json" })
 
-    MongoClient.create(uri).use { client ->
-        val database = client.getDatabase(ReferenceDocument.DATABASE)
+        MongoClient.create(uri).use { client ->
+            val database = client.getDatabase(ReferenceDocument.DATABASE)
 
-        // Обе коллекции чистим здесь: фаза A — единственная точка, которая гарантированно
-        // выполняется первой, а mongod живёт дольше прогона.
-        database.getCollection<BsonDocument>(ReferenceDocument.REFERENCE).drop()
-        database.getCollection<BsonDocument>(ReferenceDocument.WRITTEN).drop()
+            // Обе коллекции чистим здесь: фаза A — единственная точка, которая гарантированно
+            // выполняется первой, а mongod живёт дольше прогона.
+            database.getCollection<BsonDocument>(ReferenceDocument.REFERENCE).drop()
+            database.getCollection<BsonDocument>(ReferenceDocument.WRITTEN).drop()
 
-        val reference = database.getCollection<BsonDocument>(ReferenceDocument.REFERENCE)
-        reference.insertOne(ReferenceDocument.build())
+            val reference = database.getCollection<BsonDocument>(ReferenceDocument.REFERENCE)
+            reference.insertOne(ReferenceDocument.build())
 
-        val stored = reference.find(BsonDocument()).firstOrNull()
-            ?: error("эталонный документ не прочитался обратно")
+            val stored =
+                reference.find(BsonDocument()).firstOrNull()
+                    ?: error("эталонный документ не прочитался обратно")
 
-        fixture.parentFile.mkdirs()
-        fixture.writeText(
-            stored.toJson(JsonWriterSettings.builder().outputMode(JsonMode.EXTENDED).build())
-        )
-        println("diff: эталон записан, фикстура -> ${fixture.absolutePath}")
+            fixture.parentFile.mkdirs()
+            fixture.writeText(
+                stored.toJson(JsonWriterSettings.builder().outputMode(JsonMode.EXTENDED).build()),
+            )
+            println("diff: эталон записан, фикстура -> ${fixture.absolutePath}")
+        }
     }
-}

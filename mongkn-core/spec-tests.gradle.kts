@@ -1,4 +1,4 @@
-/**
+/*
  * Загрузка официальных spec-тестов MongoDB (M-30).
  *
  * **Файлы намеренно не вендорятся в репозиторий.** `mongodb/specifications` лицензирован под
@@ -12,14 +12,15 @@
  */
 
 /** Файлы выбраны по покрытию: ровно те операции, которые mongkn умеет. */
-val specTestFiles = listOf(
-    "deleteOne.json",
-    "insertOne.json",
-    "insertMany.json",
-    "updateOne.json",
-    "find.json",
-    "estimatedDocumentCount.json",
-)
+val specTestFiles =
+    listOf(
+        "deleteOne.json",
+        "insertOne.json",
+        "insertMany.json",
+        "updateOne.json",
+        "find.json",
+        "estimatedDocumentCount.json",
+    )
 
 val specTestsDir: Provider<Directory> = layout.buildDirectory.dir("spec-tests")
 
@@ -47,7 +48,7 @@ val fetchSpecTests by tasks.registering {
         // Манифест нужен, чтобы нативный тест не читал каталог: перечень файлов он берёт
         // из JSON той же libbson, которой парсит и сами тесты.
         dir.resolve("manifest.json").writeText(
-            fetched.joinToString(prefix = "{\"files\": [", postfix = "]}") { "\"$it\"" }
+            fetched.joinToString(prefix = "{\"files\": [", postfix = "]}") { "\"$it\"" },
         )
     }
 }

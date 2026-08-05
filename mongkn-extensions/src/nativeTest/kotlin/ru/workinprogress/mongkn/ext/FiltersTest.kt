@@ -1,5 +1,7 @@
 package ru.workinprogress.mongkn.ext
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDocument
@@ -7,8 +9,6 @@ import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonNull
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.document
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -21,12 +21,18 @@ import kotlin.test.assertTrue
  * который написали бы руками, иначе он превращается в способ незаметно спросить у базы не то.
  */
 class FiltersTest {
+    @Serializable
+    private data class Person(
+        val name: String,
+        val born: Int,
+        val tags: List<String>,
+    )
 
     @Serializable
-    private data class Person(val name: String, val born: Int, val tags: List<String>)
-
-    @Serializable
-    private data class Renamed(val name: String, @SerialName("born_year") val born: Int)
+    private data class Renamed(
+        val name: String,
+        @SerialName("born_year") val born: Int,
+    )
 
     @Test
     fun `equality is written without an operator`() {
@@ -72,12 +78,13 @@ class FiltersTest {
 
         assertEquals(
             BsonDocument(
-                "\$and" to BsonArray(
-                    listOf(
-                        BsonDocument("born" to BsonDocument("\$gt" to BsonInt32(1900))),
-                        BsonDocument("born" to BsonDocument("\$lt" to BsonInt32(2000))),
-                    )
-                )
+                "\$and" to
+                    BsonArray(
+                        listOf(
+                            BsonDocument("born" to BsonDocument("\$gt" to BsonInt32(1900))),
+                            BsonDocument("born" to BsonDocument("\$lt" to BsonInt32(2000))),
+                        ),
+                    ),
             ),
             result,
         )
@@ -100,9 +107,10 @@ class FiltersTest {
     fun `a renamed field is refused instead of quietly matching nothing`() {
         // Ради этого и заведён scope (M-36). До него `Renamed::born gt 1900` строил фильтр
         // по полю "born", которого в документе нет, — и запрос молча возвращал пусто.
-        val failure = assertFailsWith<IllegalArgumentException> {
-            filter<Renamed> { Renamed::born gt 1900 }
-        }
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                filter<Renamed> { Renamed::born gt 1900 }
+            }
 
         assertTrue(failure.message!!.contains("born"), "message=${failure.message}")
         // Сообщение подсказывает, что искать: перечисляет реальные имена полей.
@@ -142,11 +150,12 @@ class FiltersTest {
     fun `combine merges same-named operators instead of dropping one`() {
         // Документ с двумя ключами "$set" MongoDB не примет, а наш BsonDocument их допускает —
         // без слияния ошибка вылезла бы только на сервере.
-        val result = combine(
-            update<Person> { Person::name setTo "Ada" },
-            update<Person> { Person::born setTo 1815 },
-            update<Person> { Person::born incBy 1 },
-        )
+        val result =
+            combine(
+                update<Person> { Person::name setTo "Ada" },
+                update<Person> { Person::born setTo 1815 },
+                update<Person> { Person::born incBy 1 },
+            )
 
         assertEquals(
             BsonDocument(

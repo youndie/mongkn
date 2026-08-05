@@ -19,23 +19,29 @@ apply(from = "spec-tests.gradle.kts")
  * .pc-файлы, но не сам pkgconf), поэтому пути ищутся перебором известных префиксов.
  * Переопределяется через `-Pmongkn.prefix=/path` или `MONGKN_PREFIX`.
  */
-val mongocPrefixes: List<File> = run {
-    val explicit = providers.gradleProperty("mongkn.prefix").orNull
-        ?: providers.environmentVariable("MONGKN_PREFIX").orNull
-    if (explicit != null) listOf(File(explicit))
-    else listOf("/opt/homebrew", "/usr/local", "/usr").map(::File)
-}
+val mongocPrefixes: List<File> =
+    run {
+        val explicit =
+            providers.gradleProperty("mongkn.prefix").orNull
+                ?: providers.environmentVariable("MONGKN_PREFIX").orNull
+        if (explicit != null) {
+            listOf(File(explicit))
+        } else {
+            listOf("/opt/homebrew", "/usr/local", "/usr").map(::File)
+        }
+    }
 
 /**
  * Homebrew 2.x кладёт заголовки в версионированные каталоги:
  * `<prefix>/include/mongoc-2.1.1/mongoc/mongoc.h`. Системная установка 1.x — в
  * `<prefix>/include/libmongoc-1.0/mongoc/mongoc.h`. Ищем каталог, в котором лежит `<rel>`.
  */
-fun findIncludeDir(rel: String): File? = mongocPrefixes
-    .map { File(it, "include") }
-    .filter { it.isDirectory }
-    .flatMap { include -> listOf(include) + (include.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
-    .firstOrNull { File(it, rel).isFile }
+fun findIncludeDir(rel: String): File? =
+    mongocPrefixes
+        .map { File(it, "include") }
+        .filter { it.isDirectory }
+        .flatMap { include -> listOf(include) + (include.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
+        .firstOrNull { File(it, rel).isFile }
 
 /**
  * Каталоги с библиотеками.
@@ -43,10 +49,11 @@ fun findIncludeDir(rel: String): File? = mongocPrefixes
  * Кроме `<prefix>/lib` обязательно смотрим на уровень ниже: Debian и Ubuntu кладут библиотеки
  * в multiarch-каталог `/usr/lib/aarch64-linux-gnu`, и без этого на Linux ничего не находится.
  */
-val libDirs: List<File> = mongocPrefixes
-    .map { File(it, "lib") }
-    .filter { it.isDirectory }
-    .flatMap { lib -> listOf(lib) + (lib.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
+val libDirs: List<File> =
+    mongocPrefixes
+        .map { File(it, "lib") }
+        .filter { it.isDirectory }
+        .flatMap { lib -> listOf(lib) + (lib.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
 
 /**
  * Имя библиотеки для линковки зависит от мажорной версии драйвера:
@@ -60,7 +67,8 @@ val libDirs: List<File> = mongocPrefixes
 fun findLibName(stem: String): String? {
     val allowed = Regex("^" + Regex.escape(stem) + "[-0-9.]*$")
     return libDirs.firstNotNullOfOrNull { libDir ->
-        libDir.listFiles()
+        libDir
+            .listFiles()
             ?.map { it.name }
             ?.filter { it.endsWith(".dylib") || it.endsWith(".so") }
             ?.map { it.removePrefix("lib").substringBefore(".dylib").substringBefore(".so") }
@@ -80,7 +88,7 @@ val seedDiffReference = ":mongkn-difftest:seedDiffReference"
 val verifyDiffWritten = ":mongkn-difftest:verifyDiffWritten"
 
 kotlin {
-    /**
+    /*
      * Проверка бинарной совместимости, встроенная в KGP (M-31).
      *
      * `keepLocallyUnsupportedTargets = false` — по умолчанию плагин **достраивает** ABI для
@@ -95,20 +103,32 @@ kotlin {
 
     // Кросс-компиляция cinterop требует заголовков целевой платформы, которых на хосте нет,
     // поэтому собираем только хостовый таргет. Матрица таргетов — задача CI, см. M-13.
-    val hostTarget: KotlinNativeTarget = when {
-        System.getProperty("os.name") == "Mac OS X" && System.getProperty("os.arch") == "aarch64" -> macosArm64()
-        // Kotlin/Native не поддерживает linux-aarch64 как **хост**: компилятора под него нет.
-        // Объявить таргет мало — Gradle пропустит все задачи компиляции и отрапортует
-        // BUILD SUCCESSFUL, не собрав ни строчки. Молчаливо зелёная сборка хуже красной,
-        // поэтому падаем явно.
-        System.getProperty("os.name") == "Linux" && System.getProperty("os.arch") == "aarch64" -> error(
-            "mongkn: Kotlin/Native не умеет компилировать на linux-aarch64. " +
-                "В контейнере на Apple Silicon запускайте образ как --platform linux/amd64, " +
-                "либо собирайте Linux-таргет в CI на x86_64-раннере."
-        )
-        System.getProperty("os.name") == "Linux" -> linuxX64()
-        else -> error("mongkn: неподдерживаемый хост ${System.getProperty("os.name")}/${System.getProperty("os.arch")}")
-    }
+    val hostTarget: KotlinNativeTarget =
+        when {
+            System.getProperty("os.name") == "Mac OS X" && System.getProperty("os.arch") == "aarch64" -> {
+                macosArm64()
+            }
+
+            // Kotlin/Native не поддерживает linux-aarch64 как **хост**: компилятора под него нет.
+            // Объявить таргет мало — Gradle пропустит все задачи компиляции и отрапортует
+            // BUILD SUCCESSFUL, не собрав ни строчки. Молчаливо зелёная сборка хуже красной,
+            // поэтому падаем явно.
+            System.getProperty("os.name") == "Linux" && System.getProperty("os.arch") == "aarch64" -> {
+                error(
+                    "mongkn: Kotlin/Native не умеет компилировать на linux-aarch64. " +
+                        "В контейнере на Apple Silicon запускайте образ как --platform linux/amd64, " +
+                        "либо собирайте Linux-таргет в CI на x86_64-раннере.",
+                )
+            }
+
+            System.getProperty("os.name") == "Linux" -> {
+                linuxX64()
+            }
+
+            else -> {
+                error("mongkn: неподдерживаемый хост ${System.getProperty("os.name")}/${System.getProperty("os.arch")}")
+            }
+        }
 
     hostTarget.apply {
         compilations.getByName("main") {
@@ -122,7 +142,7 @@ kotlin {
                     error(
                         "mongkn: не найдены заголовки mongo-c-driver. " +
                             "Поставьте драйвер (`brew install mongo-c-driver`) или укажите " +
-                            "-Pmongkn.prefix=<префикс установки>. Искали в: $mongocPrefixes"
+                            "-Pmongkn.prefix=<префикс установки>. Искали в: $mongocPrefixes",
                     )
                 }
                 includeDirs(mongocInclude, bsonInclude)
@@ -145,14 +165,15 @@ kotlin {
              * glibc системы при запуске. Флаг снимает именно эту проверку и только для
              * разделяемых библиотек — неразрешённые символы нашего кода по-прежнему ошибка.
              */
-            val platformOpts = if (System.getProperty("os.name") == "Linux") {
-                listOf("-Wl,--allow-shlib-undefined")
-            } else {
-                emptyList()
-            }
+            val platformOpts =
+                if (System.getProperty("os.name") == "Linux") {
+                    listOf("-Wl,--allow-shlib-undefined")
+                } else {
+                    emptyList()
+                }
             linkerOpts(
                 libDirs.flatMap { listOf("-L${it.absolutePath}") } +
-                    listOf("-l$mongoc", "-l$bson") + platformOpts
+                    listOf("-l$mongoc", "-l$bson") + platformOpts,
             )
         }
     }
@@ -186,16 +207,23 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
     providers.environmentVariable("MONGKN_TEST_HOST").orNull?.let { environment("MONGKN_TEST_HOST", it) }
     environment(
         "MONGKN_SPEC_TESTS",
-        layout.buildDirectory.dir("spec-tests").get().asFile.absolutePath,
+        layout.buildDirectory
+            .dir("spec-tests")
+            .get()
+            .asFile.absolutePath,
     )
     environment(
         "MONGKN_DIFF_FIXTURE",
-        project(":mongkn-difftest").layout.buildDirectory.file("diff/reference.json").get().asFile.absolutePath,
+        project(":mongkn-difftest")
+            .layout.buildDirectory
+            .file("diff/reference.json")
+            .get()
+            .asFile.absolutePath,
     )
     finalizedBy(verifyDiffWritten)
 }
 
-/**
+/*
  * ABI-дамп снимается только на эталонном хосте (macosArm64).
  *
  * Причина в том, что собирается **один** таргет на хост (решение Р6): на macOS дамп получается

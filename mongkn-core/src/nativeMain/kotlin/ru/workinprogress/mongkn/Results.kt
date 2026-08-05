@@ -2,7 +2,7 @@ package ru.workinprogress.mongkn
 
 import ru.workinprogress.mongkn.bson.BsonValue
 
-/**
+/*
  * Результаты операций записи.
  *
  * Форма — как у официального драйвера (`com.mongodb.client.result.*`), но без полей, которых
