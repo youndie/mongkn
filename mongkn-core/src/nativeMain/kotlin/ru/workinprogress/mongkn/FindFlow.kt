@@ -30,7 +30,7 @@ public class FindFlow<T> internal constructor(
     private val source: (Document, Document) -> Flow<T>,
     private val filter: Document,
     private val opts: Document,
-) : Flow<T> by source(filter, opts) {
+) : Flow<T> by source(filter, adjustBatchSize(opts)) {
     /** Не больше указанного числа документов. */
     public fun limit(count: Int): FindFlow<T> = withOption("limit", BsonInt64(count.toLong()))
 
@@ -57,6 +57,15 @@ public class FindFlow<T> internal constructor(
 
     /** Комментарий, видимый в профайлере и логах сервера. */
     public fun comment(text: String): FindFlow<T> = withOption("comment", BsonString(text))
+
+    /**
+     * Комментарий произвольного типа BSON — например документ.
+     *
+     * Сервер с версии 4.4 принимает здесь не только строку, и официальный драйвер это допускает.
+     * Отдельная перегрузка, а не замена строковой: строка — обычный случай, и заставлять
+     * оборачивать её в `BsonString` было бы шагом назад.
+     */
+    public fun comment(value: BsonValue): FindFlow<T> = withOption("comment", value)
 
     /** Переменные, доступные выражениям запроса. */
     public fun let(variables: Document): FindFlow<T> = withOption("let", variables)
@@ -119,4 +128,31 @@ public class FindFlow<T> internal constructor(
             filter = filter,
             opts = BsonDocument(opts.entries.filterNot { it.first == name } + (name to value)),
         )
+}
+
+/**
+ * Поднимает `batchSize` на единицу, когда он равен `limit`.
+ *
+ * Требование спецификации CRUD, и не косметическое: при равных `limit` и `batchSize` сервер
+ * отдаёт ровно запрошенное число документов и **оставляет курсор открытым**, не зная, что
+ * клиенту больше ничего не нужно. Лишняя единица позволяет серверу увидеть конец выборки сразу
+ * и закрыть курсор, экономя и `getMore`, и `killCursors`.
+ *
+ * Делается здесь, потому что libmongoc этого не делает: официальный сценарий
+ * `find.json :: Find with batchSize equal to limit` ждёт `batchSize: 5` при `limit: 4`,
+ * а драйвер отправляет `batchSize: 4`. Поправка на нашей стороне — единственное место,
+ * где она возможна.
+ *
+ * Считается при построении потока, а не в [FindFlow.limit] и [FindFlow.batchSize]: значение
+ * зависит от **обоих** ключей, а задавать их можно в любом порядке.
+ */
+private fun adjustBatchSize(opts: Document): Document {
+    val limit = (opts["limit"] as? BsonInt64)?.value ?: return opts
+    val batchSize = (opts["batchSize"] as? BsonInt32)?.value?.toLong() ?: return opts
+    if (limit != batchSize) return opts
+    return BsonDocument(
+        opts.entries.map { (key, value) ->
+            if (key == "batchSize") key to BsonInt32((batchSize + 1).toInt()) else key to value
+        },
+    )
 }

@@ -1,6 +1,7 @@
 package ru.workinprogress.mongkn.spec
 
 import kotlinx.coroutines.flow.toList
+import ru.workinprogress.mongkn.CommandStartedEvent
 import ru.workinprogress.mongkn.DeleteManyModel
 import ru.workinprogress.mongkn.DeleteOneModel
 import ru.workinprogress.mongkn.InsertOneModel
@@ -45,12 +46,16 @@ import ru.workinprogress.mongkn.bson.Document
  *   незамеченным (M-35);
  * * из специальных операторов реализованы `$$unsetOrMatches` и `$$type` — те, что встречаются
  *   в выбранных файлах;
- * * `expectEvents` не поддерживается вовсе (нет APM), такие тесты пропускаются целиком;
- * * `runOnRequirements` не вычисляется — топологию и версию сервера мы не спрашиваем.
+ * * `expectEvents` проверяется только для `commandStartedEvent`; сценарий с другими типами
+ *   событий или с неизвестным нам оператором сопоставления **пропускается**, а не проходит;
+ * * `runOnRequirements` умеет только версию сервера; топологию не спрашиваем и такие сценарии
+ *   честно пропускаем.
  */
-class SpecTestRunner(
+internal class SpecTestRunner(
     private val uri: String,
     private val client: MongoClient,
+    /** Записывает команды клиента — источник правды для `expectEvents`. */
+    private val recorder: SpecEventRecorder,
     /** Версия сервера покомпонентно — для `runOnRequirements`. */
     private val version: List<Int>,
 ) {
@@ -93,18 +98,22 @@ class SpecTestRunner(
             val name = "$fileName :: ${case.stringOf("description")}"
 
             val skipReason =
-                when {
-                    "expectEvents" in case -> "expectEvents: APM не реализован"
-                    else -> unmetRequirements(file) ?: unmetRequirements(case) ?: unsupportedOperation(case)
-                }
+                unmetRequirements(file)
+                    ?: unmetRequirements(case)
+                    ?: unsupportedOperation(case)
+                    ?: unsupportedEvents(case)
             if (skipReason != null) {
                 report.skipped += name to skipReason
                 continue
             }
 
             seedInitialData(file)
+            // Чистится после засева: события подготовки к сценарию не относятся.
+            recorder.clear()
             runOperations(case, entities, name)
+            val observed = recorder.started()
             verifyOutcome(case, name)
+            verifyEvents(case, observed, name)
             report.executed += name
             for (entry in case.arrayOf("operations")) {
                 (entry as? BsonDocument)?.let { report.coveredOperations += it.stringOf("name") }
@@ -382,7 +391,9 @@ class SpecTestRunner(
                 arguments.intOf("batchSize")?.let { pipeline = pipeline.batchSize(it) }
                 (arguments["allowDiskUse"] as? BsonBoolean)?.let { pipeline = pipeline.allowDiskUse(it.value) }
                 (arguments["let"] as? BsonDocument)?.let { pipeline = pipeline.let(it) }
-                (arguments["comment"] as? BsonString)?.let { pipeline = pipeline.comment(it.value) }
+                // Любой тип BSON, а не только строка: сценарий с документом-комментарием
+                // иначе проходил бы, молча не отправив комментарий вовсе.
+                arguments["comment"]?.let { pipeline = pipeline.comment(it) }
                 (arguments["hint"] as? BsonDocument)?.let { pipeline = pipeline.hint(it) }
                 BsonArray(pipeline.toList())
             }
@@ -467,6 +478,88 @@ class SpecTestRunner(
         }
     }
 
+    /**
+     * Причина пропустить сценарий из-за `expectEvents`, либо `null`.
+     *
+     * Пропускается всё, чего мы не умеем сверять **точно**: другие типы событий и незнакомые
+     * операторы сопоставления. Альтернатива — сравнить как получится — давала бы либо ложные
+     * падения, либо, что хуже, ложные успехи.
+     */
+    private fun unsupportedEvents(case: BsonDocument): String? {
+        for (entry in case.arrayOf("expectEvents")) {
+            val expectation = entry as? BsonDocument ?: return "expectEvents: элемент не документ"
+            for (event in expectation.arrayOf("events")) {
+                val document = event as? BsonDocument ?: return "expectEvents: событие не документ"
+                val kind = document.keys.singleOrNull() ?: return "expectEvents: событие не с одним ключом"
+                if (kind != "commandStartedEvent") return "expectEvents: событие '$kind' не проверяем"
+                val body = document[kind] as? BsonDocument ?: return "expectEvents: тело события не документ"
+                val unknown = unknownOperators(body)
+                if (unknown != null) return "expectEvents: оператор '$unknown' не поддержан"
+            }
+        }
+        return null
+    }
+
+    /** Первый встреченный `$$`-оператор, которого нет у [SpecMatcher], либо `null`. */
+    private fun unknownOperators(value: BsonValue): String? =
+        when (value) {
+            is BsonDocument -> {
+                value.entries.firstNotNullOfOrNull { (key, nested) ->
+                    if (key.startsWith("\$\$") && key !in SUPPORTED_OPERATORS) key else unknownOperators(nested)
+                }
+            }
+
+            is BsonArray -> {
+                value.values.firstNotNullOfOrNull(::unknownOperators)
+            }
+
+            else -> {
+                null
+            }
+        }
+
+    /**
+     * Сверяет отправленные команды с ожидаемыми.
+     *
+     * Список сравнивается целиком и по порядку: лишняя или пропущенная команда — расхождение,
+     * даже если все ожидаемые нашлись. Сценарии на пакетную выборку только этим и проверяются —
+     * что драйвер сходил на сервер столько раз, сколько нужно.
+     */
+    private fun verifyEvents(
+        case: BsonDocument,
+        observed: List<CommandStartedEvent>,
+        name: String,
+    ) {
+        for (entry in case.arrayOf("expectEvents")) {
+            val expectation = entry as? BsonDocument ?: continue
+            val expected = expectation.arrayOf("events").filterIsInstance<BsonDocument>()
+
+            check(expected.size == observed.size) {
+                "$name: ожидалось ${expected.size} команд, отправлено ${observed.size} " +
+                    "(${observed.map { it.commandName }})"
+            }
+            expected.forEachIndexed { index, event ->
+                val body = event["commandStartedEvent"] as? BsonDocument ?: return@forEachIndexed
+                val actual = observed[index]
+                (body["commandName"] as? BsonString)?.let {
+                    check(it.value == actual.commandName) {
+                        "$name: команда #$index — ждали '${it.value}', отправлена '${actual.commandName}'"
+                    }
+                }
+                (body["databaseName"] as? BsonString)?.let {
+                    check(it.value == actual.databaseName) {
+                        "$name: команда #$index — ждали базу '${it.value}', отправлена '${actual.databaseName}'"
+                    }
+                }
+                (body["command"] as? BsonDocument)?.let { expectedCommand ->
+                    check(SpecMatcher.matches(expectedCommand, actual.command, root = true)) {
+                        "$name: команда #$index не совпала.\nждали: $expectedCommand\nотправлено: ${actual.command}"
+                    }
+                }
+            }
+        }
+    }
+
     private suspend fun verifyOutcome(
         case: BsonDocument,
         name: String,
@@ -547,6 +640,9 @@ class SpecTestRunner(
     private fun BsonDocument.documentOf(key: String): Document = this[key] as? BsonDocument ?: BsonDocument()
 
     private companion object {
+        /** Операторы сопоставления, реализованные в [SpecMatcher]. */
+        val SUPPORTED_OPERATORS = setOf("\$\$unsetOrMatches", "\$\$type", "\$\$exists")
+
         /** Требования, которые раннер умеет вычислять. Остальные — повод пропустить. */
         val KNOWN_REQUIREMENTS = setOf("minServerVersion", "maxServerVersion")
 

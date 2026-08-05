@@ -56,10 +56,47 @@ internal object SpecMatcher {
             }
 
             else -> {
-                expected == actual
+                expected == actual || sameNumber(expected, actual)
             }
         }
     }
+
+    /**
+     * Числа сравниваются по значению, а не по типу BSON.
+     *
+     * Требование unified test format: `Int32`, `Int64` и `Double` считаются равными, если равны
+     * их значения. Без этого сценарий на пакетную выборку падал на `batchSize: 2`, отправленном
+     * как `int64` вместо ожидаемого `int32`, — то есть на совпадающем значении.
+     *
+     * Целые сравниваются как целые: перевод в `Double` терял бы точность на больших `int64`,
+     * а это ровно тот случай, где ложное совпадение опаснее ложного расхождения.
+     */
+    private fun sameNumber(
+        expected: BsonValue,
+        actual: BsonValue?,
+    ): Boolean {
+        val expectedLong = integerOf(expected)
+        val actualLong = integerOf(actual)
+        if (expectedLong != null && actualLong != null) return expectedLong == actualLong
+        val expectedDouble = numberOf(expected) ?: return false
+        val actualDouble = numberOf(actual) ?: return false
+        return expectedDouble == actualDouble
+    }
+
+    private fun integerOf(value: BsonValue?): Long? =
+        when (value) {
+            is BsonInt32 -> value.value.toLong()
+            is BsonInt64 -> value.value
+            else -> null
+        }
+
+    private fun numberOf(value: BsonValue?): Double? =
+        when (value) {
+            is BsonInt32 -> value.value.toDouble()
+            is BsonInt64 -> value.value.toDouble()
+            is BsonDouble -> value.value
+            else -> null
+        }
 
     /** Ключи, которые есть в фактическом документе и которых нет в ожидаемом. */
     private fun extraKeys(

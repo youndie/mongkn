@@ -261,9 +261,20 @@ private fun concurrencyBenchmarks() {
         run("корутин ${concurrency.toString().padStart(2)}", ioThreads = 4, concurrency = concurrency)
     }
 
-    println("  корутин 32, растёт число потоков:")
-    for (threads in listOf(1, 2, 4, 8, 16, 32)) {
-        run("потоков ${threads.toString().padStart(2)}", ioThreads = threads, concurrency = 32)
+    println("  корутин 64, растёт число потоков (ищем, где рост кончается):")
+    for (threads in listOf(1, 2, 4, 8, 16, 32, 48, 64, 96)) {
+        run("потоков ${threads.toString().padStart(3)}", ioThreads = threads, concurrency = 64)
+    }
+
+    // Потоки создаются в конструкторе клиента, а не лениво: если их много, за это платит
+    // каждое создание MongoClient. Число нужно для выбора умолчания (M-78).
+    println("  цена создания клиента при разном числе потоков:")
+    for (threads in listOf(4, 16, 64, 96)) {
+        val creation =
+            Bench.measure(20, rounds = 3) { count ->
+                repeat(count) { MongoClient(TestServer.uri(), ioThreads = threads).close() }
+            }
+        println("    потоков ${threads.toString().padStart(3)}: $creation")
     }
 
     println("  корутин 64 при 8 разрешениях — семафор обязан выстроить очередь, а не сломаться:")

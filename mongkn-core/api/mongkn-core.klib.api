@@ -87,6 +87,12 @@ final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workin
     final fun values(): kotlin/Array<ru.workinprogress.mongkn/ReturnDocument> // ru.workinprogress.mongkn/ReturnDocument.values|values#static(){}[0]
 }
 
+abstract interface ru.workinprogress.mongkn/CommandListener { // ru.workinprogress.mongkn/CommandListener|null[0]
+    open fun failed(ru.workinprogress.mongkn/CommandFailedEvent) // ru.workinprogress.mongkn/CommandListener.failed|failed(ru.workinprogress.mongkn.CommandFailedEvent){}[0]
+    open fun started(ru.workinprogress.mongkn/CommandStartedEvent) // ru.workinprogress.mongkn/CommandListener.started|started(ru.workinprogress.mongkn.CommandStartedEvent){}[0]
+    open fun succeeded(ru.workinprogress.mongkn/CommandSucceededEvent) // ru.workinprogress.mongkn/CommandListener.succeeded|succeeded(ru.workinprogress.mongkn.CommandSucceededEvent){}[0]
+}
+
 sealed interface <#A: out kotlin/Any?> ru.workinprogress.mongkn/WriteModel // ru.workinprogress.mongkn/WriteModel|null[0]
 
 sealed interface ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/BsonValue|null[0]
@@ -97,6 +103,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/AggregateFlow : kotlinx.c
     final fun bypassDocumentValidation(kotlin/Boolean = ...): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.bypassDocumentValidation|bypassDocumentValidation(kotlin.Boolean){}[0]
     final fun collation(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.collation|collation(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun comment(kotlin/String): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.comment|comment(kotlin.String){}[0]
+    final fun comment(ru.workinprogress.mongkn.bson/BsonValue): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.comment|comment(ru.workinprogress.mongkn.bson.BsonValue){}[0]
     final fun hint(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.hint|hint(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun hintString(kotlin/String): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.hintString|hintString(kotlin.String){}[0]
     final fun let(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/AggregateFlow.let|let(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
@@ -110,6 +117,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/ChangeStreamFlow : kotlin
     final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.batchSize|batchSize(kotlin.Int){}[0]
     final fun collation(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.collation|collation(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun comment(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.comment|comment(kotlin.String){}[0]
+    final fun comment(ru.workinprogress.mongkn.bson/BsonValue): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.comment|comment(ru.workinprogress.mongkn.bson.BsonValue){}[0]
     final fun fullDocument(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.fullDocument|fullDocument(kotlin.String){}[0]
     final fun fullDocumentBeforeChange(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.fullDocumentBeforeChange|fullDocumentBeforeChange(kotlin.String){}[0]
     final fun maxAwaitTime(kotlin/Long): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.maxAwaitTime|maxAwaitTime(kotlin.Long){}[0]
@@ -130,6 +138,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/FindFlow : kotlinx.corout
     final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.batchSize|batchSize(kotlin.Int){}[0]
     final fun collation(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.collation|collation(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun comment(kotlin/String): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.comment|comment(kotlin.String){}[0]
+    final fun comment(ru.workinprogress.mongkn.bson/BsonValue): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.comment|comment(ru.workinprogress.mongkn.bson.BsonValue){}[0]
     final fun cursorType(ru.workinprogress.mongkn/CursorType): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.cursorType|cursorType(ru.workinprogress.mongkn.CursorType){}[0]
     final fun hint(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.hint|hint(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun hintString(kotlin/String): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.hintString|hintString(kotlin.String){}[0]
@@ -496,6 +505,57 @@ final class ru.workinprogress.mongkn/ClientSession : kotlin/AutoCloseable { // r
     final suspend fun startTransaction() // ru.workinprogress.mongkn/ClientSession.startTransaction|startTransaction(){}[0]
 }
 
+final class ru.workinprogress.mongkn/CommandFailedEvent { // ru.workinprogress.mongkn/CommandFailedEvent|null[0]
+    constructor <init>(kotlin/String, ru.workinprogress.mongkn/MongoException, kotlin/Long, kotlin/Long, kotlin/Long) // ru.workinprogress.mongkn/CommandFailedEvent.<init>|<init>(kotlin.String;ru.workinprogress.mongkn.MongoException;kotlin.Long;kotlin.Long;kotlin.Long){}[0]
+
+    final val commandName // ru.workinprogress.mongkn/CommandFailedEvent.commandName|{}commandName[0]
+        final fun <get-commandName>(): kotlin/String // ru.workinprogress.mongkn/CommandFailedEvent.commandName.<get-commandName>|<get-commandName>(){}[0]
+    final val durationMicros // ru.workinprogress.mongkn/CommandFailedEvent.durationMicros|{}durationMicros[0]
+        final fun <get-durationMicros>(): kotlin/Long // ru.workinprogress.mongkn/CommandFailedEvent.durationMicros.<get-durationMicros>|<get-durationMicros>(){}[0]
+    final val failure // ru.workinprogress.mongkn/CommandFailedEvent.failure|{}failure[0]
+        final fun <get-failure>(): ru.workinprogress.mongkn/MongoException // ru.workinprogress.mongkn/CommandFailedEvent.failure.<get-failure>|<get-failure>(){}[0]
+    final val operationId // ru.workinprogress.mongkn/CommandFailedEvent.operationId|{}operationId[0]
+        final fun <get-operationId>(): kotlin/Long // ru.workinprogress.mongkn/CommandFailedEvent.operationId.<get-operationId>|<get-operationId>(){}[0]
+    final val requestId // ru.workinprogress.mongkn/CommandFailedEvent.requestId|{}requestId[0]
+        final fun <get-requestId>(): kotlin/Long // ru.workinprogress.mongkn/CommandFailedEvent.requestId.<get-requestId>|<get-requestId>(){}[0]
+
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn/CommandFailedEvent.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn/CommandStartedEvent { // ru.workinprogress.mongkn/CommandStartedEvent|null[0]
+    constructor <init>(kotlin/String, kotlin/String, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Long, kotlin/Long) // ru.workinprogress.mongkn/CommandStartedEvent.<init>|<init>(kotlin.String;kotlin.String;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Long;kotlin.Long){}[0]
+
+    final val command // ru.workinprogress.mongkn/CommandStartedEvent.command|{}command[0]
+        final fun <get-command>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/CommandStartedEvent.command.<get-command>|<get-command>(){}[0]
+    final val commandName // ru.workinprogress.mongkn/CommandStartedEvent.commandName|{}commandName[0]
+        final fun <get-commandName>(): kotlin/String // ru.workinprogress.mongkn/CommandStartedEvent.commandName.<get-commandName>|<get-commandName>(){}[0]
+    final val databaseName // ru.workinprogress.mongkn/CommandStartedEvent.databaseName|{}databaseName[0]
+        final fun <get-databaseName>(): kotlin/String // ru.workinprogress.mongkn/CommandStartedEvent.databaseName.<get-databaseName>|<get-databaseName>(){}[0]
+    final val operationId // ru.workinprogress.mongkn/CommandStartedEvent.operationId|{}operationId[0]
+        final fun <get-operationId>(): kotlin/Long // ru.workinprogress.mongkn/CommandStartedEvent.operationId.<get-operationId>|<get-operationId>(){}[0]
+    final val requestId // ru.workinprogress.mongkn/CommandStartedEvent.requestId|{}requestId[0]
+        final fun <get-requestId>(): kotlin/Long // ru.workinprogress.mongkn/CommandStartedEvent.requestId.<get-requestId>|<get-requestId>(){}[0]
+
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn/CommandStartedEvent.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn/CommandSucceededEvent { // ru.workinprogress.mongkn/CommandSucceededEvent|null[0]
+    constructor <init>(kotlin/String, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Long, kotlin/Long, kotlin/Long) // ru.workinprogress.mongkn/CommandSucceededEvent.<init>|<init>(kotlin.String;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Long;kotlin.Long;kotlin.Long){}[0]
+
+    final val commandName // ru.workinprogress.mongkn/CommandSucceededEvent.commandName|{}commandName[0]
+        final fun <get-commandName>(): kotlin/String // ru.workinprogress.mongkn/CommandSucceededEvent.commandName.<get-commandName>|<get-commandName>(){}[0]
+    final val durationMicros // ru.workinprogress.mongkn/CommandSucceededEvent.durationMicros|{}durationMicros[0]
+        final fun <get-durationMicros>(): kotlin/Long // ru.workinprogress.mongkn/CommandSucceededEvent.durationMicros.<get-durationMicros>|<get-durationMicros>(){}[0]
+    final val operationId // ru.workinprogress.mongkn/CommandSucceededEvent.operationId|{}operationId[0]
+        final fun <get-operationId>(): kotlin/Long // ru.workinprogress.mongkn/CommandSucceededEvent.operationId.<get-operationId>|<get-operationId>(){}[0]
+    final val reply // ru.workinprogress.mongkn/CommandSucceededEvent.reply|{}reply[0]
+        final fun <get-reply>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/CommandSucceededEvent.reply.<get-reply>|<get-reply>(){}[0]
+    final val requestId // ru.workinprogress.mongkn/CommandSucceededEvent.requestId|{}requestId[0]
+        final fun <get-requestId>(): kotlin/Long // ru.workinprogress.mongkn/CommandSucceededEvent.requestId.<get-requestId>|<get-requestId>(){}[0]
+
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn/CommandSucceededEvent.toString|toString(){}[0]
+}
+
 final class ru.workinprogress.mongkn/DeleteManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/DeleteManyModel|null[0]
     constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/DeleteManyModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
 
@@ -553,7 +613,7 @@ final class ru.workinprogress.mongkn/InsertOneResult { // ru.workinprogress.mong
 }
 
 final class ru.workinprogress.mongkn/MongoClient : kotlin/AutoCloseable { // ru.workinprogress.mongkn/MongoClient|null[0]
-    constructor <init>(kotlin/String, kotlin/Int = ..., kotlin/Int = ...) // ru.workinprogress.mongkn/MongoClient.<init>|<init>(kotlin.String;kotlin.Int;kotlin.Int){}[0]
+    constructor <init>(kotlin/String, kotlin/Int = ..., kotlin/Int = ..., ru.workinprogress.mongkn/CommandListener? = ...) // ru.workinprogress.mongkn/MongoClient.<init>|<init>(kotlin.String;kotlin.Int;kotlin.Int;ru.workinprogress.mongkn.CommandListener?){}[0]
 
     final fun close() // ru.workinprogress.mongkn/MongoClient.close|close(){}[0]
     final fun getDatabase(kotlin/String): ru.workinprogress.mongkn/MongoDatabase // ru.workinprogress.mongkn/MongoClient.getDatabase|getDatabase(kotlin.String){}[0]

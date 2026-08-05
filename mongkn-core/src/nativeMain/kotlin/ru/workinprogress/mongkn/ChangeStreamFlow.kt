@@ -74,6 +74,15 @@ public class ChangeStreamFlow<T> internal constructor(
     /** Комментарий, видимый в профайлере и логах сервера. */
     public fun comment(text: String): ChangeStreamFlow<T> = withOption("comment", BsonString(text))
 
+    /**
+     * Комментарий произвольного типа BSON — например документ.
+     *
+     * Сервер с версии 4.4 принимает здесь не только строку, и официальный драйвер это допускает.
+     * Отдельная перегрузка, а не замена строковой: строка — обычный случай, и заставлять
+     * оборачивать её в `BsonString` было бы шагом назад.
+     */
+    public fun comment(value: BsonValue): ChangeStreamFlow<T> = withOption("comment", value)
+
     /** Присылать расширенный набор событий — DDL и прочее, чего в базовом наборе нет. */
     public fun showExpandedEvents(enabled: Boolean = true): ChangeStreamFlow<T> =
         withOption(

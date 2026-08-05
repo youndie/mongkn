@@ -51,8 +51,11 @@ class SpecConformanceTest {
 
             assertTrue(files.isNotEmpty(), "манифест пуст: $directory/manifest.json")
 
-            val connection = MongoClient(uri).also { client = it }
-            val runner = SpecTestRunner(uri, connection, serverVersion(connection))
+            // Наблюдатель команд ставится сразу: `expectEvents` сверяется по тому, что клиент
+            // действительно отправил, а подключить APM после создания клиента libmongoc не даёт.
+            val recorder = SpecEventRecorder()
+            val connection = MongoClient(uri, commandListener = recorder).also { client = it }
+            val runner = SpecTestRunner(uri, connection, recorder, serverVersion(connection))
 
             for (name in files) {
                 val path = "$directory/$name"
@@ -75,6 +78,6 @@ class SpecConformanceTest {
 
     private companion object {
         /** Замерено на первом зелёном прогоне; поднимать вместе с ростом поддержки. */
-        const val MINIMUM_EXECUTED = 13
+        const val MINIMUM_EXECUTED = 63
     }
 }

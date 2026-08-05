@@ -48,8 +48,8 @@ class ChangeStreamTest {
         clients.clear()
     }
 
-    private suspend fun connect(): MongoClient =
-        MongoClient(uri).also { client ->
+    private suspend fun connect(ioThreads: Int = MongoClient.DEFAULT_IO_THREADS): MongoClient =
+        MongoClient(uri, ioThreads = ioThreads).also { client ->
             clients += client
             if (!cleaned) {
                 client.getDatabase(DATABASE).drop()
@@ -206,13 +206,16 @@ class ChangeStreamTest {
     @Test
     fun `subscriptions do not starve regular operations`() =
         runBlocking {
-            val client = connect()
+            // Потоков в общем пуле намеренно **меньше**, чем подписок, и число задано явно,
+            // а не взято из умолчания: иначе тест ослабевал бы каждый раз, когда умолчание
+            // растёт, — ровно это и случилось бы после M-78, где оно поднялось с 4 до 32.
+            val client = connect(ioThreads = 2)
             val database = client.getDatabase(DATABASE)
             val names = (0 until 5).map { "starve_${counter++}" }
             names.forEach { database.createCollection(it) }
 
-            // Подписок больше, чем потоков в общем пуле (DEFAULT_IO_THREADS = 4). Если бы они
-            // жили на нём, обычная операция ниже не получила бы потока и тест повис бы.
+            // Если бы подписки жили на общем пуле, они заняли бы его целиком, обычная операция
+            // ниже не получила бы потока и тест повис бы.
             val watchers = names.map { name -> launch { database.getCollection(name).watch().collect { } } }
             delay(SETTLE)
 

@@ -45,12 +45,15 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  * @param ioThreads сколько потоков отдаётся под блокирующие вызовы драйвера.
  * @param maxConcurrentClients сколько операций могут одновременно держать клиента. Перекрывает
  *   `maxPoolSize` из строки подключения.
+ * @param commandListener наблюдатель команд (APM). Задаётся **только при создании**: libmongoc
+ *   принимает набор коллбэков до первого использования пула, и подменить его на ходу нельзя.
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class, DelicateCoroutinesApi::class)
 public class MongoClient(
     connectionString: String,
     ioThreads: Int = DEFAULT_IO_THREADS,
     maxConcurrentClients: Int = DEFAULT_MAX_CONCURRENT_CLIENTS,
+    commandListener: CommandListener? = null,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
 
@@ -93,6 +96,14 @@ public class MongoClient(
      */
     private val permits = Semaphore(poolSize)
 
+    /**
+     * Держит наблюдателя живым, пока жив пул.
+     *
+     * Не `val ... = null`, а поле, заполняемое в `init`: подписка снимается в [close], и без
+     * ссылки на неё наблюдатель утёк бы вместе со своим `StableRef`.
+     */
+    private val apm: ApmSubscription?
+
     init {
         Mongkn.initialize()
         pool =
@@ -133,6 +144,14 @@ public class MongoClient(
             } catch (e: Throwable) {
                 // Конструктор не завершится, а значит close() никто не вызовет — прибираем сами.
                 // Mongkn.shutdown() здесь звать нельзя: он терминальный на весь процесс.
+                dispatcher.close()
+                throw e
+            }
+        apm =
+            try {
+                commandListener?.let { ApmSubscription.install(pool, it) }
+            } catch (e: Throwable) {
+                mongoc_client_pool_destroy(pool)
                 dispatcher.close()
                 throw e
             }
@@ -220,7 +239,10 @@ public class MongoClient(
     override fun close() {
         if (closed.compareAndSet(expectedValue = false, newValue = true)) {
             dispatcher.close()
+            // Пул уничтожается **до** снятия подписки: пока он жив, события ещё могут прийти,
+            // и освобождённый StableRef означал бы обращение по мёртвому указателю.
             mongoc_client_pool_destroy(pool)
+            apm?.dispose()
         }
     }
 
@@ -284,22 +306,25 @@ public class MongoClient(
         /**
          * Сколько потоков отдаётся под блокирующие вызовы драйвера.
          *
-         * Намеренно меньше, чем [DEFAULT_MAX_CONCURRENT_CLIENTS]: клиент занят всё время жизни
-         * курсора, а поток — только пока идёт сам вызов, так что клиентов нужно больше.
+         * **Именно это число, а не [DEFAULT_MAX_CONCURRENT_CLIENTS], задаёт потолок пропускной
+         * способности.** Вызов libmongoc блокирующий, поэтому одновременно их идёт столько,
+         * сколько здесь потоков: пропускная способность растёт линейно ровно до этого числа
+         * и дальше выходит на полку, сколько бы корутин ни ждало.
          *
-         * **Но именно это число, а не [DEFAULT_MAX_CONCURRENT_CLIENTS], задаёт потолок пропускной
-         * способности.** Вызов libmongoc блокирующий, поэтому одновременно их идёт столько, сколько
-         * здесь потоков. Замер (`docs/performance.md`): на вставках пропускная способность растёт
-         * линейно ровно до числа потоков и дальше выходит на полку — 4 потока дают ~3300 оп/с
-         * при любом числе корутин, 32 потока — ~10200. Если нужна пропускная способность,
-         * поднимайте это число явно.
+         * Значение выбрано по замеру, а не на глаз (`docs/performance.md`, M-78). На локальном
+         * сервере 64 корутины дают: 4 потока — 3462 оп/с, 8 — 6298, 16 — 8676, **32 — 10565**,
+         * 48 — 10590, 64 — 10662, 96 — 11334. Колено на 32: дальше до 96 прибавляется 7 %,
+         * тогда как переход 16 → 32 даёт 22 %.
          *
-         * **Подписки сюда не попадают.** У `watch` вызов блокируется всё время жизни подписки,
-         * а не на время одного обращения, поэтому четыре подписки исчерпали бы этот пул целиком
-         * и остановили всё остальное. Каждая подписка получает собственный поток —
-         * см. [ChangeStreamFlow].
+         * Тридцать два потока — не расточительство: они блокируются на вводе-выводе, а не считают,
+         * и стоимость создания клиента от их числа **не зависит** (замерено: ~7–8 мкс и при 4,
+         * и при 96). На сервере за настоящей сетью, где круговой рейс на порядок дольше,
+         * это скорее нижняя граница, чем верхняя.
+         *
+         * Подписки ([ChangeStreamFlow]) и сессии ([ClientSession]) сюда **не попадают** — каждая
+         * держит собственный поток, потому что занимает его на всё своё время, а не на один вызов.
          */
-        public const val DEFAULT_IO_THREADS: Int = 4
+        public const val DEFAULT_IO_THREADS: Int = 32
 
         /**
          * Совпадает с `maxPoolSize` по умолчанию у libmongoc.

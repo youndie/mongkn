@@ -57,6 +57,15 @@ public class AggregateFlow<T> internal constructor(
     /** Комментарий, видимый в профайлере и логах сервера. */
     public fun comment(text: String): AggregateFlow<T> = withOption("comment", BsonString(text))
 
+    /**
+     * Комментарий произвольного типа BSON — например документ.
+     *
+     * Сервер с версии 4.4 принимает здесь не только строку, и официальный драйвер это допускает.
+     * Отдельная перегрузка, а не замена строковой: строка — обычный случай, и заставлять
+     * оборачивать её в `BsonString` было бы шагом назад.
+     */
+    public fun comment(value: BsonValue): AggregateFlow<T> = withOption("comment", value)
+
     /** Индекс, которым выполнять первую стадию: документ ключей. */
     public fun hint(index: Document): AggregateFlow<T> = withOption("hint", index)
 
