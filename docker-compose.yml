@@ -1,0 +1,84 @@
+# Тестовые серверы mongkn — все три одной командой.
+#
+# Их именно три, и каждый нужен по своей причине, которую нельзя закрыть настройкой соседа:
+#
+# * `mongo` — одноузловой **replica set**. Без него не работают change streams и транзакции;
+# * `mongo-auth` — с `--auth`. Включи мы аутентификацию на первом, креды понадобились бы всем
+#   двум сотням остальных тестов, и `AuthenticationTest` проверял бы общий фон, а не предмет;
+# * `mongo-tls` — с `--tlsMode requireTLS`. Он отвергает любое нешифрованное соединение,
+#   то есть на общем сервере переписал бы подключение во всех тестах ради одного набора.
+#
+# Раньше их было шесть: те же три плюс копии в docker-сети для Linux-прогона. Копии убраны —
+# контейнер сборки ходит на хост через `host.docker.internal`, см. CLAUDE.md.
+#
+# Память ограничена намеренно. WiredTiger по умолчанию забирает половину ОЗУ машины минус
+# гигабайт, то есть на 16-гигабайтном ноутбуке каждый из трёх серверов счёл бы себя вправе
+# занять несколько гигабайт. Для тестовых объёмов хватает четверти гигабайта — это минимум,
+# который принимает сам WiredTiger.
+
+x-common: &common
+  image: mongo:8
+  restart: unless-stopped
+  # Под архитектуру хоста: образ amd64 на arm-машине уедет в эмуляцию QEMU, прогон станет вдвое
+  # дольше, а замеры производительности — бессмысленными. Проверять так:
+  # docker image inspect mongo:8 --format '{{.Architecture}}'
+  platform: ${MONGKN_PLATFORM:-linux/arm64}
+  mem_limit: 512m
+  # Данные лежат на диске, а не в tmpfs, хотя пережить перезапуск им незачем. Две причины,
+  # обе выяснились прогоном: tmpfs считается в память контейнера и добавлял к каждому серверу
+  # больше сотни мегабайт — ровно то, чего мы избегаем; а mongod отказывается строить индексы,
+  # если свободного места меньше 500 МБ, и на размере tmpfs под лимит памяти это условие
+  # не выполнить. `ci/dev-servers.sh down` убирает тома вместе с контейнерами.
+
+services:
+  # Одноузловой replica set. Адрес члена задаётся явно (`127.0.0.1`) скриптом инициализации:
+  # иначе сервер объявит себя под своим hostname, и драйвер уйдёт по недостижимому адресу.
+  mongo:
+    <<: *common
+    container_name: mongkn-it
+    ports: ["27017:27017"]
+    command: >
+      mongod --replSet rs0 --bind_ip_all
+      --wiredTigerCacheSizeGB 0.25
+      --setParameter enableTestCommands=1
+
+  # SCRAM. Пользователь заводится штатным механизмом образа, а второй — с паролем
+  # из значащих для URI символов — скриптом инициализации.
+  mongo-auth:
+    <<: *common
+    container_name: mongkn-auth
+    ports: ["27019:27017"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongkn_test
+      MONGO_INITDB_ROOT_PASSWORD: mongkn_secret
+    command: >
+      mongod --bind_ip_all
+      --wiredTigerCacheSizeGB 0.25
+      --setParameter enableTestCommands=1
+
+  # TLS. Сертификаты монтируются только для чтения и копируются внутрь: `docker cp` и монтирование
+  # кладут файлы от root, а mongod не станет читать чужой ключ. Копия делается в точке входа,
+  # потому что compose не умеет менять владельца смонтированного файла.
+  #
+  # `--tlsAllowConnectionsWithoutCertificates` обязателен: одно только `--tlsCAFile` делает
+  # клиентский сертификат обязательным, и обычное TLS-подключение сервер молча закрывает.
+  mongo-tls:
+    <<: *common
+    container_name: mongkn-tls
+    ports: ["27020:27017"]
+    volumes:
+      - ./build/tls:/tls:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        mkdir -p /etc/mongo-tls
+        && cp /tls/server.pem /tls/ca.pem /etc/mongo-tls/
+        && chown -R mongodb:mongodb /etc/mongo-tls
+        && chmod 400 /etc/mongo-tls/*
+        && exec docker-entrypoint.sh mongod --bind_ip_all
+        --tlsMode requireTLS
+        --tlsCertificateKeyFile /etc/mongo-tls/server.pem
+        --tlsCAFile /etc/mongo-tls/ca.pem
+        --tlsAllowConnectionsWithoutCertificates
+        --wiredTigerCacheSizeGB 0.25
+        --setParameter enableTestCommands=1

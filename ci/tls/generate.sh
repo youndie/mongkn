@@ -31,13 +31,14 @@ openssl req -x509 -newkey rsa:2048 -days "$DAYS" -nodes \
   -keyout ca.key -out ca.pem \
   -subj "/C=RU/O=mongkn/CN=mongkn-test-ca" 2>/dev/null
 
-# Сервер. SAN обязателен: mongod проверяет имя, под которым к нему пришли, и без записи
-# и для 127.0.0.1, и для имени в docker-сети один из двух контуров не заработает.
+# Сервер. SAN обязателен, и в нём должны быть **все** имена, под которыми к серверу приходят:
+# `127.0.0.1` с хоста и `host.docker.internal` из контейнера сборки под Linux. Забытое имя
+# даёт «TLS handshake failed» — по тексту неотличимо от недоверенного сертификата.
 openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr \
   -subj "/C=RU/O=mongkn-server/CN=mongkn-test-server" 2>/dev/null
 openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial \
   -days "$SERVER_DAYS" -out server.crt \
-  -extfile <(printf "subjectAltName=DNS:localhost,DNS:mongkn-ci-tls,IP:127.0.0.1\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature,keyEncipherment\n") 2>/dev/null
+  -extfile <(printf "subjectAltName=DNS:localhost,DNS:host.docker.internal,IP:127.0.0.1\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature,keyEncipherment\n") 2>/dev/null
 cat server.key server.crt > server.pem
 
 # Клиент — под аутентификацию MONGODB-X509.

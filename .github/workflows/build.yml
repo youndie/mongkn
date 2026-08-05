@@ -108,6 +108,9 @@ jobs:
         run: |
           ./ci/tls/generate.sh "$PWD/build/tls"
           ./ci/tls/start-server.sh mongod-tls "$PWD/build/tls" -p 27020:27017
+          # Локально те же серверы поднимаются одной командой `ci/dev-servers.sh up`
+          # (docker compose + инициализация). В CI шаги оставлены раздельными: на macOS-раннере
+          # docker недоступен, и mongod там ставится через brew.
 
       - uses: gradle/actions/setup-gradle@v4
 

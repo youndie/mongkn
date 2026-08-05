@@ -49,65 +49,54 @@ Kotlin/Native обвязка над MongoDB C-драйвером (`libmongoc`). 
 
 ```bash
 docker build -t mongkn-ci ci/
-docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
-  -e MONGKN_TEST_HOST=mongkn-ci-db:27017 -e MONGKN_TEST_AUTH_HOST=mongkn-ci-auth:27017 \
-  -e MONGKN_TEST_TLS_HOST=mongkn-ci-tls:27017 mongkn-ci ./gradlew build
 ```
+
+```bash
+docker run --rm --platform linux/amd64 -v "$PWD":/src \
+  -e MONGKN_TEST_HOST=host.docker.internal:27017 \
+  -e MONGKN_TEST_AUTH_HOST=host.docker.internal:27019 \
+  -e MONGKN_TEST_TLS_HOST=host.docker.internal:27020 \
+  mongkn-ci ./gradlew build
+```
+
+Контейнер сборки ходит на **те же** серверы, что и хост, через `host.docker.internal` — второго
+комплекта в docker-сети больше нет. Из-за этого имя `host.docker.internal` обязано быть
+в SAN серверного сертификата; забытое имя даёт «TLS handshake failed», по тексту неотличимое
+от недоверенного сертификата.
 
 `--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
 
-Интеграционным тестам нужен локальный mongod — **без него они падают, а не пропускаются**.
-Поднимать его надо **одноузловым replica set**, а не standalone: change streams на standalone
-не работают вовсе, и `ChangeStreamTest` будет падать. Для остальных операций разницы нет.
+Интеграционным тестам нужны локальные серверы — **без них они падают, а не пропускаются**.
+Все три поднимаются одной командой:
 
 ```bash
-docker run -d --name mongkn-it --platform linux/arm64 -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
+./ci/dev-servers.sh up
 ```
 
-`enableTestCommands=1` нужен failpoint'ам: `RetryTest` заказывает серверу сбой через
-`failCommand`, и без этого параметра сервер откажется.
-
-`--platform` под архитектуру хоста — не украшение. Однажды образ уже оказался `linux/amd64`
-на arm-машине, то есть mongod работал под эмуляцией QEMU: прогон тестов шёл вдвое дольше,
-а замеры производительности выдавали заведомую чушь. Проверить:
-`docker image inspect mongo:8 --format '{{.Architecture}}'`.
+Убрать вместе с томами:
 
 ```bash
-docker exec mongkn-it mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+./ci/dev-servers.sh down
 ```
 
-Адрес члена задаётся **явно**: иначе сервер объявит себя под своим hostname, драйвер пойдёт
-по объявленному адресу и не достучится. Для сервера в docker-сети (`mongkn-ci-db`) подставьте
-его имя вместо `127.0.0.1`.
+Серверов именно три, и ни один не сводится к настройке соседа: **27017** — одноузловой replica
+set (без него нет change streams и транзакций), **27019** — с `--auth` (включи мы аутентификацию
+на первом, креды понадобились бы всем двум сотням тестов), **27020** — с `--tlsMode requireTLS`
+(он отвергает любое нешифрованное соединение). Зачем обёртка поверх `docker compose`: compose
+описывает контейнеры, но не умеет `rs.initiate` и заведение пользователей — это четыре шага
+после старта, каждый неочевиден и прокомментирован в скрипте.
 
-Отдельно нужен **второй** сервер — с аутентификацией, на порту 27019. Отдельный, а не тот же
-самый: включи мы `--auth` на основном, креды понадобились бы каждому тесту, и `AuthenticationTest`
-проверял бы не аутентификацию, а общий фон. Логин и пароль здесь — фикстура одноразового
-контейнера, а не секрет; настоящие креды лежат в `~/.zshrc` и в репозиторий не попадают.
+Память ограничена намеренно: `--wiredTigerCacheSizeGB 0.25` и `mem_limit 512m` на сервер, итого
+около 400 МБ на все три. По умолчанию WiredTiger забрал бы половину ОЗУ машины минус гигабайт.
+Данные лежат на диске, а не в tmpfs: tmpfs считается в память контейнера и при этом не даёт
+mongod требуемых 500 МБ свободного места — проверено, индексы не строятся.
 
-```bash
-docker run -d --name mongkn-auth -p 27019:27017 -e MONGO_INITDB_ROOT_USERNAME=mongkn_test -e MONGO_INITDB_ROOT_PASSWORD=mongkn_secret mongo:8
-```
-
-```bash
-docker exec mongkn-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
-```
-
-Адрес переопределяется через `MONGKN_TEST_AUTH_HOST` — в docker-сети это `mongkn-ci-auth:27017`.
-
-Третий сервер — с обязательным TLS, на порту 27020. Сертификаты **генерируются**, а не лежат
-в репозитории: серверный живёт 397 дней и через год протух бы, сломав сборку без единой правки
-кода. Ограничение на срок — не наше: на macOS драйвер собран с Secure Transport, а тот применяет
-политику Apple и отвергает более долгие серверные сертификаты, показывая
-`CSSMERR_TP_CERT_SUSPENDED` — по тексту не догадаться, что дело в сроке.
-
-```bash
-./ci/tls/generate.sh "$PWD/build/tls" && ./ci/tls/start-server.sh mongkn-tls "$PWD/build/tls" --platform linux/arm64 -p 27020:27017
-```
-
-Для docker-сети — то же имя `mongkn-ci-tls` и `--network mongkn-ci` вместо `-p`, адрес
-переопределяется через `MONGKN_TEST_TLS_HOST`. Остальные грабли TLS-контура описаны
-в шапке `ci/tls/start-server.sh`; каждая из них выглядит как таймаут соединения.
+Сертификаты для TLS **генерируются**, а не хранятся в репозитории: серверный живёт 397 дней
+и через год протух бы, сломав сборку без единой правки кода. Ограничение на срок не наше —
+на macOS драйвер собран с Secure Transport, а тот применяет политику Apple и отвергает более
+долгие серверные сертификаты, показывая `CSSMERR_TP_CERT_SUSPENDED`. Остальные грабли
+TLS-контура описаны в шапках `ci/tls/generate.sh` и `ci/tls/start-server.sh`; каждая выглядит
+как таймаут соединения.
 
 Ещё две грабли, стоившие по сборке каждая: source set'ы `nativeMain` / `nativeTest` **нельзя**
 заводить руками (`by creating`) — их создаёт стандартный шаблон иерархии KMP, а ручной ломает
