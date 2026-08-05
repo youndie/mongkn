@@ -15,13 +15,13 @@ date: 2026-08-05
 вообще работала — cinterop, память, потоки, BSON, маппинг классов, публикация, CI, — сделано
 и проверено. Операций реализована половина, и почти все они под официальным spec-покрытием.
 
-## Операции коллекции — 21 из 30
+## Операции коллекции — 22 из 30
 
 | Реализовано | Нет |
 |---|---|
-| `insertOne`, `insertMany` | `bulkWrite` |
+| `insertOne`, `insertMany`, `bulkWrite` | `watch` |
 | `updateOne`, `updateMany`, `replaceOne` | `mapReduce` (объявлен устаревшим) |
-| `deleteOne`, `deleteMany` | `watch` |
+| `deleteOne`, `deleteMany` | |
 | `find`, `countDocuments`, `estimatedDocumentCount` | |
 | `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы Atlas: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
 | `distinct`, `drop`, `renameCollection` | |
@@ -85,9 +85,9 @@ date: 2026-08-05
 | Маппинг классов | `kotlinx.serialization`, свой древесный формат |
 | Эргономика | infix-DSL с проверкой имён полей |
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
-| Соответствие спецификации | **45** официальных сценариев MongoDB; непокрытыми остались только требующие APM |
+| Соответствие спецификации | **55** официальных сценариев MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 146 тестов на двух платформах, ABI-валидация, ktlint в гейте |
+| Проверки | 156 тестов на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 

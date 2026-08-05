@@ -128,6 +128,61 @@ public class MongoCollection<T> internal constructor(
         CollectionOps.insertMany(client, databaseName, name, documents.map(::toDocument), ordered, opts(options))
 
     /**
+     * Выполняет несколько разнородных операций записи одним обращением к серверу.
+     *
+     * ```
+     * collection.bulkWrite(
+     *     listOf(
+     *         InsertOneModel(Person(name = "Ada", born = 1815)),
+     *         UpdateOneModel(document { put("name", "Ada") }, document { put("${'$'}set", …) }),
+     *         DeleteManyModel(document { put("born", document { put("${'$'}lt", 1800) }) }),
+     *     ),
+     * )
+     * ```
+     *
+     * @param ordered `true` — выполнять по порядку и остановиться на первой ошибке; `false` —
+     *   продолжать после ошибки, и тогда сервер вправе переставить операции местами.
+     *
+     * Неуспех — [MongoException], как и у одиночных операций. Из-за этого при `ordered = false`
+     * счётчики частично выполненного пакета до вызывающего не доходят: официальный драйвер отдаёт
+     * их в `MongoBulkWriteException`, у нас такого типа пока нет (записано в бэклог).
+     */
+    public suspend fun bulkWrite(
+        requests: List<WriteModel<T>>,
+        ordered: Boolean = true,
+        options: Document = BsonDocument(),
+    ): BulkWriteResult {
+        require(requests.isNotEmpty()) { "bulkWrite: список операций пуст" }
+        return CollectionOps.bulkWrite(client, databaseName, name, requests.map(::prepare), ordered, opts(options))
+    }
+
+    /**
+     * Переводит документы модели в [Document], оставляя остальные операции как есть.
+     *
+     * Операции без документа коллекции объявлены как `WriteModel<Nothing>`, поэтому годятся
+     * в список любого типа и переводить их не нужно.
+     */
+    private fun prepare(request: WriteModel<T>): WriteModel<Document> =
+        when (request) {
+            is InsertOneModel<T> -> {
+                InsertOneModel(toDocument(request.document))
+            }
+
+            is ReplaceOneModel<T> -> {
+                ReplaceOneModel(
+                    request.filter,
+                    toDocument(request.replacement),
+                    request.upsert,
+                    request.options,
+                )
+            }
+
+            is UpdateOneModel, is UpdateManyModel, is DeleteOneModel, is DeleteManyModel -> {
+                request
+            }
+        }
+
+    /**
      * Обновляет **один** документ, подходящий под фильтр.
      *
      * [update] — документ операторов обновления (`{"${'$'}set": …}`), а не агрегационный конвейер:

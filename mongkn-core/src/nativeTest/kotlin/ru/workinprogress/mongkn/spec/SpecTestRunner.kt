@@ -1,11 +1,18 @@
 package ru.workinprogress.mongkn.spec
 
 import kotlinx.coroutines.flow.toList
+import ru.workinprogress.mongkn.DeleteManyModel
+import ru.workinprogress.mongkn.DeleteOneModel
+import ru.workinprogress.mongkn.InsertOneModel
 import ru.workinprogress.mongkn.MongoClient
 import ru.workinprogress.mongkn.MongoCollection
 import ru.workinprogress.mongkn.MongoException
+import ru.workinprogress.mongkn.ReplaceOneModel
 import ru.workinprogress.mongkn.ReturnDocument
+import ru.workinprogress.mongkn.UpdateManyModel
+import ru.workinprogress.mongkn.UpdateOneModel
 import ru.workinprogress.mongkn.UpdateResult
+import ru.workinprogress.mongkn.WriteModel
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDateTime
@@ -380,6 +387,23 @@ class SpecTestRunner(
                 BsonArray(pipeline.toList())
             }
 
+            "bulkWrite" -> {
+                val result =
+                    collection.bulkWrite(
+                        arguments.arrayOf("requests").filterIsInstance<BsonDocument>().map(::writeModel),
+                        ordered = arguments.flagOf("ordered", default = true),
+                    )
+                BsonDocument(
+                    "insertedCount" to BsonInt32(result.insertedCount.toInt()),
+                    "matchedCount" to BsonInt32(result.matchedCount.toInt()),
+                    "modifiedCount" to BsonInt32(result.modifiedCount.toInt()),
+                    "deletedCount" to BsonInt32(result.deletedCount.toInt()),
+                    "upsertedCount" to BsonInt32(result.upsertedCount.toInt()),
+                    "insertedIds" to BsonDocument(result.insertedIds.map { it.key.toString() to it.value }),
+                    "upsertedIds" to BsonDocument(result.upsertedIds.map { it.key.toString() to it.value }),
+                )
+            }
+
             "countDocuments" -> {
                 BsonInt64(collection.countDocuments(arguments.documentOf("filter")))
             }
@@ -388,6 +412,60 @@ class SpecTestRunner(
                 error("операция '$name' не поддержана — должна была отсеяться раньше")
             }
         }
+
+    /**
+     * Разбирает одну операцию `bulkWrite` из официального формата.
+     *
+     * В спецификации операция записана документом с единственным ключом-именем:
+     * `{"insertOne": {"document": …}}`. Неизвестное имя — ошибка, а не пропуск: сюда сценарий
+     * доходит уже после отсева в [unsupportedOperation], и молчаливый пропуск операции сделал бы
+     * тест зелёным, проверив не то.
+     */
+    private fun writeModel(request: BsonDocument): WriteModel<Document> {
+        val kind = request.keys.singleOrNull() ?: error("операция bulkWrite не с одним ключом: ${request.keys}")
+        val body = request[kind] as? BsonDocument ?: error("тело операции '$kind' не документ")
+        return when (kind) {
+            "insertOne" -> {
+                InsertOneModel(body.documentOf("document"))
+            }
+
+            "deleteOne" -> {
+                DeleteOneModel(body.documentOf("filter"))
+            }
+
+            "deleteMany" -> {
+                DeleteManyModel(body.documentOf("filter"))
+            }
+
+            "updateOne" -> {
+                UpdateOneModel(
+                    body.documentOf("filter"),
+                    body.documentOf("update"),
+                    upsert = body.flagOf("upsert", default = false),
+                )
+            }
+
+            "updateMany" -> {
+                UpdateManyModel(
+                    body.documentOf("filter"),
+                    body.documentOf("update"),
+                    upsert = body.flagOf("upsert", default = false),
+                )
+            }
+
+            "replaceOne" -> {
+                ReplaceOneModel(
+                    body.documentOf("filter"),
+                    body.documentOf("replacement"),
+                    upsert = body.flagOf("upsert", default = false),
+                )
+            }
+
+            else -> {
+                error("операция bulkWrite '$kind' не поддержана")
+            }
+        }
+    }
 
     private suspend fun verifyOutcome(
         case: BsonDocument,
@@ -491,6 +569,7 @@ class SpecTestRunner(
                 "estimatedDocumentCount" to emptySet(),
                 // Веха M12. `pipeline` обязателен, остальное — опции, которые мы учитываем.
                 "aggregate" to setOf("pipeline", "batchSize", "allowDiskUse", "let", "comment", "hint"),
+                "bulkWrite" to setOf("requests", "ordered"),
             )
     }
 }

@@ -28,9 +28,19 @@ import mongkn.cinterop.bson_free
 import mongkn.cinterop.bson_oid_init
 import mongkn.cinterop.bson_oid_t
 import mongkn.cinterop.bson_t
+import mongkn.cinterop.mongoc_bulk_operation_destroy
+import mongkn.cinterop.mongoc_bulk_operation_execute
+import mongkn.cinterop.mongoc_bulk_operation_insert_with_opts
+import mongkn.cinterop.mongoc_bulk_operation_remove_many_with_opts
+import mongkn.cinterop.mongoc_bulk_operation_remove_one_with_opts
+import mongkn.cinterop.mongoc_bulk_operation_replace_one_with_opts
+import mongkn.cinterop.mongoc_bulk_operation_t
+import mongkn.cinterop.mongoc_bulk_operation_update_many_with_opts
+import mongkn.cinterop.mongoc_bulk_operation_update_one_with_opts
 import mongkn.cinterop.mongoc_client_get_collection
 import mongkn.cinterop.mongoc_collection_aggregate
 import mongkn.cinterop.mongoc_collection_count_documents
+import mongkn.cinterop.mongoc_collection_create_bulk_operation_with_opts
 import mongkn.cinterop.mongoc_collection_create_indexes_with_opts
 import mongkn.cinterop.mongoc_collection_delete_many
 import mongkn.cinterop.mongoc_collection_delete_one
@@ -760,6 +770,161 @@ internal object CollectionOps {
             bson_destroy(native)
         }
     }
+
+    /**
+     * Пакетная запись: несколько разнородных операций одним обращением к серверу.
+     *
+     * Устроена иначе всех прочих операций. У libmongoc это не функция, а объект
+     * `mongoc_bulk_operation_t`, который сначала **набирают** вызовами `*_with_opts`, и только
+     * потом исполняют. Отсюда две особенности:
+     *
+     * * набирающие функции возвращают `bool` и заполняют `error` — они проверяют операцию
+     *   на нашей стороне (например, что документ обновления состоит из операторов) **до**
+     *   похода на сервер. Игнорировать их результат нельзя: ошибка вылезла бы позже и не там;
+     * * `mongoc_bulk_operation_execute` возвращает не `bool`, а `uint32_t` — идентификатор
+     *   сервера, на котором операция выполнена. Признак неуспеха здесь **ноль**, и перепутать
+     *   его с `false` легко.
+     *
+     * `_id` для вставок генерируется на нашей стороне, как в [insertOne] и [insertMany]
+     * (решение Р3): в ответе на bulk сервер их не возвращает вовсе.
+     */
+    suspend fun bulkWrite(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        requests: List<WriteModel<Document>>,
+        ordered: Boolean,
+        opts: Document,
+    ): BulkWriteResult =
+        execute(client, databaseName, name) { collection ->
+            val bulk =
+                withBson(withExtra("ordered" to BsonBoolean(ordered), extra = opts)) { options ->
+                    mongoc_collection_create_bulk_operation_with_opts(collection, options)
+                } ?: error("mongoc_collection_create_bulk_operation_with_opts вернул NULL")
+            try {
+                val insertedIds = mutableMapOf<Int, BsonValue>()
+                requests.forEachIndexed { index, request ->
+                    if (request is InsertOneModel<Document>) {
+                        val prepared = withGeneratedId(request.document)
+                        insertedIds[index] = prepared.required("_id")
+                        stage(bulk, InsertOneModel(prepared))
+                    } else {
+                        stage(bulk, request)
+                    }
+                }
+                withReply { reply, error ->
+                    // Ноль, а не false: execute отдаёт идентификатор сервера.
+                    if (mongoc_bulk_operation_execute(bulk, reply, error) == 0u) fail(error)
+                    val document = reply.toDocument()
+                    BulkWriteResult(
+                        insertedCount = document.count("nInserted"),
+                        matchedCount = document.count("nMatched"),
+                        modifiedCount = document.count("nModified"),
+                        deletedCount = document.count("nRemoved"),
+                        upsertedCount = document.count("nUpserted"),
+                        insertedIds = insertedIds,
+                        upsertedIds = document.upsertedIds(),
+                    )
+                }
+            } finally {
+                mongoc_bulk_operation_destroy(bulk)
+            }
+        }
+
+    /**
+     * Добавляет одну операцию в набор.
+     *
+     * Каждая ветка проверяет возвращённый `bool`: набирающие функции ловят ошибки формы
+     * до обращения к серверу.
+     */
+    private fun MemScope.stage(
+        bulk: CPointer<mongoc_bulk_operation_t>,
+        request: WriteModel<Document>,
+    ) {
+        val error = alloc<bson_error_t>()
+        val ok =
+            when (request) {
+                is InsertOneModel<Document> -> {
+                    withBson(request.document) { document ->
+                        mongoc_bulk_operation_insert_with_opts(bulk, document, null, error.ptr)
+                    }
+                }
+
+                is UpdateOneModel -> {
+                    withBson(request.filter) { filter ->
+                        withBson(request.update) { update ->
+                            withBson(upsertOpts(request.upsert, request.options)) { options ->
+                                mongoc_bulk_operation_update_one_with_opts(bulk, filter, update, options, error.ptr)
+                            }
+                        }
+                    }
+                }
+
+                is UpdateManyModel -> {
+                    withBson(request.filter) { filter ->
+                        withBson(request.update) { update ->
+                            withBson(upsertOpts(request.upsert, request.options)) { options ->
+                                mongoc_bulk_operation_update_many_with_opts(bulk, filter, update, options, error.ptr)
+                            }
+                        }
+                    }
+                }
+
+                is ReplaceOneModel<Document> -> {
+                    withBson(request.filter) { filter ->
+                        withBson(request.replacement) { replacement ->
+                            withBson(upsertOpts(request.upsert, request.options)) { options ->
+                                mongoc_bulk_operation_replace_one_with_opts(
+                                    bulk,
+                                    filter,
+                                    replacement,
+                                    options,
+                                    error.ptr,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                is DeleteOneModel -> {
+                    withBson(request.filter) { filter ->
+                        withBson(request.options) { options ->
+                            mongoc_bulk_operation_remove_one_with_opts(bulk, filter, options, error.ptr)
+                        }
+                    }
+                }
+
+                is DeleteManyModel -> {
+                    withBson(request.filter) { filter ->
+                        withBson(request.options) { options ->
+                            mongoc_bulk_operation_remove_many_with_opts(bulk, filter, options, error.ptr)
+                        }
+                    }
+                }
+            }
+        if (!ok) fail(error.ptr)
+    }
+
+    private fun upsertOpts(
+        upsert: Boolean,
+        options: Document,
+    ): Document = withExtra("upsert" to BsonBoolean(upsert), extra = options)
+
+    /**
+     * Читает `upserted` из ответа: массив документов `{index, _id}`.
+     *
+     * `index` — позиция операции в списке запросов, поэтому именно он и становится ключом.
+     */
+    private fun BsonDocument.upsertedIds(): Map<Int, BsonValue> =
+        (this["upserted"] as? BsonArray)
+            ?.values
+            .orEmpty()
+            .filterIsInstance<BsonDocument>()
+            .mapNotNull { entry ->
+                val index = (entry["index"] as? BsonInt32)?.value ?: (entry["index"] as? BsonInt64)?.value?.toInt()
+                val id = entry["_id"]
+                if (index == null || id == null) null else index to id
+            }.toMap()
 
     // --- обвязка, общая для всех операций ---------------------------------------------------
 

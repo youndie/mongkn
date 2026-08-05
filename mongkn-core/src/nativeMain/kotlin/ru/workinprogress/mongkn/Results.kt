@@ -38,3 +38,29 @@ public class DeleteResult(
 ) {
     override fun toString(): String = "DeleteResult(deletedCount=$deletedCount)"
 }
+
+/**
+ * Результат [MongoCollection.bulkWrite].
+ *
+ * Счётчики читаются из ответа сервера (`nInserted`, `nMatched`, `nModified`, `nRemoved`,
+ * `nUpserted`), а вот [insertedIds] считается на нашей стороне: в ответе на bulk их нет вовсе.
+ * Причина та же, по которой `_id` генерируется клиентом в `insertOne` и `insertMany` (решение Р3):
+ * опираться на `reply` значило бы работать на одной ветке драйвера и терять данные на другой.
+ *
+ * Ключ обеих карт — **позиция операции в списке запросов**, а не порядковый номер среди
+ * вставленных или созданных апсертом. Так же устроен и официальный драйвер: иначе по результату
+ * нельзя было бы понять, какой именно запрос что сделал.
+ */
+public class BulkWriteResult(
+    public val insertedCount: Long,
+    public val matchedCount: Long,
+    public val modifiedCount: Long,
+    public val deletedCount: Long,
+    public val upsertedCount: Long,
+    public val insertedIds: Map<Int, BsonValue>,
+    public val upsertedIds: Map<Int, BsonValue>,
+) {
+    override fun toString(): String =
+        "BulkWriteResult(insertedCount=$insertedCount, matchedCount=$matchedCount, " +
+            "modifiedCount=$modifiedCount, deletedCount=$deletedCount, upsertedCount=$upsertedCount)"
+}

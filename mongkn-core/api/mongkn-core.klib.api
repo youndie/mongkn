@@ -33,6 +33,8 @@ final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workin
     final fun values(): kotlin/Array<ru.workinprogress.mongkn/ReturnDocument> // ru.workinprogress.mongkn/ReturnDocument.values|values#static(){}[0]
 }
 
+sealed interface <#A: out kotlin/Any?> ru.workinprogress.mongkn/WriteModel // ru.workinprogress.mongkn/WriteModel|null[0]
+
 sealed interface ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/BsonValue|null[0]
 
 final class <#A: kotlin/Any?> ru.workinprogress.mongkn/AggregateFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/AggregateFlow|null[0]
@@ -85,6 +87,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.w
     final fun withReadConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withReadConcern|withReadConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun withTimeout(kotlin/Long): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withTimeout|withTimeout(kotlin.Long){}[0]
     final fun withWriteConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withWriteConcern|withWriteConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final suspend fun bulkWrite(kotlin.collections/List<ru.workinprogress.mongkn/WriteModel<#A>>, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/BulkWriteResult // ru.workinprogress.mongkn/MongoCollection.bulkWrite|bulkWrite(kotlin.collections.List<ru.workinprogress.mongkn.WriteModel<1:0>>;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun countDocuments(ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlin/Long // ru.workinprogress.mongkn/MongoCollection.countDocuments|countDocuments(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun createIndex(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlin/String // ru.workinprogress.mongkn/MongoCollection.createIndex|createIndex(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun createIndexes(kotlin.collections/List<ru.workinprogress.mongkn/IndexModel>, ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlin.collections/List<kotlin/String> // ru.workinprogress.mongkn/MongoCollection.createIndexes|createIndexes(kotlin.collections.List<ru.workinprogress.mongkn.IndexModel>;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
@@ -105,6 +108,26 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.w
     final suspend fun replaceOne(ru.workinprogress.mongkn.bson/BsonDocument, #A, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/UpdateResult // ru.workinprogress.mongkn/MongoCollection.replaceOne|replaceOne(ru.workinprogress.mongkn.bson.BsonDocument;1:0;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun updateMany(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/UpdateResult // ru.workinprogress.mongkn/MongoCollection.updateMany|updateMany(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun updateOne(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/UpdateResult // ru.workinprogress.mongkn/MongoCollection.updateOne|updateOne(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+}
+
+final class <#A: out kotlin/Any?> ru.workinprogress.mongkn/InsertOneModel : ru.workinprogress.mongkn/WriteModel<#A> { // ru.workinprogress.mongkn/InsertOneModel|null[0]
+    constructor <init>(#A) // ru.workinprogress.mongkn/InsertOneModel.<init>|<init>(1:0){}[0]
+
+    final val document // ru.workinprogress.mongkn/InsertOneModel.document|{}document[0]
+        final fun <get-document>(): #A // ru.workinprogress.mongkn/InsertOneModel.document.<get-document>|<get-document>(){}[0]
+}
+
+final class <#A: out kotlin/Any?> ru.workinprogress.mongkn/ReplaceOneModel : ru.workinprogress.mongkn/WriteModel<#A> { // ru.workinprogress.mongkn/ReplaceOneModel|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, #A, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/ReplaceOneModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;1:0;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+
+    final val filter // ru.workinprogress.mongkn/ReplaceOneModel.filter|{}filter[0]
+        final fun <get-filter>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/ReplaceOneModel.filter.<get-filter>|<get-filter>(){}[0]
+    final val options // ru.workinprogress.mongkn/ReplaceOneModel.options|{}options[0]
+        final fun <get-options>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/ReplaceOneModel.options.<get-options>|<get-options>(){}[0]
+    final val replacement // ru.workinprogress.mongkn/ReplaceOneModel.replacement|{}replacement[0]
+        final fun <get-replacement>(): #A // ru.workinprogress.mongkn/ReplaceOneModel.replacement.<get-replacement>|<get-replacement>(){}[0]
+    final val upsert // ru.workinprogress.mongkn/ReplaceOneModel.upsert|{}upsert[0]
+        final fun <get-upsert>(): kotlin/Boolean // ru.workinprogress.mongkn/ReplaceOneModel.upsert.<get-upsert>|<get-upsert>(){}[0]
 }
 
 final class ru.workinprogress.mongkn.bson/ArrayBuilder { // ru.workinprogress.mongkn.bson/ArrayBuilder|null[0]
@@ -364,6 +387,45 @@ final class ru.workinprogress.mongkn.bson/UnsupportedBsonTypeException : kotlin/
         final fun <get-typeCode>(): kotlin/UInt // ru.workinprogress.mongkn.bson/UnsupportedBsonTypeException.typeCode.<get-typeCode>|<get-typeCode>(){}[0]
 }
 
+final class ru.workinprogress.mongkn/BulkWriteResult { // ru.workinprogress.mongkn/BulkWriteResult|null[0]
+    constructor <init>(kotlin/Long, kotlin/Long, kotlin/Long, kotlin/Long, kotlin/Long, kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue>, kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue>) // ru.workinprogress.mongkn/BulkWriteResult.<init>|<init>(kotlin.Long;kotlin.Long;kotlin.Long;kotlin.Long;kotlin.Long;kotlin.collections.Map<kotlin.Int,ru.workinprogress.mongkn.bson.BsonValue>;kotlin.collections.Map<kotlin.Int,ru.workinprogress.mongkn.bson.BsonValue>){}[0]
+
+    final val deletedCount // ru.workinprogress.mongkn/BulkWriteResult.deletedCount|{}deletedCount[0]
+        final fun <get-deletedCount>(): kotlin/Long // ru.workinprogress.mongkn/BulkWriteResult.deletedCount.<get-deletedCount>|<get-deletedCount>(){}[0]
+    final val insertedCount // ru.workinprogress.mongkn/BulkWriteResult.insertedCount|{}insertedCount[0]
+        final fun <get-insertedCount>(): kotlin/Long // ru.workinprogress.mongkn/BulkWriteResult.insertedCount.<get-insertedCount>|<get-insertedCount>(){}[0]
+    final val insertedIds // ru.workinprogress.mongkn/BulkWriteResult.insertedIds|{}insertedIds[0]
+        final fun <get-insertedIds>(): kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue> // ru.workinprogress.mongkn/BulkWriteResult.insertedIds.<get-insertedIds>|<get-insertedIds>(){}[0]
+    final val matchedCount // ru.workinprogress.mongkn/BulkWriteResult.matchedCount|{}matchedCount[0]
+        final fun <get-matchedCount>(): kotlin/Long // ru.workinprogress.mongkn/BulkWriteResult.matchedCount.<get-matchedCount>|<get-matchedCount>(){}[0]
+    final val modifiedCount // ru.workinprogress.mongkn/BulkWriteResult.modifiedCount|{}modifiedCount[0]
+        final fun <get-modifiedCount>(): kotlin/Long // ru.workinprogress.mongkn/BulkWriteResult.modifiedCount.<get-modifiedCount>|<get-modifiedCount>(){}[0]
+    final val upsertedCount // ru.workinprogress.mongkn/BulkWriteResult.upsertedCount|{}upsertedCount[0]
+        final fun <get-upsertedCount>(): kotlin/Long // ru.workinprogress.mongkn/BulkWriteResult.upsertedCount.<get-upsertedCount>|<get-upsertedCount>(){}[0]
+    final val upsertedIds // ru.workinprogress.mongkn/BulkWriteResult.upsertedIds|{}upsertedIds[0]
+        final fun <get-upsertedIds>(): kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue> // ru.workinprogress.mongkn/BulkWriteResult.upsertedIds.<get-upsertedIds>|<get-upsertedIds>(){}[0]
+
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn/BulkWriteResult.toString|toString(){}[0]
+}
+
+final class ru.workinprogress.mongkn/DeleteManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/DeleteManyModel|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/DeleteManyModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+
+    final val filter // ru.workinprogress.mongkn/DeleteManyModel.filter|{}filter[0]
+        final fun <get-filter>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/DeleteManyModel.filter.<get-filter>|<get-filter>(){}[0]
+    final val options // ru.workinprogress.mongkn/DeleteManyModel.options|{}options[0]
+        final fun <get-options>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/DeleteManyModel.options.<get-options>|<get-options>(){}[0]
+}
+
+final class ru.workinprogress.mongkn/DeleteOneModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/DeleteOneModel|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/DeleteOneModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+
+    final val filter // ru.workinprogress.mongkn/DeleteOneModel.filter|{}filter[0]
+        final fun <get-filter>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/DeleteOneModel.filter.<get-filter>|<get-filter>(){}[0]
+    final val options // ru.workinprogress.mongkn/DeleteOneModel.options|{}options[0]
+        final fun <get-options>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/DeleteOneModel.options.<get-options>|<get-options>(){}[0]
+}
+
 final class ru.workinprogress.mongkn/DeleteResult { // ru.workinprogress.mongkn/DeleteResult|null[0]
     constructor <init>(kotlin/Long) // ru.workinprogress.mongkn/DeleteResult.<init>|<init>(kotlin.Long){}[0]
 
@@ -438,6 +500,32 @@ final class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { 
         final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.code.<get-code>|<get-code>(){}[0]
     final val domain // ru.workinprogress.mongkn/MongoException.domain|{}domain[0]
         final fun <get-domain>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.domain.<get-domain>|<get-domain>(){}[0]
+}
+
+final class ru.workinprogress.mongkn/UpdateManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/UpdateManyModel|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/UpdateManyModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+
+    final val filter // ru.workinprogress.mongkn/UpdateManyModel.filter|{}filter[0]
+        final fun <get-filter>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateManyModel.filter.<get-filter>|<get-filter>(){}[0]
+    final val options // ru.workinprogress.mongkn/UpdateManyModel.options|{}options[0]
+        final fun <get-options>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateManyModel.options.<get-options>|<get-options>(){}[0]
+    final val update // ru.workinprogress.mongkn/UpdateManyModel.update|{}update[0]
+        final fun <get-update>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateManyModel.update.<get-update>|<get-update>(){}[0]
+    final val upsert // ru.workinprogress.mongkn/UpdateManyModel.upsert|{}upsert[0]
+        final fun <get-upsert>(): kotlin/Boolean // ru.workinprogress.mongkn/UpdateManyModel.upsert.<get-upsert>|<get-upsert>(){}[0]
+}
+
+final class ru.workinprogress.mongkn/UpdateOneModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/UpdateOneModel|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument, ru.workinprogress.mongkn.bson/BsonDocument, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/UpdateOneModel.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument;ru.workinprogress.mongkn.bson.BsonDocument;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+
+    final val filter // ru.workinprogress.mongkn/UpdateOneModel.filter|{}filter[0]
+        final fun <get-filter>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateOneModel.filter.<get-filter>|<get-filter>(){}[0]
+    final val options // ru.workinprogress.mongkn/UpdateOneModel.options|{}options[0]
+        final fun <get-options>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateOneModel.options.<get-options>|<get-options>(){}[0]
+    final val update // ru.workinprogress.mongkn/UpdateOneModel.update|{}update[0]
+        final fun <get-update>(): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/UpdateOneModel.update.<get-update>|<get-update>(){}[0]
+    final val upsert // ru.workinprogress.mongkn/UpdateOneModel.upsert|{}upsert[0]
+        final fun <get-upsert>(): kotlin/Boolean // ru.workinprogress.mongkn/UpdateOneModel.upsert.<get-upsert>|<get-upsert>(){}[0]
 }
 
 final class ru.workinprogress.mongkn/UpdateResult { // ru.workinprogress.mongkn/UpdateResult|null[0]

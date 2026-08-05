@@ -30,6 +30,7 @@ val specTestFiles =
         "distinct.json",
         // Веха M12.
         "aggregate.json",
+        "bulkWrite.json",
     )
 
 val specTestsDir: Provider<Directory> = layout.buildDirectory.dir("spec-tests")
