@@ -244,8 +244,97 @@ class ChangeStreamTest {
             assertTrue("ns" in event, "событие уровня базы обязано нести пространство имён")
         }
 
+    /**
+     * Заказывает серверу один сбой команды `getMore` и снимает заказ после [body].
+     *
+     * `getMore` — то, чем поток изменений добирает события после первого ответа; сломать надо
+     * именно её, а не создание потока.
+     *
+     * @param labels метки ошибки. `ResumableChangeStreamError` — единственное, что отличает
+     *   возобновляемый сбой от смертельного на сервере 4.4 и новее.
+     */
+    private suspend fun withGetMoreFailure(
+        client: MongoClient,
+        errorCode: Int,
+        labels: List<String>,
+        body: suspend () -> Unit,
+    ) {
+        val admin = client.getDatabase("admin")
+        admin.runCommand(
+            document {
+                put("configureFailPoint", "failCommand")
+                putDocument("mode") { put("times", 1) }
+                putDocument("data") {
+                    putArray("failCommands") { add("getMore") }
+                    put("errorCode", errorCode)
+                    if (labels.isNotEmpty()) putArray("errorLabels") { labels.forEach(::add) }
+                }
+            },
+        )
+        try {
+            body()
+        } finally {
+            admin.runCommand(
+                document {
+                    put("configureFailPoint", "failCommand")
+                    put("mode", "off")
+                },
+            )
+        }
+    }
+
+    @Test
+    fun `the stream resumes itself after a resumable failure`() =
+        runBlocking {
+            val collection = collection("resumable")
+            val client = clients.last()
+
+            val events = async { withTimeout(TIMEOUT) { collection.watch().take(2).toList() } }
+            delay(SETTLE)
+            collection.insertOne(document { put("n", 1) })
+            delay(SETTLE)
+
+            withGetMoreFailure(client, RESUMABLE_CODE, listOf("ResumableChangeStreamError")) {
+                delay(SETTLE)
+                collection.insertOne(document { put("n", 2) })
+
+                // Возобновление делает **сам libmongoc** — вопреки записи M-72, утверждавшей
+                // обратное. Наш код здесь ничего не предпринимает, и это проверка, что он и не
+                // должен: событие после сбоя приходит, поток не заканчивается.
+                val seen = events.await().map { (it["fullDocument"] as BsonDocument)["n"] }
+                assertEquals(listOf(BsonInt32(1), BsonInt32(2)), seen)
+            }
+        }
+
+    @Test
+    fun `a failure without the resumable label ends the stream`() =
+        runBlocking {
+            val collection = collection("not_resumable")
+            val client = clients.last()
+
+            val events = async { runCatching { withTimeout(TIMEOUT) { collection.watch().take(2).toList() } } }
+            delay(SETTLE)
+            collection.insertOne(document { put("n", 1) })
+            delay(SETTLE)
+
+            withGetMoreFailure(client, RESUMABLE_CODE, emptyList()) {
+                delay(SETTLE)
+                collection.insertOne(document { put("n", 2) })
+
+                // Оборотная сторона предыдущего теста: без метки сбой смертелен, и поток отдаёт
+                // ошибку. Без этой проверки первый тест был бы зелёным и в случае, если бы
+                // failpoint не сработал вовсе.
+                val outcome = events.await()
+                assertTrue(outcome.isFailure, "ждали ошибку потока, получили ${outcome.getOrNull()}")
+                assertTrue(outcome.exceptionOrNull() is MongoException, "ждали MongoException")
+            }
+        }
+
     private companion object {
         const val DATABASE = "mongkn_watch"
+
+        /** `NotWritablePrimary` — сервер помечает её возобновляемой, когда сам того хочет. */
+        const val RESUMABLE_CODE = 10107
 
         /** Сколько ждём события, прежде чем считать это поломкой. */
         const val TIMEOUT = 15_000L
