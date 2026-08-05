@@ -8,6 +8,9 @@
 # Использование:
 #   ci/dev-servers.sh up     — поднять и настроить
 #   ci/dev-servers.sh down   — остановить и убрать
+#
+# На x86-хосте (включая WSL2) заранее задайте MONGKN_PLATFORM=linux/amd64 — умолчание в compose
+# рассчитано на arm64, и на чужой архитектуре образы уйдут в эмуляцию.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
