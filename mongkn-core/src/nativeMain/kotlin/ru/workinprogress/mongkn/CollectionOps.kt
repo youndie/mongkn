@@ -24,20 +24,25 @@ import kotlinx.coroutines.withContext
 import mongkn.cinterop.MONGOC_QUERY_NONE
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
+import mongkn.cinterop.bson_free
 import mongkn.cinterop.bson_oid_init
 import mongkn.cinterop.bson_oid_t
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_collection
 import mongkn.cinterop.mongoc_collection_aggregate
 import mongkn.cinterop.mongoc_collection_count_documents
+import mongkn.cinterop.mongoc_collection_create_indexes_with_opts
 import mongkn.cinterop.mongoc_collection_delete_many
 import mongkn.cinterop.mongoc_collection_delete_one
 import mongkn.cinterop.mongoc_collection_destroy
+import mongkn.cinterop.mongoc_collection_drop_index_with_opts
 import mongkn.cinterop.mongoc_collection_drop_with_opts
 import mongkn.cinterop.mongoc_collection_estimated_document_count
+import mongkn.cinterop.mongoc_collection_find_indexes_with_opts
 import mongkn.cinterop.mongoc_collection_find_with_opts
 import mongkn.cinterop.mongoc_collection_insert_many
 import mongkn.cinterop.mongoc_collection_insert_one
+import mongkn.cinterop.mongoc_collection_keys_to_index_string
 import mongkn.cinterop.mongoc_collection_read_command_with_opts
 import mongkn.cinterop.mongoc_collection_read_write_command_with_opts
 import mongkn.cinterop.mongoc_collection_rename_with_opts
@@ -48,6 +53,9 @@ import mongkn.cinterop.mongoc_collection_update_one
 import mongkn.cinterop.mongoc_cursor_destroy
 import mongkn.cinterop.mongoc_cursor_error
 import mongkn.cinterop.mongoc_cursor_next
+import mongkn.cinterop.mongoc_index_model_destroy
+import mongkn.cinterop.mongoc_index_model_new
+import mongkn.cinterop.mongoc_index_model_t
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDocument
@@ -623,6 +631,135 @@ internal object CollectionOps {
                 }
             }
         }.flowOn(client.dispatcher)
+
+    /**
+     * Создаёт индексы и возвращает их имена.
+     *
+     * Идёт через `mongoc_index_model_t`, а не командой `createIndexes` через [DatabaseOps.runCommand],
+     * — вопреки записи в бэклоге, что выделенных функций у libmongoc нет. Они есть, и на обеих
+     * ветках драйвера (1.26 и 2.1.1) сигнатуры совпадают дословно.
+     *
+     * Имя индекса считается **на нашей стороне**: ответ сервера его не содержит, а официальный
+     * драйвер имя возвращает. Правило то же, что у сервера, — либо явное `name` из опций, либо
+     * склейка ключей, которую собирает сам libmongoc ([defaultIndexName]).
+     */
+    suspend fun createIndexes(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        models: List<IndexModel>,
+        opts: Document,
+    ): List<String> =
+        execute(client, databaseName, name) { collection ->
+            // Владение тройное: bson ключей, bson опций и сама модель. Модель копирует документы
+            // внутрь себя, но освобождать всё равно надо всё, и в обратном порядке.
+            val keyDocuments = models.map { it.keys.toNativeBson() }
+            val optionDocuments = models.map { it.options.toNativeBson() }
+            val handles = mutableListOf<CPointer<mongoc_index_model_t>>()
+            try {
+                for (index in models.indices) {
+                    handles +=
+                        mongoc_index_model_new(keyDocuments[index], optionDocuments[index])
+                            ?: error("mongoc_index_model_new вернул NULL")
+                }
+                val array = allocArray<CPointerVar<mongoc_index_model_t>>(handles.size)
+                handles.forEachIndexed { index, handle -> array[index] = handle }
+                withBson(opts) { options ->
+                    withReply { reply, error ->
+                        val ok =
+                            mongoc_collection_create_indexes_with_opts(
+                                collection,
+                                array,
+                                handles.size.convert(),
+                                options,
+                                reply,
+                                error,
+                            )
+                        if (!ok) fail(error)
+                    }
+                }
+                models.map { model ->
+                    (model.options["name"] as? BsonString)?.value ?: defaultIndexName(model.keys)
+                }
+            } finally {
+                handles.forEach(::mongoc_index_model_destroy)
+                optionDocuments.forEach(::bson_destroy)
+                keyDocuments.forEach(::bson_destroy)
+            }
+        }
+
+    /** Удаляет индекс по имени. `*` удаляет все, кроме обязательного индекса по `_id`. */
+    suspend fun dropIndex(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        indexName: String,
+        opts: Document,
+    ) {
+        execute(client, databaseName, name) { collection ->
+            withBson(opts) { options ->
+                val error = alloc<bson_error_t>()
+                if (!mongoc_collection_drop_index_with_opts(collection, indexName, options, error.ptr)) {
+                    fail(error.ptr)
+                }
+            }
+        }
+    }
+
+    /**
+     * Перечисляет индексы коллекции.
+     *
+     * Курсор, поэтому устроено как [find] и [aggregate], а не как обычная операция.
+     */
+    fun listIndexes(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        opts: Document,
+    ): Flow<Document> =
+        flow {
+            client.withPermit {
+                client.useClient { handle ->
+                    val collection =
+                        mongoc_client_get_collection(handle, databaseName, name)
+                            ?: error("mongoc_client_get_collection вернул NULL")
+                    try {
+                        val nativeOpts = opts.toNativeBson()
+                        try {
+                            val cursor =
+                                mongoc_collection_find_indexes_with_opts(collection, nativeOpts)
+                                    ?: error("mongoc_collection_find_indexes_with_opts вернул NULL")
+                            drainCursor(cursor)
+                        } finally {
+                            bson_destroy(nativeOpts)
+                        }
+                    } finally {
+                        mongoc_collection_destroy(collection)
+                    }
+                }
+            }
+        }.flowOn(client.dispatcher)
+
+    /**
+     * Имя, которое сервер даст индексу без явного `name`.
+     *
+     * Собирается той же функцией libmongoc, которой пользуется и сам драйвер, — повторять
+     * правило склейки (`поле_1_другое_-1`) руками значило бы завести второй источник истины.
+     * Строка приходит во владение вызывающему, освобождается `bson_free`.
+     */
+    fun defaultIndexName(keys: Document): String {
+        val native = keys.toNativeBson()
+        try {
+            val text = mongoc_collection_keys_to_index_string(native) ?: error("не удалось собрать имя индекса")
+            try {
+                return text.toKString()
+            } finally {
+                bson_free(text)
+            }
+        } finally {
+            bson_destroy(native)
+        }
+    }
 
     // --- обвязка, общая для всех операций ---------------------------------------------------
 

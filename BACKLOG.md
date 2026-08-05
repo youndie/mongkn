@@ -292,8 +292,14 @@ APM (M-39). Без spec-покрытия остались только `countDoc
 
 ## M13 — индексы
 
-- [ ] **M-56** `createIndex`, `createIndexes`, `dropIndex`, `dropIndexes`, `listIndexes`.
-      В libmongoc это команды, а не отдельные функции, — значит зависит от M-51
+- [x] **M-56** `createIndex`, `createIndexes`, `dropIndex`, `dropIndexByKeys`, `dropIndexes`,
+      `listIndexes`. **Запись про зависимость от M-51 была неверна**: выделенные функции
+      у libmongoc есть (`mongoc_index_model_new`, `mongoc_collection_create_indexes_with_opts`,
+      `mongoc_collection_drop_index_with_opts`, `mongoc_collection_find_indexes_with_opts`),
+      и на обеих ветках драйвера их сигнатуры совпадают дословно — `runCommand` не понадобился.
+      Имя индекса считается на нашей стороне: ответ сервера его не содержит, а официальный драйвер
+      имя возвращает. Правило берётся не своё, а libmongoc'овское — `mongoc_collection_keys_to_index_string`,
+      иначе склейка `поле_1_другое_-1` стала бы вторым источником истины
 - [ ] **M-57** Поисковые индексы Atlas (`createSearchIndex` и соседи) — решить, нужны ли вообще:
       работают только в Atlas, локальным mongod не проверяются
 

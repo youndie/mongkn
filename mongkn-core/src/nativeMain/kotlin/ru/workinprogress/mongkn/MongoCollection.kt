@@ -250,6 +250,58 @@ public class MongoCollection<T> internal constructor(
         filter: Document = BsonDocument(),
     ): List<BsonValue> = CollectionOps.distinct(client, databaseName, name, field, filter)
 
+    /**
+     * Создаёт индекс и возвращает его имя.
+     *
+     * @param keys `{"поле": 1}` по возрастанию, `-1` по убыванию; значением может быть и строка
+     *   (`"text"`, `"2dsphere"`, `"hashed"`).
+     * @param options настройки индекса — `unique`, `sparse`, `expireAfterSeconds`, `name`
+     *   и прочие ключи команды `createIndexes`.
+     */
+    public suspend fun createIndex(
+        keys: Document,
+        options: Document = BsonDocument(),
+    ): String = createIndexes(listOf(IndexModel(keys, options))).single()
+
+    /**
+     * Создаёт несколько индексов за один заход и возвращает их имена в том же порядке.
+     *
+     * Индексы с одинаковыми ключами, но разными опциями сервер считает конфликтом и отвергает
+     * весь вызов целиком: частичного успеха здесь не бывает.
+     */
+    public suspend fun createIndexes(
+        indexes: List<IndexModel>,
+        options: Document = BsonDocument(),
+    ): List<String> = CollectionOps.createIndexes(client, databaseName, name, indexes, opts(options))
+
+    /** Удаляет индекс по имени. */
+    public suspend fun dropIndex(
+        indexName: String,
+        options: Document = BsonDocument(),
+    ): Unit = CollectionOps.dropIndex(client, databaseName, name, indexName, opts(options))
+
+    /**
+     * Удаляет индекс по его ключам.
+     *
+     * Имя выводится из ключей по правилу сервера. Если индекс создавался с явным `name`,
+     * этот вызов его **не найдёт** — удаляйте по имени.
+     */
+    public suspend fun dropIndexByKeys(
+        keys: Document,
+        options: Document = BsonDocument(),
+    ): Unit = dropIndex(CollectionOps.defaultIndexName(keys), options)
+
+    /**
+     * Удаляет все индексы коллекции, кроме обязательного по `_id`.
+     *
+     * Его снять нельзя — это ограничение сервера, а не наше.
+     */
+    public suspend fun dropIndexes(options: Document = BsonDocument()): Unit = dropIndex("*", options)
+
+    /** Перечисляет индексы коллекции — по документу на каждый, как их отдаёт сервер. */
+    public fun listIndexes(options: Document = BsonDocument()): Flow<Document> =
+        CollectionOps.listIndexes(client, databaseName, name, opts(options))
+
     /** Удаляет коллекцию целиком. */
     public suspend fun drop(): Unit = CollectionOps.drop(client, databaseName, name)
 

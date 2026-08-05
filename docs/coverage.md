@@ -15,17 +15,18 @@ date: 2026-08-05
 вообще работала — cinterop, память, потоки, BSON, маппинг классов, публикация, CI, — сделано
 и проверено. Операций реализована половина, и почти все они под официальным spec-покрытием.
 
-## Операции коллекции — 16 из 30
+## Операции коллекции — 21 из 30
 
 | Реализовано | Нет |
 |---|---|
 | `insertOne`, `insertMany` | `bulkWrite` |
 | `updateOne`, `updateMany`, `replaceOne` | `mapReduce` (объявлен устаревшим) |
 | `deleteOne`, `deleteMany` | `watch` |
-| `find`, `countDocuments`, `estimatedDocumentCount` | индексы: `createIndex(es)`, `dropIndex(es)`, `listIndexes` |
-| `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
+| `find`, `countDocuments`, `estimatedDocumentCount` | |
+| `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы Atlas: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
 | `distinct`, `drop`, `renameCollection` | |
 | `aggregate` | |
+| индексы: `createIndex`, `createIndexes`, `dropIndex`, `dropIndexByKeys`, `dropIndexes`, `listIndexes` | |
 
 Каждая операция принимает параметр `options: Document` — туда уходит всё, что libmongoc
 берёт документом опций: `collation`, `hint`, `comment`, `let`, `bypassDocumentValidation`.
@@ -86,7 +87,7 @@ date: 2026-08-05
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
 | Соответствие спецификации | **45** официальных сценариев MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 134 теста на двух платформах, ABI-валидация, ktlint в гейте |
+| Проверки | 146 тестов на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 
