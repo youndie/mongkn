@@ -28,12 +28,20 @@ import mongkn.cinterop.bson_oid_t
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_collection
 import mongkn.cinterop.mongoc_collection_count_documents
+import mongkn.cinterop.mongoc_collection_delete_many
 import mongkn.cinterop.mongoc_collection_delete_one
 import mongkn.cinterop.mongoc_collection_destroy
+import mongkn.cinterop.mongoc_collection_drop_with_opts
+import mongkn.cinterop.mongoc_collection_estimated_document_count
 import mongkn.cinterop.mongoc_collection_find_with_opts
 import mongkn.cinterop.mongoc_collection_insert_many
 import mongkn.cinterop.mongoc_collection_insert_one
+import mongkn.cinterop.mongoc_collection_read_command_with_opts
+import mongkn.cinterop.mongoc_collection_read_write_command_with_opts
+import mongkn.cinterop.mongoc_collection_rename_with_opts
+import mongkn.cinterop.mongoc_collection_replace_one
 import mongkn.cinterop.mongoc_collection_t
+import mongkn.cinterop.mongoc_collection_update_many
 import mongkn.cinterop.mongoc_collection_update_one
 import mongkn.cinterop.mongoc_cursor_destroy
 import mongkn.cinterop.mongoc_cursor_error
@@ -44,6 +52,7 @@ import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonInt64
 import ru.workinprogress.mongkn.bson.BsonObjectId
+import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.toDocument
@@ -188,6 +197,277 @@ internal object CollectionOps {
                 withReply { reply, error ->
                     if (!mongoc_collection_delete_one(collection, selector, null, reply, error)) fail(error)
                     DeleteResult(reply.toDocument().count("deletedCount"))
+                }
+            }
+        }
+
+    suspend fun updateMany(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        update: Document,
+        upsert: Boolean,
+    ): UpdateResult =
+        execute(client, databaseName, name) { collection ->
+            withBson(filter) { selector ->
+                withBson(update) { modification ->
+                    withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
+                        withReply { reply, error ->
+                            val ok =
+                                mongoc_collection_update_many(
+                                    collection,
+                                    selector,
+                                    modification,
+                                    opts,
+                                    reply,
+                                    error,
+                                )
+                            if (!ok) fail(error)
+                            reply.toDocument().toUpdateResult()
+                        }
+                    }
+                }
+            }
+        }
+
+    /**
+     * Заменяет документ целиком.
+     *
+     * От [updateOne] отличается тем, что второй аргумент — не операторы обновления, а новое
+     * содержимое. Документ с `$`-ключами сервер здесь отвергнет, и это его правило, а не наше:
+     * ошибку отдаём как есть, не подменяя своей.
+     */
+    suspend fun replaceOne(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        replacement: Document,
+        upsert: Boolean,
+    ): UpdateResult =
+        execute(client, databaseName, name) { collection ->
+            withBson(filter) { selector ->
+                withBson(replacement) { document ->
+                    withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
+                        withReply { reply, error ->
+                            val ok =
+                                mongoc_collection_replace_one(
+                                    collection,
+                                    selector,
+                                    document,
+                                    opts,
+                                    reply,
+                                    error,
+                                )
+                            if (!ok) fail(error)
+                            reply.toDocument().toUpdateResult()
+                        }
+                    }
+                }
+            }
+        }
+
+    suspend fun deleteMany(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+    ): DeleteResult =
+        execute(client, databaseName, name) { collection ->
+            withBson(filter) { selector ->
+                withReply { reply, error ->
+                    if (!mongoc_collection_delete_many(collection, selector, null, reply, error)) fail(error)
+                    DeleteResult(reply.toDocument().count("deletedCount"))
+                }
+            }
+        }
+
+    /**
+     * Оценка числа документов по метаданным коллекции.
+     *
+     * Не то же самое, что [countDocuments]: точного подсчёта не делает, зато не сканирует.
+     * Официальный драйвер держит обе операции по той же причине.
+     */
+    suspend fun estimatedDocumentCount(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+    ): Long =
+        execute(client, databaseName, name) { collection ->
+            withReply { reply, error ->
+                val count = mongoc_collection_estimated_document_count(collection, null, null, reply, error)
+                if (count < 0) fail(error)
+                count
+            }
+        }
+
+    suspend fun drop(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+    ) {
+        execute(client, databaseName, name) { collection ->
+            val error = alloc<bson_error_t>()
+            if (!mongoc_collection_drop_with_opts(collection, null, error.ptr)) fail(error.ptr)
+        }
+    }
+
+    suspend fun rename(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        newName: String,
+        dropTarget: Boolean,
+    ) {
+        execute(client, databaseName, name) { collection ->
+            val error = alloc<bson_error_t>()
+            val ok =
+                mongoc_collection_rename_with_opts(
+                    collection,
+                    databaseName,
+                    newName,
+                    dropTarget,
+                    null,
+                    error.ptr,
+                )
+            if (!ok) fail(error.ptr)
+        }
+    }
+
+    /**
+     * Общая реализация `findOneAnd*`.
+     *
+     * Идёт командой `findAndModify`, а не через `mongoc_find_and_modify_opts_t`: структура опций
+     * потребовала бы отдельного набора сеттеров под каждый флаг, тогда как команда — это тот же
+     * документ, который мы и так умеем собирать.
+     *
+     * Возвращает `null`, когда под фильтр ничего не подошло: сервер кладёт в `value` BSON-null,
+     * и отличить «не нашли» от «нашли пустой документ» можно только так.
+     */
+    private suspend fun findAndModify(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        body: List<Pair<String, BsonValue>>,
+    ): Document? =
+        execute(client, databaseName, name) { collection ->
+            val command = BsonDocument(listOf<Pair<String, BsonValue>>("findAndModify" to BsonString(name)) + body)
+            withBson(command) { payload ->
+                withReply { reply, error ->
+                    val ok =
+                        mongoc_collection_read_write_command_with_opts(
+                            collection,
+                            payload,
+                            null,
+                            null,
+                            reply,
+                            error,
+                        )
+                    if (!ok) fail(error)
+                    reply.toDocument()["value"] as? BsonDocument
+                }
+            }
+        }
+
+    suspend fun findOneAndUpdate(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        update: Document,
+        returnDocument: ReturnDocument,
+        upsert: Boolean,
+        sort: Document?,
+        projection: Document?,
+    ): Document? =
+        findAndModify(
+            client,
+            databaseName,
+            name,
+            listOfNotNull(
+                "query" to filter,
+                "update" to update,
+                "new" to BsonBoolean(returnDocument == ReturnDocument.AFTER),
+                "upsert" to BsonBoolean(upsert),
+                sort?.let { "sort" to it },
+                // Команда зовёт проекцию `fields`, а не `projection`: имя историческое.
+                projection?.let { "fields" to it },
+            ),
+        )
+
+    suspend fun findOneAndReplace(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        replacement: Document,
+        returnDocument: ReturnDocument,
+        upsert: Boolean,
+        sort: Document?,
+        projection: Document?,
+    ): Document? =
+        findAndModify(
+            client,
+            databaseName,
+            name,
+            listOfNotNull(
+                "query" to filter,
+                "update" to replacement,
+                "new" to BsonBoolean(returnDocument == ReturnDocument.AFTER),
+                "upsert" to BsonBoolean(upsert),
+                sort?.let { "sort" to it },
+                // Команда зовёт проекцию `fields`, а не `projection`: имя историческое.
+                projection?.let { "fields" to it },
+            ),
+        )
+
+    suspend fun findOneAndDelete(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        sort: Document?,
+        projection: Document?,
+    ): Document? =
+        findAndModify(
+            client,
+            databaseName,
+            name,
+            listOfNotNull(
+                "query" to filter,
+                "remove" to BsonBoolean(true),
+                sort?.let { "sort" to it },
+                projection?.let { "fields" to it },
+            ),
+        )
+
+    /**
+     * Уникальные значения поля.
+     *
+     * Отдельной функции у libmongoc нет — только команда `distinct`. Поэтому здесь первый
+     * в проекте вызов через `read_command_with_opts`; на нём же потом встанет `runCommand` (M-51).
+     */
+    suspend fun distinct(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        field: String,
+        filter: Document,
+    ): List<BsonValue> =
+        execute(client, databaseName, name) { collection ->
+            val command =
+                BsonDocument(
+                    "distinct" to BsonString(name),
+                    "key" to BsonString(field),
+                    "query" to filter,
+                )
+            withBson(command) { payload ->
+                withReply { reply, error ->
+                    if (!mongoc_collection_read_command_with_opts(collection, payload, null, null, reply, error)) {
+                        fail(error)
+                    }
+                    (reply.toDocument()["values"] as? BsonArray)?.values.orEmpty()
                 }
             }
         }
@@ -374,6 +654,14 @@ internal object CollectionOps {
             null -> 0L
             else -> error("в ответе сервера поле \"$key\" не число: $value")
         }
+
+    /** Ответы `update_one`, `update_many` и `replace_one` устроены одинаково. */
+    private fun BsonDocument.toUpdateResult(): UpdateResult =
+        UpdateResult(
+            matchedCount = count("matchedCount"),
+            modifiedCount = count("modifiedCount"),
+            upsertedId = this["upsertedId"],
+        )
 
     private fun BsonDocument.required(key: String): BsonValue =
         this[key] ?: error("в ответе сервера нет поля \"$key\": $this")

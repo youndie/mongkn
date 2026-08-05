@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.toList
 import ru.workinprogress.mongkn.MongoClient
 import ru.workinprogress.mongkn.MongoCollection
 import ru.workinprogress.mongkn.MongoException
+import ru.workinprogress.mongkn.ReturnDocument
+import ru.workinprogress.mongkn.UpdateResult
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDateTime
@@ -293,6 +295,71 @@ class SpecTestRunner(
                 )
             }
 
+            "updateMany" -> {
+                collection
+                    .updateMany(
+                        arguments.documentOf("filter"),
+                        arguments.documentOf("update"),
+                        upsert = arguments.flagOf("upsert", default = false),
+                    ).toResult()
+            }
+
+            "replaceOne" -> {
+                collection
+                    .replaceOne(
+                        arguments.documentOf("filter"),
+                        arguments.documentOf("replacement"),
+                        upsert = arguments.flagOf("upsert", default = false),
+                    ).toResult()
+            }
+
+            "deleteMany" -> {
+                BsonDocument(
+                    "deletedCount" to
+                        BsonInt32(collection.deleteMany(arguments.documentOf("filter")).deletedCount.toInt()),
+                )
+            }
+
+            // Сценарии ждут сам документ, а не обёртку; отсутствие совпадения — BSON-null.
+            "findOneAndUpdate" -> {
+                collection.findOneAndUpdate(
+                    arguments.documentOf("filter"),
+                    arguments.documentOf("update"),
+                    arguments.returnDocument(),
+                    upsert = arguments.flagOf("upsert", default = false),
+                    sort = arguments["sort"] as? BsonDocument,
+                    projection = arguments["projection"] as? BsonDocument,
+                ) ?: BsonNull
+            }
+
+            "findOneAndReplace" -> {
+                collection.findOneAndReplace(
+                    arguments.documentOf("filter"),
+                    arguments.documentOf("replacement"),
+                    arguments.returnDocument(),
+                    upsert = arguments.flagOf("upsert", default = false),
+                    sort = arguments["sort"] as? BsonDocument,
+                    projection = arguments["projection"] as? BsonDocument,
+                ) ?: BsonNull
+            }
+
+            "findOneAndDelete" -> {
+                collection.findOneAndDelete(arguments.documentOf("filter")) ?: BsonNull
+            }
+
+            "distinct" -> {
+                BsonArray(
+                    collection.distinct(
+                        (arguments["fieldName"] as? BsonString)?.value ?: error("distinct без fieldName"),
+                        arguments.documentOf("filter"),
+                    ),
+                )
+            }
+
+            "estimatedDocumentCount" -> {
+                BsonInt64(collection.estimatedDocumentCount())
+            }
+
             "find" -> {
                 var query = collection.find(arguments.documentOf("filter"))
                 arguments.intOf("skip")?.let { query = query.skip(it) }
@@ -362,6 +429,20 @@ class SpecTestRunner(
     private fun BsonDocument.stringOf(key: String): String =
         (this[key] as? BsonString)?.value ?: error("ожидалась строка в поле \"$key\": $this")
 
+    private fun BsonDocument.returnDocument(): ReturnDocument =
+        if ((this["returnDocument"] as? BsonString)?.value == "After") ReturnDocument.AFTER else ReturnDocument.BEFORE
+
+    private fun UpdateResult.toResult(): BsonDocument {
+        val base =
+            BsonDocument(
+                "matchedCount" to BsonInt32(matchedCount.toInt()),
+                "modifiedCount" to BsonInt32(modifiedCount.toInt()),
+                "upsertedCount" to BsonInt32(if (upsertedId == null) 0 else 1),
+            )
+        val id = upsertedId ?: return base
+        return BsonDocument(base.entries + ("upsertedId" to id))
+    }
+
     private fun BsonDocument.flagOf(
         key: String,
         default: Boolean,
@@ -389,6 +470,14 @@ class SpecTestRunner(
                 "deleteOne" to setOf("filter"),
                 "find" to setOf("filter", "limit", "skip", "sort", "batchSize"),
                 "countDocuments" to setOf("filter"),
+                "updateMany" to setOf("filter", "update", "upsert"),
+                "replaceOne" to setOf("filter", "replacement", "upsert"),
+                "deleteMany" to setOf("filter"),
+                "findOneAndUpdate" to setOf("filter", "update", "returnDocument", "upsert", "sort", "projection"),
+                "findOneAndReplace" to setOf("filter", "replacement", "returnDocument", "upsert", "sort", "projection"),
+                "findOneAndDelete" to setOf("filter", "sort", "projection"),
+                "distinct" to setOf("fieldName", "filter"),
+                "estimatedDocumentCount" to emptySet(),
             )
     }
 }

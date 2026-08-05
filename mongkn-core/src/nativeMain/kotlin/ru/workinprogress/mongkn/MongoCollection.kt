@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.KSerializer
 import ru.workinprogress.mongkn.bson.BsonDocument
+import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.decodeFromDocument
 import ru.workinprogress.mongkn.bson.encodeToDocument
@@ -90,6 +91,105 @@ public class MongoCollection<T> internal constructor(
         update: Document,
         upsert: Boolean = false,
     ): UpdateResult = CollectionOps.updateOne(client, databaseName, name, filter, update, upsert)
+
+    /**
+     * Обновляет **все** документы, подходящие под фильтр.
+     *
+     * @param upsert `true` — создать документ, если под фильтр ничего не подошло.
+     */
+    public suspend fun updateMany(
+        filter: Document,
+        update: Document,
+        upsert: Boolean = false,
+    ): UpdateResult = CollectionOps.updateMany(client, databaseName, name, filter, update, upsert)
+
+    /**
+     * Заменяет документ целиком.
+     *
+     * [replacement] — новое содержимое, а не операторы обновления: `$`-ключи здесь отвергнет
+     * сервер. У официального драйвера это тоже отдельная операция, а не режим `updateOne`.
+     */
+    public suspend fun replaceOne(
+        filter: Document,
+        replacement: T,
+        upsert: Boolean = false,
+    ): UpdateResult = CollectionOps.replaceOne(client, databaseName, name, filter, toDocument(replacement), upsert)
+
+    /** Удаляет **все** документы, подходящие под фильтр. */
+    public suspend fun deleteMany(filter: Document): DeleteResult =
+        CollectionOps.deleteMany(client, databaseName, name, filter)
+
+    /**
+     * Находит документ, изменяет его и возвращает — до или после изменения.
+     *
+     * `null` означает, что под фильтр ничего не подошло.
+     */
+    public suspend fun findOneAndUpdate(
+        filter: Document,
+        update: Document,
+        returnDocument: ReturnDocument = ReturnDocument.BEFORE,
+        upsert: Boolean = false,
+        sort: Document? = null,
+        projection: Document? = null,
+    ): T? =
+        CollectionOps
+            .findOneAndUpdate(client, databaseName, name, filter, update, returnDocument, upsert, sort, projection)
+            ?.let(::fromDocument)
+
+    /** То же, но документ заменяется целиком. */
+    public suspend fun findOneAndReplace(
+        filter: Document,
+        replacement: T,
+        returnDocument: ReturnDocument = ReturnDocument.BEFORE,
+        upsert: Boolean = false,
+        sort: Document? = null,
+        projection: Document? = null,
+    ): T? =
+        CollectionOps
+            .findOneAndReplace(
+                client,
+                databaseName,
+                name,
+                filter,
+                toDocument(replacement),
+                returnDocument,
+                upsert,
+                sort,
+                projection,
+            )?.let(::fromDocument)
+
+    /** Находит документ, удаляет его и возвращает. `null` — ничего не подошло. */
+    public suspend fun findOneAndDelete(
+        filter: Document,
+        sort: Document? = null,
+        projection: Document? = null,
+    ): T? = CollectionOps.findOneAndDelete(client, databaseName, name, filter, sort, projection)?.let(::fromDocument)
+
+    /**
+     * Оценка числа документов по метаданным коллекции.
+     *
+     * Быстрее [countDocuments], но неточна и фильтр не принимает — так устроена сама операция.
+     */
+    public suspend fun estimatedDocumentCount(): Long = CollectionOps.estimatedDocumentCount(client, databaseName, name)
+
+    /** Уникальные значения поля среди подходящих документов. */
+    public suspend fun distinct(
+        field: String,
+        filter: Document = BsonDocument(),
+    ): List<BsonValue> = CollectionOps.distinct(client, databaseName, name, field, filter)
+
+    /** Удаляет коллекцию целиком. */
+    public suspend fun drop(): Unit = CollectionOps.drop(client, databaseName, name)
+
+    /**
+     * Переименовывает коллекцию **в той же базе**.
+     *
+     * @param dropTarget `true` — снести коллекцию с новым именем, если она есть.
+     */
+    public suspend fun renameCollection(
+        newName: String,
+        dropTarget: Boolean = false,
+    ): Unit = CollectionOps.rename(client, databaseName, name, newName, dropTarget)
 
     /** Удаляет **один** документ, подходящий под фильтр. */
     public suspend fun deleteOne(filter: Document): DeleteResult =

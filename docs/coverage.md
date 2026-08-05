@@ -11,22 +11,20 @@ date: 2026-08-04
 подсчётом по jar официального драйвера `mongodb-driver-kotlin-coroutine` 5.9.1 (`javap`),
 а не на глаз.
 
-Короткий ответ: **вертикаль готова, горизонталь — нет.** Всё, что нужно, чтобы операция
+Короткий ответ: **вертикаль готова, горизонталь наполовину.** Всё, что нужно, чтобы операция
 вообще работала — cinterop, память, потоки, BSON, маппинг классов, публикация, CI, — сделано
-и проверено. Самих операций реализовано около пятой части.
+и проверено. Операций реализована половина, и почти все они под официальным spec-покрытием.
 
-## Операции коллекции — 6 из 30
+## Операции коллекции — 15 из 30
 
 | Реализовано | Нет |
 |---|---|
 | `insertOne`, `insertMany` | `bulkWrite` |
-| `updateOne` | `updateMany`, `replaceOne` |
-| `deleteOne` | `deleteMany` |
-| `find`, `countDocuments` | `estimatedDocumentCount`, `distinct`, `aggregate`, `mapReduce` |
-| | `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` |
-| | `drop`, `renameCollection`, `watch` |
-| | индексы: `createIndex(es)`, `dropIndex(es)`, `listIndexes` |
-| | поисковые индексы: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
+| `updateOne`, `updateMany`, `replaceOne` | `aggregate`, `mapReduce` |
+| `deleteOne`, `deleteMany` | `watch` |
+| `find`, `countDocuments`, `estimatedDocumentCount` | индексы: `createIndex(es)`, `dropIndex(es)`, `listIndexes` |
+| `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
+| `distinct`, `drop`, `renameCollection` | |
 
 **Настроек коллекции нет вовсе** (13 методов у официального): `withReadConcern`,
 `withWriteConcern`, `withReadPreference`, `withTimeout`, `withCodecRegistry`, `withDocumentClass`
@@ -58,7 +56,8 @@ date: 2026-08-04
 * **Транзакции и сессии** — `ClientSession` не реализован; у официального драйвера он есть
   перегрузкой у каждой операции.
 * **Change streams** (`watch`) — требуют курсора с иным жизненным циклом.
-* **Мониторинг команд (APM)** — из-за этого 8 официальных spec-сценариев пропускаются (M-39).
+* **Мониторинг команд (APM)** — из-за этого 8 официальных spec-сценариев пропускаются (M-39),
+  и это **единственная** оставшаяся причина пропусков.
 * **GridFS**, **client-side field level encryption**, **агрегации**.
 
 ## Что зато сделано целиком
@@ -72,9 +71,9 @@ date: 2026-08-04
 | Маппинг классов | `kotlinx.serialization`, свой древесный формат |
 | Эргономика | infix-DSL с проверкой имён полей |
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
-| Соответствие спецификации | 14 официальных сценариев MongoDB, 5 операций из 6 |
+| Соответствие спецификации | **44** официальных сценария MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 111 тестов на двух платформах, ABI-валидация |
+| Проверки | 123 теста на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 

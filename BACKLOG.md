@@ -214,25 +214,27 @@ Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
 
 ---
 
-## M9 — операции по образцу существующих
+## M9 — операции по образцу существующих ✅
 
-Самая дешёвая часть оставшегося: каждая операция — это ~15 строк в `CollectionOps` по образцу
-соседей плюс метод в `MongoCollection`. Ставится первой не потому, что важнее, а потому что
-без неё библиотекой нельзя пользоваться в обычных задачах.
+- [x] **M-41** `deleteMany`, `updateMany`
+- [x] **M-42** `replaceOne` — замена целиком, а не операторы обновления; `$`-ключи отвергает
+      сервер, и его ошибка доходит до вызывающего как есть (проверено тестом)
+- [x] **M-43** `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` — вместе с `sort`
+      и `projection`. Сделаны **командой** `findAndModify`, а не через `mongoc_find_and_modify_opts_t`:
+      структура опций потребовала бы набора сеттеров под каждый флаг, а команда — тот же документ
+- [x] **M-44** `estimatedDocumentCount`
+- [x] **M-45** `distinct` — отдельной функции у libmongoc нет, только команда. На этом же
+      механизме (`read_command_with_opts`) потом встанет `runCommand` (M-51)
+- [x] **M-46** `drop` и `renameCollection`
 
-- [ ] **M-41** `deleteMany`, `updateMany` — `mongoc_collection_delete_many`,
-      `_update_many`; результаты те же `DeleteResult` / `UpdateResult`
-- [ ] **M-42** `replaceOne` — `mongoc_collection_replace_one`; отличается от `updateOne` тем,
-      что второй документ не операторы обновления, а замена целиком. Проверить, что `$`-ключи
-      в нём отвергаются сервером, и не выдавать это за нашу ошибку
-- [ ] **M-43** `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` — через
-      `mongoc_collection_find_and_modify_with_opts`. Возвращают **документ**, а не счётчики;
-      важна опция «до или после изменения»
-- [ ] **M-44** `estimatedDocumentCount` — `mongoc_collection_estimated_document_count`.
-      Разблокирует 3 официальных spec-сценария (сейчас файл отсеивается целиком)
-- [ ] **M-45** `distinct` — `mongoc_collection_read_command_with_opts` или `_distinct`;
-      возвращает массив значений, то есть первый случай, где результат не документ
-- [ ] **M-46** `drop` у коллекции и `renameCollection`
+**Итог M9.** Операций стало 15 из 30 вместо 6 — половина. Официальное spec-покрытие выросло
+**с 14 сценариев до 44**, и все оставшиеся пропуски теперь одного сорта: `expectEvents`, то есть
+APM (M-39). Без spec-покрытия остались только `countDocuments` и `estimatedDocumentCount` —
+простых файлов под них в наборе нет.
+
+**Поправка к плану.** У M-44 было записано «разблокирует 3 официальных сценария» — это оказалось
+неверно: все шесть сценариев `estimatedDocumentCount.json` требуют `expectEvents`, и реализация
+операции их не разблокировала. Проверять надо было по содержимому файла, а не по его имени.
 
 ## M10 — опции операций
 

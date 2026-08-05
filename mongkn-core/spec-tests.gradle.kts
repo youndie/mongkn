@@ -20,6 +20,14 @@ val specTestFiles =
         "updateOne.json",
         "find.json",
         "estimatedDocumentCount.json",
+        // Веха M9: официальные сценарии для операций, добавленных по образцу существующих.
+        "deleteMany.json",
+        "updateMany.json",
+        "replaceOne.json",
+        "findOneAndUpdate.json",
+        "findOneAndDelete.json",
+        "findOneAndReplace.json",
+        "distinct.json",
     )
 
 val specTestsDir: Provider<Directory> = layout.buildDirectory.dir("spec-tests")
