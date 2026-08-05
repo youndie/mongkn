@@ -6,6 +6,9 @@ import kotlinx.cinterop.allocPointerTo
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -42,9 +45,9 @@ import ru.workinprogress.mongkn.support.TestServer
  * ./gradlew :mongkn-core:runBenchmarkReleaseExecutableMacosArm64
  * ```
  *
- * Что здесь **не** измеряется, чтобы числа не читались шире, чем есть: конкурентная нагрузка,
- * поведение под многими клиентами, крупные документы, сеть с задержкой. Сервер — локальный,
- * в контейнере, то есть сетевая часть занижена относительно любой настоящей установки.
+ * Что здесь **не** измеряется, чтобы числа не читались шире, чем есть: крупные документы,
+ * потребление памяти, сеть с задержкой. Сервер — локальный, в контейнере, то есть сетевая часть
+ * занижена относительно любой настоящей установки.
  */
 @Serializable
 private data class Person(
@@ -72,6 +75,10 @@ fun main() {
         insertBenchmarks(client, sample)
         findBenchmarks(client, sample)
         codecBenchmarks(sample)
+        runBlocking { client.getDatabase(DATABASE).drop() }
+    }
+    concurrencyBenchmarks()
+    MongoClient(TestServer.uri()).use { client ->
         runBlocking { client.getDatabase(DATABASE).drop() }
     }
 }
@@ -204,6 +211,71 @@ private fun findBenchmarks(
     println("  (на операцию раунда приходится $documents документов)")
     Bench.compare("проход по $documents документам", "курсор C + toDocument", floor, "mongkn Flow", viaApi)
 }
+
+/**
+ * Конкурентная нагрузка: как пропускная способность зависит от числа корутин и потоков.
+ *
+ * Проверяет гипотезу, которую больше нечем проверить: разрешений семафора по умолчанию **сто**
+ * ([MongoClient.DEFAULT_MAX_CONCURRENT_CLIENTS]), а потоков под блокирующие вызовы — **четыре**
+ * ([MongoClient.DEFAULT_IO_THREADS]). Вызов libmongoc блокирующий, значит одновременно их может
+ * идти столько, сколько потоков, а не сколько разрешений. Если это так, конкурентность выше
+ * четырёх при умолчаниях не даёт ничего, и настоящая ручка — `ioThreads`, а не пул клиентов.
+ *
+ * Отдельно проверяется, что превышение числа разрешений не ломает ничего: до появления семафора
+ * исчерпание пула означало неотменяемую блокировку внутри C (§1.12 ресёрча).
+ *
+ * Корутины-заказчики крутятся на одном потоке `runBlocking`. Это не искажает результат:
+ * они почти всё время ждут, а работа уходит на пул потоков клиента.
+ */
+private fun concurrencyBenchmarks() {
+    val operations = 2_000
+    Bench.section("Конкурентная нагрузка ($operations вставок, распределённых по корутинам)")
+
+    fun run(
+        label: String,
+        ioThreads: Int,
+        concurrency: Int,
+        maxClients: Int = MongoClient.DEFAULT_MAX_CONCURRENT_CLIENTS,
+    ) {
+        MongoClient(TestServer.uri(), ioThreads = ioThreads, maxConcurrentClients = maxClients).use { client ->
+            val collection = client.getDatabase(DATABASE).getCollection("load")
+            val perCoroutine = operations / concurrency
+            val result =
+                Bench.measure(perCoroutine * concurrency, rounds = 3) {
+                    runBlocking {
+                        coroutineScope {
+                            (0 until concurrency)
+                                .map {
+                                    async { repeat(perCoroutine) { collection.insertOne(sampleDocument()) } }
+                                }.awaitAll()
+                        }
+                    }
+                }
+            val perSecond = (1_000_000.0 / result.perOperation).toLong()
+            println("    $label: $result -> $perSecond оп/с")
+        }
+    }
+
+    println("  потоков 4 (умолчание), растёт число корутин:")
+    for (concurrency in listOf(1, 2, 4, 8, 16, 32)) {
+        run("корутин ${concurrency.toString().padStart(2)}", ioThreads = 4, concurrency = concurrency)
+    }
+
+    println("  корутин 32, растёт число потоков:")
+    for (threads in listOf(1, 2, 4, 8, 16, 32)) {
+        run("потоков ${threads.toString().padStart(2)}", ioThreads = threads, concurrency = 32)
+    }
+
+    println("  корутин 64 при 8 разрешениях — семафор обязан выстроить очередь, а не сломаться:")
+    run("разрешений 8", ioThreads = 16, concurrency = 64, maxClients = 8)
+}
+
+private fun sampleDocument(): Document =
+    document {
+        put("name", "Ада")
+        put("born", 1815)
+        put("city", "Лондон")
+    }
 
 /** Работа с BSON без сервера: здесь надбавка видна в чистом виде, а не тонет в сетевом времени. */
 @OptIn(ExperimentalForeignApi::class)
