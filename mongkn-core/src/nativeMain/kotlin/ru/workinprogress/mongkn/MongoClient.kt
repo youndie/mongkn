@@ -22,6 +22,8 @@ import mongkn.cinterop.mongoc_client_pool_t
 import mongkn.cinterop.mongoc_client_t
 import mongkn.cinterop.mongoc_uri_destroy
 import mongkn.cinterop.mongoc_uri_new_with_error
+import ru.workinprogress.mongkn.bson.BsonDocument
+import ru.workinprogress.mongkn.bson.Document
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -124,17 +126,30 @@ public class MongoClient(
     /** Имена баз на сервере. */
     public suspend fun listDatabaseNames(): List<String> = DatabaseOps.listDatabaseNames(this)
 
-/*
- * Уничтожает пул и снимает инициализацию драйвера.
- *
- * `mongoc_client_pool_destroy` — единственная непотокобезопасная операция пула, поэтому
- * закрывать клиента можно только из одного потока и только после того, как завершены все
- * операции. Повторный вызов ничего не делает.
- *
- * [Mongkn.shutdown] отсюда **не** вызывается: он терминальный на весь процесс, и после него
- * ни один новый [MongoClient] не заработает. Закрытие одного клиента не должно ронять
- * остальные.
- */
+    /**
+     * Подписка на изменения всего развёртывания — всех баз сразу.
+     *
+     * Бесконечный поток со всеми оговорками из [ChangeStreamFlow]; в частности, занимает
+     * собственный поток на всё своё время.
+     */
+    public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
+        ChangeStreamFlow(
+            source = { stages, options -> DatabaseOps.watch(this, null, stages, options) },
+            pipeline = pipeline,
+            opts = BsonDocument(),
+        )
+
+    /**
+     * Уничтожает пул и снимает инициализацию драйвера.
+     *
+     * `mongoc_client_pool_destroy` — единственная непотокобезопасная операция пула, поэтому
+     * закрывать клиента можно только из одного потока и только после того, как завершены все
+     * операции. Повторный вызов ничего не делает.
+     *
+     * [Mongkn.shutdown] отсюда **не** вызывается: он терминальный на весь процесс, и после него
+     * ни один новый [MongoClient] не заработает. Закрытие одного клиента не должно ронять
+     * остальные.
+     */
     override fun close() {
         if (closed.compareAndSet(expectedValue = false, newValue = true)) {
             dispatcher.close()
@@ -204,6 +219,11 @@ public class MongoClient(
          *
          * Намеренно меньше, чем [DEFAULT_MAX_CONCURRENT_CLIENTS]: клиент занят всё время жизни
          * курсора, а поток — только пока идёт сам вызов, так что клиентов нужно больше.
+         *
+         * **Подписки сюда не попадают.** У `watch` вызов блокируется всё время жизни подписки,
+         * а не на время одного обращения, поэтому четыре подписки исчерпали бы этот пул целиком
+         * и остановили всё остальное. Каждая подписка получает собственный поток —
+         * см. [ChangeStreamFlow].
          */
         public const val DEFAULT_IO_THREADS: Int = 4
 

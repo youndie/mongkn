@@ -17,9 +17,13 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.set
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.value
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import mongkn.cinterop.MONGOC_QUERY_NONE
 import mongkn.cinterop.bson_destroy
@@ -60,6 +64,7 @@ import mongkn.cinterop.mongoc_collection_replace_one
 import mongkn.cinterop.mongoc_collection_t
 import mongkn.cinterop.mongoc_collection_update_many
 import mongkn.cinterop.mongoc_collection_update_one
+import mongkn.cinterop.mongoc_collection_watch
 import mongkn.cinterop.mongoc_cursor_destroy
 import mongkn.cinterop.mongoc_cursor_error
 import mongkn.cinterop.mongoc_cursor_next
@@ -95,7 +100,7 @@ import ru.workinprogress.mongkn.bson.toNativeBson
  * Собственных C-ресурсов между вызовами не держит: `mongoc_collection_t` привязан к клиенту,
  * а клиент берётся из пула на время операции.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, DelicateCoroutinesApi::class)
 internal object CollectionOps {
     suspend fun insertOne(
         client: MongoClient,
@@ -925,6 +930,52 @@ internal object CollectionOps {
                 val id = entry["_id"]
                 if (index == null || id == null) null else index to id
             }.toMap()
+
+    /**
+     * Подписка на изменения коллекции.
+     *
+     * Устроена не как [find] и [aggregate], хотя тоже отдаёт поток. Отличий два, и оба вынуждены
+     * тем, что подписка бесконечна:
+     *
+     * * **`channelFlow`, а не `flow`.** События уходят наружу с отдельного потока, а `flow`
+     *   запрещает эмиссию из чужого контекста. `channelFlow` это разрешает — ровно его случай;
+     * * **свой поток на подписку**, а не общий диспетчер клиента. Блокирующий вызов здесь длится
+     *   всё время жизни подписки, поэтому на общем пуле четыре `watch` остановили бы все
+     *   остальные операции ([MongoClient.DEFAULT_IO_THREADS] = 4). Поток создаётся на подписку
+     *   и закрывается вместе с ней.
+     *
+     * Разрешение семафора берётся как обычно: клиент занят, и пул должен об этом знать.
+     */
+    fun watch(
+        client: MongoClient,
+        databaseName: String,
+        name: String,
+        pipeline: List<Document>,
+        opts: Document,
+    ): Flow<Document> =
+        channelFlow {
+            val dispatcher = newSingleThreadContext("mongkn-watch")
+            try {
+                withContext(dispatcher) {
+                    client.withPermit {
+                        client.useClient { handle ->
+                            val collection =
+                                mongoc_client_get_collection(handle, databaseName, name)
+                                    ?: error("mongoc_client_get_collection вернул NULL")
+                            try {
+                                withChangeStream(pipeline, opts) { nativePipeline, nativeOpts ->
+                                    mongoc_collection_watch(collection, nativePipeline, nativeOpts)
+                                }
+                            } finally {
+                                mongoc_collection_destroy(collection)
+                            }
+                        }
+                    }
+                }
+            } finally {
+                dispatcher.close()
+            }
+        }
 
     // --- обвязка, общая для всех операций ---------------------------------------------------
 

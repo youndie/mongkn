@@ -64,6 +64,18 @@ public class MongoDatabase internal constructor(
             opts = BsonDocument(),
         )
 
+    /**
+     * Подписка на изменения всех коллекций этой базы.
+     *
+     * Бесконечный поток со всеми оговорками из [ChangeStreamFlow].
+     */
+    public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
+        ChangeStreamFlow(
+            source = { stages, options -> DatabaseOps.watch(client, name, stages, options) },
+            pipeline = pipeline,
+            opts = BsonDocument(),
+        )
+
     /** Имена коллекций в этой базе. */
     public suspend fun listCollectionNames(): List<String> = DatabaseOps.listCollectionNames(client, name)
 }

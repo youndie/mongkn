@@ -357,6 +357,26 @@ public class MongoCollection<T> internal constructor(
     public fun listIndexes(options: Document = BsonDocument()): Flow<Document> =
         CollectionOps.listIndexes(client, databaseName, name, opts(options))
 
+    /**
+     * Подписка на изменения коллекции.
+     *
+     * Возвращает **бесконечный** поток: он ждёт следующего события, пока его не отменят.
+     * `toList()` на нём почти всегда ошибка — см. [ChangeStreamFlow].
+     *
+     * Требует replica set: на standalone-сервере сервер откажет. Каждая подписка занимает
+     * собственный поток на всё своё время — это цена блокирующего C-API, а не наш выбор.
+     *
+     * Элементы потока — **события**, а не документы коллекции, поэтому [Document], а не [T]:
+     * событие описывает изменение (`operationType`, `documentKey`, `fullDocument`), и типом
+     * коллекции не является.
+     */
+    public fun watch(pipeline: List<Document> = emptyList()): ChangeStreamFlow<Document> =
+        ChangeStreamFlow(
+            source = { stages, options -> CollectionOps.watch(client, databaseName, name, stages, options) },
+            pipeline = pipeline,
+            opts = defaults,
+        )
+
     /** Удаляет коллекцию целиком. */
     public suspend fun drop(): Unit = CollectionOps.drop(client, databaseName, name)
 

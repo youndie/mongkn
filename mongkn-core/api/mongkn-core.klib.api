@@ -52,6 +52,25 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/AggregateFlow : kotlinx.c
     final suspend fun toCollection() // ru.workinprogress.mongkn/AggregateFlow.toCollection|toCollection(){}[0]
 }
 
+final class <#A: kotlin/Any?> ru.workinprogress.mongkn/ChangeStreamFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/ChangeStreamFlow|null[0]
+    final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.batchSize|batchSize(kotlin.Int){}[0]
+    final fun collation(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.collation|collation(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun comment(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.comment|comment(kotlin.String){}[0]
+    final fun fullDocument(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.fullDocument|fullDocument(kotlin.String){}[0]
+    final fun fullDocumentBeforeChange(kotlin/String): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.fullDocumentBeforeChange|fullDocumentBeforeChange(kotlin.String){}[0]
+    final fun maxAwaitTime(kotlin/Long): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.maxAwaitTime|maxAwaitTime(kotlin.Long){}[0]
+    final fun resumeAfter(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.resumeAfter|resumeAfter(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun showExpandedEvents(kotlin/Boolean = ...): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.showExpandedEvents|showExpandedEvents(kotlin.Boolean){}[0]
+    final fun startAfter(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.startAfter|startAfter(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun startAtOperationTime(ru.workinprogress.mongkn.bson/BsonValue): ru.workinprogress.mongkn/ChangeStreamFlow<#A> // ru.workinprogress.mongkn/ChangeStreamFlow.startAtOperationTime|startAtOperationTime(ru.workinprogress.mongkn.bson.BsonValue){}[0]
+    final suspend fun collect(kotlinx.coroutines.flow/FlowCollector<#A>) // ru.workinprogress.mongkn/ChangeStreamFlow.collect|collect(kotlinx.coroutines.flow.FlowCollector<1:0>){}[0]
+
+    final object Companion { // ru.workinprogress.mongkn/ChangeStreamFlow.Companion|null[0]
+        final const val DEFAULT_MAX_AWAIT_MILLIS // ru.workinprogress.mongkn/ChangeStreamFlow.Companion.DEFAULT_MAX_AWAIT_MILLIS|{}DEFAULT_MAX_AWAIT_MILLIS[0]
+            final fun <get-DEFAULT_MAX_AWAIT_MILLIS>(): kotlin/Long // ru.workinprogress.mongkn/ChangeStreamFlow.Companion.DEFAULT_MAX_AWAIT_MILLIS.<get-DEFAULT_MAX_AWAIT_MILLIS>|<get-DEFAULT_MAX_AWAIT_MILLIS>(){}[0]
+    }
+}
+
 final class <#A: kotlin/Any?> ru.workinprogress.mongkn/FindFlow : kotlinx.coroutines.flow/Flow<#A> { // ru.workinprogress.mongkn/FindFlow|null[0]
     final fun allowDiskUse(kotlin/Boolean = ...): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.allowDiskUse|allowDiskUse(kotlin.Boolean){}[0]
     final fun batchSize(kotlin/Int): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/FindFlow.batchSize|batchSize(kotlin.Int){}[0]
@@ -84,6 +103,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.w
     final fun aggregate(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument>): ru.workinprogress.mongkn/AggregateFlow<#A> // ru.workinprogress.mongkn/MongoCollection.aggregate|aggregate(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun find(ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/FindFlow<#A> // ru.workinprogress.mongkn/MongoCollection.find|find(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun listIndexes(ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlinx.coroutines.flow/Flow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoCollection.listIndexes|listIndexes(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun watch(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ...): ru.workinprogress.mongkn/ChangeStreamFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoCollection.watch|watch(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun withReadConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withReadConcern|withReadConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun withTimeout(kotlin/Long): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withTimeout|withTimeout(kotlin.Long){}[0]
     final fun withWriteConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withWriteConcern|withWriteConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
@@ -469,6 +489,7 @@ final class ru.workinprogress.mongkn/MongoClient : kotlin/AutoCloseable { // ru.
 
     final fun close() // ru.workinprogress.mongkn/MongoClient.close|close(){}[0]
     final fun getDatabase(kotlin/String): ru.workinprogress.mongkn/MongoDatabase // ru.workinprogress.mongkn/MongoClient.getDatabase|getDatabase(kotlin.String){}[0]
+    final fun watch(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ...): ru.workinprogress.mongkn/ChangeStreamFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoClient.watch|watch(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final suspend fun listDatabaseNames(): kotlin.collections/List<kotlin/String> // ru.workinprogress.mongkn/MongoClient.listDatabaseNames|listDatabaseNames(){}[0]
 
     final object Companion { // ru.workinprogress.mongkn/MongoClient.Companion|null[0]
@@ -486,6 +507,7 @@ final class ru.workinprogress.mongkn/MongoDatabase { // ru.workinprogress.mongkn
     final fun <#A1: kotlin/Any?> getCollection(kotlin/String, kotlinx.serialization/KSerializer<#A1>): ru.workinprogress.mongkn/MongoCollection<#A1> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String;kotlinx.serialization.KSerializer<0:0>){0§<kotlin.Any?>}[0]
     final fun aggregate(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument>): ru.workinprogress.mongkn/AggregateFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoDatabase.aggregate|aggregate(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun getCollection(kotlin/String): ru.workinprogress.mongkn/MongoCollection<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){}[0]
+    final fun watch(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ...): ru.workinprogress.mongkn/ChangeStreamFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoDatabase.watch|watch(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final inline fun <#A1: reified kotlin/Any?> getCollection(kotlin/String): ru.workinprogress.mongkn/MongoCollection<#A1> // ru.workinprogress.mongkn/MongoDatabase.getCollection|getCollection(kotlin.String){0§<kotlin.Any?>}[0]
     final suspend fun createCollection(kotlin/String, ru.workinprogress.mongkn.bson/BsonDocument = ...) // ru.workinprogress.mongkn/MongoDatabase.createCollection|createCollection(kotlin.String;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun drop() // ru.workinprogress.mongkn/MongoDatabase.drop|drop(){}[0]

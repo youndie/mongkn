@@ -15,17 +15,17 @@ date: 2026-08-05
 вообще работала — cinterop, память, потоки, BSON, маппинг классов, публикация, CI, — сделано
 и проверено. Операций реализована половина, и почти все они под официальным spec-покрытием.
 
-## Операции коллекции — 22 из 30
+## Операции коллекции — 23 из 30
 
 | Реализовано | Нет |
 |---|---|
-| `insertOne`, `insertMany`, `bulkWrite` | `watch` |
+| `insertOne`, `insertMany`, `bulkWrite` | |
 | `updateOne`, `updateMany`, `replaceOne` | `mapReduce` (объявлен устаревшим) |
 | `deleteOne`, `deleteMany` | |
 | `find`, `countDocuments`, `estimatedDocumentCount` | |
 | `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы Atlas: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
 | `distinct`, `drop`, `renameCollection` | |
-| `aggregate` | |
+| `aggregate`, `watch` | |
 | индексы: `createIndex`, `createIndexes`, `dropIndex`, `dropIndexByKeys`, `dropIndexes`, `listIndexes` | |
 
 Каждая операция принимает параметр `options: Document` — туда уходит всё, что libmongoc
@@ -46,12 +46,12 @@ date: 2026-08-05
 
 ## База и клиент
 
-`MongoDatabase` — 6 операций из 9: `getCollection`, `runCommand`, `createCollection`, `drop`,
-`listCollectionNames`, `aggregate`. Нет `createView`, `listCollections` (полные документы),
-`watch`; первые две доступны через `runCommand`.
+`MongoDatabase` — 7 операций из 9: `getCollection`, `runCommand`, `createCollection`, `drop`,
+`listCollectionNames`, `aggregate`, `watch`. Нет `createView` и `listCollections` (полные
+документы) — обе доступны через `runCommand`.
 
-`MongoClient` — создание, `getDatabase`, `close`, `listDatabaseNames`. Нет `listDatabases`
-с полными документами, `watch`, `startSession`.
+`MongoClient` — создание, `getDatabase`, `close`, `listDatabaseNames`, `watch`. Нет
+`listDatabases` с полными документами и `startSession`.
 
 ## Типы BSON — 18 из 20
 
@@ -69,7 +69,6 @@ date: 2026-08-05
 
 * **Транзакции и сессии** — `ClientSession` не реализован; у официального драйвера он есть
   перегрузкой у каждой операции.
-* **Change streams** (`watch`) — требуют курсора с иным жизненным циклом.
 * **Мониторинг команд (APM)** — из-за этого 14 официальных spec-сценариев пропускаются (M-39),
   и это **единственная** оставшаяся причина пропусков.
 * **GridFS**, **client-side field level encryption**.
@@ -87,7 +86,8 @@ date: 2026-08-05
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
 | Соответствие спецификации | **55** официальных сценариев MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 156 тестов на двух платформах, ABI-валидация, ktlint в гейте |
+| Подписки | `watch` на коллекции, базе и клиенте; проверены на одноузловом replica set |
+| Проверки | 165 тестов на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 

@@ -52,11 +52,21 @@ docker run --rm --platform linux/amd64 --network mongkn-ci -v "$PWD":/src \
 
 `--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
 
-Интеграционным тестам нужен локальный mongod — **без него они падают, а не пропускаются**:
+Интеграционным тестам нужен локальный mongod — **без него они падают, а не пропускаются**.
+Поднимать его надо **одноузловым replica set**, а не standalone: change streams на standalone
+не работают вовсе, и `ChangeStreamTest` будет падать. Для остальных операций разницы нет.
 
 ```bash
-docker run -d --name mongkn-it -p 27017:27017 mongo:8
+docker run -d --name mongkn-it -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
 ```
+
+```bash
+docker exec mongkn-it mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+```
+
+Адрес члена задаётся **явно**: иначе сервер объявит себя под своим hostname, драйвер пойдёт
+по объявленному адресу и не достучится. Для сервера в docker-сети (`mongkn-ci-db`) подставьте
+его имя вместо `127.0.0.1`.
 
 Ещё две грабли, стоившие по сборке каждая: source set'ы `nativeMain` / `nativeTest` **нельзя**
 заводить руками (`by creating`) — их создаёт стандартный шаблон иерархии KMP, а ручной ломает

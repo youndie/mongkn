@@ -10,15 +10,20 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.bson_strfreev
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_get_database
 import mongkn.cinterop.mongoc_client_get_database_names_with_opts
+import mongkn.cinterop.mongoc_client_watch
 import mongkn.cinterop.mongoc_database_aggregate
 import mongkn.cinterop.mongoc_database_command_simple
 import mongkn.cinterop.mongoc_database_create_collection
@@ -26,6 +31,7 @@ import mongkn.cinterop.mongoc_database_destroy
 import mongkn.cinterop.mongoc_database_drop_with_opts
 import mongkn.cinterop.mongoc_database_get_collection_names_with_opts
 import mongkn.cinterop.mongoc_database_t
+import mongkn.cinterop.mongoc_database_watch
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.toDocument
@@ -37,7 +43,7 @@ import ru.workinprogress.mongkn.bson.toNativeBson
  * Отдельно от [CollectionOps] по той же причине, по которой те отдельно от `MongoCollection`:
  * весь cinterop собран в одном месте, наружу уходят только Kotlin-значения.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, DelicateCoroutinesApi::class)
 internal object DatabaseOps {
     /**
      * Выполняет произвольную команду.
@@ -158,6 +164,46 @@ internal object DatabaseOps {
                 }
             }
         }.flowOn(client.dispatcher)
+
+    /**
+     * Подписка на изменения всей базы или всего развёртывания.
+     *
+     * Устроена как [CollectionOps.watch] — свой поток на подписку и `channelFlow`, — и по той же
+     * причине: подписка бесконечна, а вызов libmongoc блокирующий.
+     *
+     * @param databaseName `null` — подписка уровня клиента, то есть на все базы сразу.
+     */
+    fun watch(
+        client: MongoClient,
+        databaseName: String?,
+        pipeline: List<Document>,
+        opts: Document,
+    ): Flow<Document> =
+        channelFlow {
+            val dispatcher = newSingleThreadContext("mongkn-watch")
+            try {
+                withContext(dispatcher) {
+                    client.withPermit {
+                        client.useClient { handle ->
+                            val database = databaseName?.let { mongoc_client_get_database(handle, it) }
+                            try {
+                                withChangeStream(pipeline, opts) { nativePipeline, nativeOpts ->
+                                    if (database == null) {
+                                        mongoc_client_watch(handle, nativePipeline, nativeOpts)
+                                    } else {
+                                        mongoc_database_watch(database, nativePipeline, nativeOpts)
+                                    }
+                                }
+                            } finally {
+                                database?.let(::mongoc_database_destroy)
+                            }
+                        }
+                    }
+                }
+            } finally {
+                dispatcher.close()
+            }
+        }
 
     /**
      * Читает `char**`, завершённый NULL, и освобождает его.
