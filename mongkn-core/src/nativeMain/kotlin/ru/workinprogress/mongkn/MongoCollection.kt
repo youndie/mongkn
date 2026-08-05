@@ -65,6 +65,14 @@ public class MongoCollection<T> internal constructor(
      * переписывать под сессии.
      */
     internal val session: ClientSession? = null,
+    /**
+     * Куда направлять чтение.
+     *
+     * Отдельным полем, а не ключом [defaults], потому что libmongoc принимает предпочтение
+     * **параметром**, а не в документе опций: положенный в опции ключ `readPreference` уезжает
+     * на сервер дословно, и тот отвечает «unknown field». Проверено пробой.
+     */
+    private val readPreference: Document? = null,
 ) {
     /** Через что идут операции: пул клиента либо закреплённый клиент [session]. */
     private val target = Target(client, session)
@@ -77,6 +85,7 @@ public class MongoCollection<T> internal constructor(
             codec,
             BsonDocument(defaults.entries.filterNot { it.first in extra } + extra.entries),
             session,
+            readPreference,
         )
 
     /** Коллекция с заданной гарантией записи — см. [writeConcern]. */
@@ -86,6 +95,16 @@ public class MongoCollection<T> internal constructor(
     /** Коллекция с заданной гарантией чтения — см. [readConcern]. */
     public fun withReadConcern(concern: Document): MongoCollection<T> =
         withDefaults(BsonDocument("readConcern" to concern))
+
+    /**
+     * Коллекция, читающая с указанным предпочтением — см. [ReadPreference].
+     *
+     * Влияет только на чтение: запись всегда идёт на первичный узел, это правило сервера.
+     * На одноузловом развёртывании [ReadPreferenceMode.SECONDARY] приведёт к неуспеху выбора
+     * сервера — вторичных узлов там нет, и это не ошибка настройки, а её следствие.
+     */
+    public fun withReadPreference(preference: ReadPreference): MongoCollection<T> =
+        MongoCollection(client, databaseName, name, codec, defaults, session, preference.describe())
 
     /**
      * Коллекция с ограничением времени операции на стороне сервера.
@@ -163,9 +182,10 @@ public class MongoCollection<T> internal constructor(
      * @param ordered `true` — выполнять по порядку и остановиться на первой ошибке; `false` —
      *   продолжать после ошибки, и тогда сервер вправе переставить операции местами.
      *
-     * Неуспех — [MongoException], как и у одиночных операций. Из-за этого при `ordered = false`
-     * счётчики частично выполненного пакета до вызывающего не доходят: официальный драйвер отдаёт
-     * их в `MongoBulkWriteException`, у нас такого типа пока нет (записано в бэклог).
+     * Неуспех — [MongoBulkWriteException]: он наследует [MongoException], поэтому обычный
+     * `catch (e: MongoException)` его ловит, но дополнительно несёт счётчики того, что **всё-таки
+     * применилось**, и список отказов по позициям запросов. При `ordered = false` это
+     * единственный способ узнать, какая часть пакета уже в базе, не перечитывая коллекцию.
      */
     public suspend fun bulkWrite(
         requests: List<WriteModel<T>>,
@@ -323,7 +343,7 @@ public class MongoCollection<T> internal constructor(
     public suspend fun distinct(
         field: String,
         filter: Document = BsonDocument(),
-    ): List<BsonValue> = CollectionOps.distinct(target, databaseName, name, field, filter)
+    ): List<BsonValue> = CollectionOps.distinct(target, databaseName, name, field, filter, readPreference)
 
     /**
      * Создаёт индекс и возвращает его имя.
@@ -420,7 +440,7 @@ public class MongoCollection<T> internal constructor(
 
     /** Считает документы по фильтру. */
     public suspend fun countDocuments(filter: Document = BsonDocument()): Long =
-        CollectionOps.countDocuments(target, databaseName, name, filter, opts(BsonDocument()))
+        CollectionOps.countDocuments(target, databaseName, name, filter, opts(BsonDocument()), readPreference)
 
     /**
      * Выполняет агрегационный конвейер.
@@ -433,7 +453,9 @@ public class MongoCollection<T> internal constructor(
     public fun aggregate(pipeline: List<Document>): AggregateFlow<T> =
         AggregateFlow(
             source = { stages, opts ->
-                CollectionOps.aggregate(target, databaseName, name, stages, opts).map(::fromDocument)
+                CollectionOps
+                    .aggregate(target, databaseName, name, stages, opts, readPreference)
+                    .map(::fromDocument)
             },
             pipeline = pipeline,
             opts = opts(BsonDocument()),
@@ -447,7 +469,7 @@ public class MongoCollection<T> internal constructor(
         AggregateFlow(
             source = { stages, opts ->
                 CollectionOps
-                    .aggregate(target, databaseName, name, stages, opts)
+                    .aggregate(target, databaseName, name, stages, opts, readPreference)
                     .map { decodeFromDocument(codec, it) }
             },
             pipeline = pipeline,
@@ -465,7 +487,7 @@ public class MongoCollection<T> internal constructor(
     public fun find(filter: Document = BsonDocument()): FindFlow<T> =
         FindFlow(
             source = { query, opts ->
-                CollectionOps.find(target, databaseName, name, query, opts).map(::fromDocument)
+                CollectionOps.find(target, databaseName, name, query, opts, readPreference).map(::fromDocument)
             },
             filter = filter,
             opts = opts(BsonDocument()),

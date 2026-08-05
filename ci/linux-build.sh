@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Прогон сборки и тестов под Linux (libmongoc 1.26) против серверов, поднятых на хосте.
+#
+# Главное здесь — проброс портов внутрь контейнера. Одноузловой реплика-сет объявляет себя
+# как `127.0.0.1:27017`, и драйвер, выполнив обнаружение топологии, идёт именно по этому адресу.
+# Изнутри контейнера `127.0.0.1` — сам контейнер, поэтому без проброса тесты с `replicaSet=rs0`
+# не находят сервера. Проброс делает адрес одинаковым с обеих сторон, и переменные окружения
+# с адресами не нужны вовсе: прогон под Linux выглядит ровно как прогон на хосте.
+#
+# Использование: ci/linux-build.sh [задачи gradle…]
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+TASKS="${*:-:mongkn-core:build}"
+
+docker run --rm --platform linux/amd64 \
+  -v "$PWD":/src \
+  -v mongkn-gradle-amd64:/gradle \
+  -v mongkn-konan-amd64:/konan \
+  mongkn-ci:amd64 sh -c "
+    for port in 27017 27019 27020; do
+      socat TCP-LISTEN:\$port,fork,reuseaddr,bind=127.0.0.1 TCP:host.docker.internal:\$port &
+    done
+    sleep 1
+    ./gradlew $TASKS
+  "

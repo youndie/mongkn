@@ -7,12 +7,17 @@ package ru.workinprogress.mongkn
  * как есть, потому что перечисление не обязано покрывать всё, что когда-нибудь появится
  * в libmongoc.
  *
+ * Открыт для наследования ради [MongoBulkWriteException]: пакетная запись обязана донести
+ * счётчики частично выполненного пакета, но ловиться должна тем же `catch (e: MongoException)`,
+ * что и всё остальное. Отдельный, не связанный с этим типом класс тихо менял бы поведение
+ * существующих обработчиков.
+ *
  * @property domain значение `mongoc_error_domain_t` — см. `mongoc/mongoc-error.h`.
  * @property code код ошибки. Для ошибок сервера ([MongoErrorDomain.SERVER]) совпадает с кодом
  *   MongoDB (например `11000` — duplicate key), для клиентских — со значением
  *   из `mongoc_error_code_t`.
  */
-public class MongoException(
+public open class MongoException(
     public val domain: UInt,
     public val code: UInt,
     message: String,

@@ -58,17 +58,18 @@ docker build -t mongkn-ci ci/
 ```
 
 ```bash
-docker run --rm --platform linux/amd64 -v "$PWD":/src \
-  -e MONGKN_TEST_HOST=host.docker.internal:27017 \
-  -e MONGKN_TEST_AUTH_HOST=host.docker.internal:27019 \
-  -e MONGKN_TEST_TLS_HOST=host.docker.internal:27020 \
-  mongkn-ci ./gradlew build
+./ci/linux-build.sh
 ```
 
-Контейнер сборки ходит на **те же** серверы, что и хост, через `host.docker.internal` — второго
-комплекта в docker-сети больше нет. Из-за этого имя `host.docker.internal` обязано быть
-в SAN серверного сертификата; забытое имя даёт «TLS handshake failed», по тексту неотличимое
-от недоверенного сертификата.
+Контейнер сборки ходит на **те же** серверы, что и хост, — второго комплекта в docker-сети больше
+нет. Два следствия, каждое стоило красного прогона:
+
+* внутри контейнера порты серверов **пробрасываются на `127.0.0.1`** (это делает `linux-build.sh`
+  через socat). Иначе тесты с `replicaSet=rs0` не находят сервера: одноузловой набор объявляет
+  себя как `127.0.0.1:27017`, драйвер после обнаружения топологии идёт по этому адресу и попадает
+  в сам контейнер;
+* имя `host.docker.internal` обязано быть в SAN серверного сертификата — забытое имя даёт
+  «TLS handshake failed», по тексту неотличимое от недоверенного сертификата.
 
 `--platform linux/amd64` обязателен: Kotlin/Native не компилирует на хосте linux-aarch64 (§1.18).
 

@@ -501,6 +501,7 @@ internal object CollectionOps {
         name: String,
         field: String,
         filter: Document,
+        readPreference: Document? = null,
     ): List<BsonValue> =
         execute(client, databaseName, name) { collection ->
             val command =
@@ -511,9 +512,11 @@ internal object CollectionOps {
                 )
             withBson(command) { payload ->
                 withReply { reply, error ->
-                    if (!mongoc_collection_read_command_with_opts(collection, payload, null, null, reply, error)) {
-                        fail(error)
-                    }
+                    val ok =
+                        withReadPrefs(readPreference) { prefs ->
+                            mongoc_collection_read_command_with_opts(collection, payload, prefs, null, reply, error)
+                        }
+                    if (!ok) fail(error)
                     (reply.toDocument()["values"] as? BsonArray)?.values.orEmpty()
                 }
             }
@@ -525,6 +528,7 @@ internal object CollectionOps {
         name: String,
         filter: Document,
         opts: Document,
+        readPreference: Document? = null,
     ): Long =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
@@ -533,14 +537,16 @@ internal object CollectionOps {
                     // Единственная операция, отдающая результат возвращаемым значением,
                     // а не в reply. Признак ошибки — отрицательное число, а не false.
                     val count =
-                        mongoc_collection_count_documents(
-                            collection,
-                            selector,
-                            nativeOpts,
-                            null,
-                            null,
-                            error.ptr,
-                        )
+                        withReadPrefs(readPreference) { prefs ->
+                            mongoc_collection_count_documents(
+                                collection,
+                                selector,
+                                nativeOpts,
+                                prefs,
+                                null,
+                                error.ptr,
+                            )
+                        }
                     if (count < 0) fail(error.ptr)
                     count
                 }
@@ -573,6 +579,7 @@ internal object CollectionOps {
         name: String,
         filter: Document,
         opts: Document,
+        readPreference: Document? = null,
     ): Flow<Document> =
         flow {
             client.withPermit {
@@ -585,8 +592,9 @@ internal object CollectionOps {
                         val nativeOpts = opts.toNativeBson()
                         try {
                             val cursor =
-                                mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, null)
-                                    ?: error("mongoc_collection_find_with_opts вернул NULL")
+                                withReadPrefs(readPreference) { prefs ->
+                                    mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, prefs)
+                                } ?: error("mongoc_collection_find_with_opts вернул NULL")
                             drainCursor(cursor)
                         } finally {
                             bson_destroy(nativeOpts)
@@ -616,6 +624,7 @@ internal object CollectionOps {
         name: String,
         pipeline: List<Document>,
         opts: Document,
+        readPreference: Document? = null,
     ): Flow<Document> =
         flow {
             client.withPermit {
@@ -628,13 +637,15 @@ internal object CollectionOps {
                         val nativeOpts = opts.toNativeBson()
                         try {
                             val cursor =
-                                mongoc_collection_aggregate(
-                                    collection,
-                                    MONGOC_QUERY_NONE,
-                                    nativePipeline,
-                                    nativeOpts,
-                                    null,
-                                ) ?: error("mongoc_collection_aggregate вернул NULL")
+                                withReadPrefs(readPreference) { prefs ->
+                                    mongoc_collection_aggregate(
+                                        collection,
+                                        MONGOC_QUERY_NONE,
+                                        nativePipeline,
+                                        nativeOpts,
+                                        prefs,
+                                    )
+                                } ?: error("mongoc_collection_aggregate вернул NULL")
                             drainCursor(cursor)
                         } finally {
                             bson_destroy(nativeOpts)
@@ -819,17 +830,32 @@ internal object CollectionOps {
                 }
                 withReply { reply, error ->
                     // Ноль, а не false: execute отдаёт идентификатор сервера.
-                    if (mongoc_bulk_operation_execute(bulk, reply, error) == 0u) fail(error)
+                    val ok = mongoc_bulk_operation_execute(bulk, reply, error) != 0u
                     val document = reply.toDocument()
-                    BulkWriteResult(
-                        insertedCount = document.count("nInserted"),
-                        matchedCount = document.count("nMatched"),
-                        modifiedCount = document.count("nModified"),
-                        deletedCount = document.count("nRemoved"),
-                        upsertedCount = document.count("nUpserted"),
-                        insertedIds = insertedIds,
-                        upsertedIds = document.upsertedIds(),
-                    )
+                    // Ответ заполнен и при неуспехе — в нём счётчики того, что успело примениться.
+                    // Без этого при `ordered = false` часть записей уже в базе, а узнать какая
+                    // можно было бы только повторным чтением коллекции.
+                    val outcome =
+                        BulkWriteResult(
+                            insertedCount = document.count("nInserted"),
+                            matchedCount = document.count("nMatched"),
+                            modifiedCount = document.count("nModified"),
+                            deletedCount = document.count("nRemoved"),
+                            upsertedCount = document.count("nUpserted"),
+                            insertedIds = insertedIds.filterKeys { it !in document.failedIndices() },
+                            upsertedIds = document.upsertedIds(),
+                        )
+                    if (!ok) {
+                        val value = error.pointed
+                        throw MongoBulkWriteException(
+                            value.domain,
+                            value.code,
+                            value.message.toKString(),
+                            outcome,
+                            document.writeErrors(),
+                        )
+                    }
+                    outcome
                 }
             } finally {
                 mongoc_bulk_operation_destroy(bulk)
@@ -916,6 +942,31 @@ internal object CollectionOps {
     ): Document = withExtra("upsert" to BsonBoolean(upsert), extra = options)
 
     /**
+     * Читает `writeErrors` из ответа: массив документов `{index, code, errmsg}`.
+     *
+     * `index` — позиция операции в списке запросов, та же нумерация, что у `upserted`.
+     */
+    private fun BsonDocument.writeErrors(): List<BulkWriteError> =
+        (this["writeErrors"] as? BsonArray)
+            ?.values
+            .orEmpty()
+            .filterIsInstance<BsonDocument>()
+            .mapNotNull { entry ->
+                val index = entry.indexOf() ?: return@mapNotNull null
+                BulkWriteError(
+                    index = index,
+                    code = ((entry["code"] as? BsonInt32)?.value ?: 0).toUInt(),
+                    message = (entry["errmsg"] as? BsonString)?.value.orEmpty(),
+                )
+            }
+
+    /** Позиции операций, которые сервер отверг: их `_id` не попал в базу. */
+    private fun BsonDocument.failedIndices(): Set<Int> = writeErrors().map { it.index }.toSet()
+
+    private fun BsonDocument.indexOf(): Int? =
+        (this["index"] as? BsonInt32)?.value ?: (this["index"] as? BsonInt64)?.value?.toInt()
+
+    /**
      * Читает `upserted` из ответа: массив документов `{index, _id}`.
      *
      * `index` — позиция операции в списке запросов, поэтому именно он и становится ключом.
@@ -926,7 +977,7 @@ internal object CollectionOps {
             .orEmpty()
             .filterIsInstance<BsonDocument>()
             .mapNotNull { entry ->
-                val index = (entry["index"] as? BsonInt32)?.value ?: (entry["index"] as? BsonInt64)?.value?.toInt()
+                val index = entry.indexOf()
                 val id = entry["_id"]
                 if (index == null || id == null) null else index to id
             }.toMap()

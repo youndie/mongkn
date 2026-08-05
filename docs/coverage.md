@@ -31,10 +31,11 @@ date: 2026-08-05
 Каждая операция принимает параметр `options: Document` — туда уходит всё, что libmongoc
 берёт документом опций: `collation`, `hint`, `comment`, `let`, `bypassDocumentValidation`.
 
-**Настройки коллекции — 3 из 13**: `withWriteConcern`, `withReadConcern`, `withTimeout`;
+**Настройки коллекции — 4 из 13**: `withWriteConcern`, `withReadConcern`, `withTimeout`,
+`withReadPreference`;
 каждая возвращает копию, а её значения вливаются в опции каждой операции. Нет
-`withReadPreference` (нужен replica set, чтобы отличать поведение), `withCodecRegistry`
-и `withDocumentClass` — оба про JVM-кодеки, у нас их место занимает `KSerializer`.
+`withCodecRegistry` и `withDocumentClass` — оба про JVM-кодеки, у нас их место занимает
+`KSerializer`.
 
 ## `FindFlow` — 20 из 22 методов чейнинга
 
@@ -88,7 +89,7 @@ date: 2026-08-05
 | Диагностика | обработчик логов драйвера ([MongknLog]) и мониторинг команд ([CommandListener]) |
 | Аутентификация | SCRAM, TLS и x509 проверены на отдельных серверах |
 | Сессии и транзакции | `startSession`, `withTransaction`; изоляция проверена, а не только успех коммита |
-| Проверки | 214 тестов на двух платформах, ABI-валидация, ktlint в гейте |
+| Проверки | 224 теста на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 

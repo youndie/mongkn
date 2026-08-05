@@ -113,21 +113,23 @@ public class ClientSession internal constructor(
     /**
      * Начинает транзакцию.
      *
-     * Настройки транзакции (`readConcern`, `writeConcern`, `maxCommitTimeMS`) задать пока нельзя,
-     * и параметра под них здесь намеренно **нет**. У libmongoc они передаются структурой
-     * `mongoc_transaction_opt_t` с сеттерами, а не документом опций, — то есть требуют отдельной
-     * обвязки (M-74). Параметр-заглушка, который молча не доезжает до сервера, был бы хуже
-     * его отсутствия: именно такую потерю пришлось чинить в M10.
+     * @param options гарантии чтения и записи, предел времени фиксации и предпочтение чтения.
+     *   Документы гарантий — те же, что у настроек коллекции: [writeConcern], [readConcern].
+     *   Внутри они разбираются в структуры libmongoc, потому что документа опций для транзакции
+     *   драйвер не принимает.
      *
-     * Внутри транзакции гарантии уровня операции задавать всё равно нельзя — сервер отвергает
-     * `writeConcern` у отдельной операции в транзакции. Так что до M-74 действуют умолчания
-     * из строки подключения.
+     * Гарантии уровня **операции** внутри транзакции задавать по-прежнему нельзя — сервер
+     * отвергает `writeConcern` у отдельной операции в транзакции. Задавайте их здесь.
      */
-    public suspend fun startTransaction() {
+    public suspend fun startTransaction(options: TransactionOptions? = null) {
         onSession {
             memScoped {
                 val error = alloc<bson_error_t>()
-                if (!mongoc_client_session_start_transaction(session, null, error.ptr)) fail(error.ptr)
+                val started =
+                    withTransactionOpts(options) { opts ->
+                        mongoc_client_session_start_transaction(session, opts, error.ptr)
+                    }
+                if (!started) fail(error.ptr)
             }
         }
     }
@@ -170,8 +172,11 @@ public class ClientSession internal constructor(
      * `TransientTransactionError` и `UnknownTransactionCommitResult`; у нас этого пока не будет —
      * см. M-73 в бэклоге. Пока считайте, что упавшую транзакцию перезапускает вызывающий.
      */
-    public suspend fun <T> withTransaction(body: suspend () -> T): T {
-        startTransaction()
+    public suspend fun <T> withTransaction(
+        options: TransactionOptions? = null,
+        body: suspend () -> T,
+    ): T {
+        startTransaction(options)
         val result =
             try {
                 body()

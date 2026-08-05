@@ -272,8 +272,106 @@ class BulkWriteTest {
             }
         }
 
+    @Test
+    fun `an unordered failure reports what did apply`() =
+        runTest {
+            val collection = seeded("partial", count = 0)
+
+            val failure =
+                assertFailsWith<MongoBulkWriteException> {
+                    collection.bulkWrite(
+                        listOf(
+                            InsertOneModel(
+                                document {
+                                    put("_id", 1)
+                                    put("n", 1)
+                                },
+                            ),
+                            InsertOneModel(
+                                document {
+                                    put("_id", 1)
+                                    put("n", 2)
+                                },
+                            ),
+                            InsertOneModel(
+                                document {
+                                    put("_id", 3)
+                                    put("n", 3)
+                                },
+                            ),
+                        ),
+                        ordered = false,
+                    )
+                }
+
+            // Две операции из трёх применились, и об этом теперь можно узнать из самого
+            // исключения, а не перечитыванием коллекции.
+            assertEquals(2, failure.result.insertedCount)
+            assertContentEquals(listOf(1, 3), numbers(collection))
+
+            val error = failure.writeErrors.single()
+            assertEquals(1, error.index, "позиция отказавшего запроса в списке")
+            assertEquals(DUPLICATE_KEY, error.code)
+        }
+
+    @Test
+    fun `ids of failed inserts are not reported as inserted`() =
+        runTest {
+            val collection = seeded("partial_ids", count = 0)
+            collection.insertOne(
+                document {
+                    put("_id", 7)
+                    put("n", 7)
+                },
+            )
+
+            val failure =
+                assertFailsWith<MongoBulkWriteException> {
+                    collection.bulkWrite(
+                        listOf(
+                            InsertOneModel(
+                                document {
+                                    put("_id", 7)
+                                    put("n", 70)
+                                },
+                            ),
+                            InsertOneModel(
+                                document {
+                                    put("_id", 8)
+                                    put("n", 8)
+                                },
+                            ),
+                        ),
+                        ordered = false,
+                    )
+                }
+
+            // `insertedIds` обязан описывать то, что в базе, а не то, что мы пытались вставить:
+            // иначе по нему нельзя было бы понять, какие документы существуют.
+            assertEquals(setOf(1), failure.result.insertedIds.keys)
+        }
+
+    @Test
+    fun `a bulk failure is still an ordinary MongoException`() =
+        runTest {
+            val collection = seeded("compat", count = 0)
+
+            // Расширение не должно менять поведение того, кто о нём не знает.
+            assertFailsWith<MongoException> {
+                collection.bulkWrite(
+                    listOf(
+                        InsertOneModel(document { put("_id", 1) }),
+                        InsertOneModel(document { put("_id", 1) }),
+                    ),
+                )
+            }
+        }
+
     private companion object {
         const val DATABASE = "mongkn_bulk"
+
+        /** Код MongoDB для дубликата ключа. */
+        const val DUPLICATE_KEY: UInt = 11000u
         var counter = 0
         var cleaned = false
     }

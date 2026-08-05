@@ -76,6 +76,20 @@ final enum class ru.workinprogress.mongkn/MongoErrorDomain : kotlin/Enum<ru.work
     }
 }
 
+final enum class ru.workinprogress.mongkn/ReadPreferenceMode : kotlin/Enum<ru.workinprogress.mongkn/ReadPreferenceMode> { // ru.workinprogress.mongkn/ReadPreferenceMode|null[0]
+    enum entry NEAREST // ru.workinprogress.mongkn/ReadPreferenceMode.NEAREST|null[0]
+    enum entry PRIMARY // ru.workinprogress.mongkn/ReadPreferenceMode.PRIMARY|null[0]
+    enum entry PRIMARY_PREFERRED // ru.workinprogress.mongkn/ReadPreferenceMode.PRIMARY_PREFERRED|null[0]
+    enum entry SECONDARY // ru.workinprogress.mongkn/ReadPreferenceMode.SECONDARY|null[0]
+    enum entry SECONDARY_PREFERRED // ru.workinprogress.mongkn/ReadPreferenceMode.SECONDARY_PREFERRED|null[0]
+
+    final val entries // ru.workinprogress.mongkn/ReadPreferenceMode.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ru.workinprogress.mongkn/ReadPreferenceMode> // ru.workinprogress.mongkn/ReadPreferenceMode.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ru.workinprogress.mongkn/ReadPreferenceMode // ru.workinprogress.mongkn/ReadPreferenceMode.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ru.workinprogress.mongkn/ReadPreferenceMode> // ru.workinprogress.mongkn/ReadPreferenceMode.values|values#static(){}[0]
+}
+
 final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workinprogress.mongkn/ReturnDocument> { // ru.workinprogress.mongkn/ReturnDocument|null[0]
     enum entry AFTER // ru.workinprogress.mongkn/ReturnDocument.AFTER|null[0]
     enum entry BEFORE // ru.workinprogress.mongkn/ReturnDocument.BEFORE|null[0]
@@ -168,6 +182,7 @@ final class <#A: kotlin/Any?> ru.workinprogress.mongkn/MongoCollection { // ru.w
     final fun listIndexes(ru.workinprogress.mongkn.bson/BsonDocument = ...): kotlinx.coroutines.flow/Flow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoCollection.listIndexes|listIndexes(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final fun watch(kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ...): ru.workinprogress.mongkn/ChangeStreamFlow<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/MongoCollection.watch|watch(kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>){}[0]
     final fun withReadConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withReadConcern|withReadConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
+    final fun withReadPreference(ru.workinprogress.mongkn/ReadPreference): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withReadPreference|withReadPreference(ru.workinprogress.mongkn.ReadPreference){}[0]
     final fun withTimeout(kotlin/Long): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withTimeout|withTimeout(kotlin.Long){}[0]
     final fun withWriteConcern(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn/MongoCollection<#A> // ru.workinprogress.mongkn/MongoCollection.withWriteConcern|withWriteConcern(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
     final suspend fun bulkWrite(kotlin.collections/List<ru.workinprogress.mongkn/WriteModel<#A>>, kotlin/Boolean = ..., ru.workinprogress.mongkn.bson/BsonDocument = ...): ru.workinprogress.mongkn/BulkWriteResult // ru.workinprogress.mongkn/MongoCollection.bulkWrite|bulkWrite(kotlin.collections.List<ru.workinprogress.mongkn.WriteModel<1:0>>;kotlin.Boolean;ru.workinprogress.mongkn.bson.BsonDocument){}[0]
@@ -470,6 +485,19 @@ final class ru.workinprogress.mongkn.bson/UnsupportedBsonTypeException : kotlin/
         final fun <get-typeCode>(): kotlin/UInt // ru.workinprogress.mongkn.bson/UnsupportedBsonTypeException.typeCode.<get-typeCode>|<get-typeCode>(){}[0]
 }
 
+final class ru.workinprogress.mongkn/BulkWriteError { // ru.workinprogress.mongkn/BulkWriteError|null[0]
+    constructor <init>(kotlin/Int, kotlin/UInt, kotlin/String) // ru.workinprogress.mongkn/BulkWriteError.<init>|<init>(kotlin.Int;kotlin.UInt;kotlin.String){}[0]
+
+    final val code // ru.workinprogress.mongkn/BulkWriteError.code|{}code[0]
+        final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/BulkWriteError.code.<get-code>|<get-code>(){}[0]
+    final val index // ru.workinprogress.mongkn/BulkWriteError.index|{}index[0]
+        final fun <get-index>(): kotlin/Int // ru.workinprogress.mongkn/BulkWriteError.index.<get-index>|<get-index>(){}[0]
+    final val message // ru.workinprogress.mongkn/BulkWriteError.message|{}message[0]
+        final fun <get-message>(): kotlin/String // ru.workinprogress.mongkn/BulkWriteError.message.<get-message>|<get-message>(){}[0]
+
+    final fun toString(): kotlin/String // ru.workinprogress.mongkn/BulkWriteError.toString|toString(){}[0]
+}
+
 final class ru.workinprogress.mongkn/BulkWriteResult { // ru.workinprogress.mongkn/BulkWriteResult|null[0]
     constructor <init>(kotlin/Long, kotlin/Long, kotlin/Long, kotlin/Long, kotlin/Long, kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue>, kotlin.collections/Map<kotlin/Int, ru.workinprogress.mongkn.bson/BsonValue>) // ru.workinprogress.mongkn/BulkWriteResult.<init>|<init>(kotlin.Long;kotlin.Long;kotlin.Long;kotlin.Long;kotlin.Long;kotlin.collections.Map<kotlin.Int,ru.workinprogress.mongkn.bson.BsonValue>;kotlin.collections.Map<kotlin.Int,ru.workinprogress.mongkn.bson.BsonValue>){}[0]
 
@@ -499,10 +527,10 @@ final class ru.workinprogress.mongkn/ClientSession : kotlin/AutoCloseable { // r
 
     final fun close() // ru.workinprogress.mongkn/ClientSession.close|close(){}[0]
     final fun getDatabase(kotlin/String): ru.workinprogress.mongkn/MongoDatabase // ru.workinprogress.mongkn/ClientSession.getDatabase|getDatabase(kotlin.String){}[0]
-    final suspend fun <#A1: kotlin/Any?> withTransaction(kotlin.coroutines/SuspendFunction0<#A1>): #A1 // ru.workinprogress.mongkn/ClientSession.withTransaction|withTransaction(kotlin.coroutines.SuspendFunction0<0:0>){0§<kotlin.Any?>}[0]
+    final suspend fun <#A1: kotlin/Any?> withTransaction(ru.workinprogress.mongkn/TransactionOptions? = ..., kotlin.coroutines/SuspendFunction0<#A1>): #A1 // ru.workinprogress.mongkn/ClientSession.withTransaction|withTransaction(ru.workinprogress.mongkn.TransactionOptions?;kotlin.coroutines.SuspendFunction0<0:0>){0§<kotlin.Any?>}[0]
     final suspend fun abortTransaction() // ru.workinprogress.mongkn/ClientSession.abortTransaction|abortTransaction(){}[0]
     final suspend fun commitTransaction() // ru.workinprogress.mongkn/ClientSession.commitTransaction|commitTransaction(){}[0]
-    final suspend fun startTransaction() // ru.workinprogress.mongkn/ClientSession.startTransaction|startTransaction(){}[0]
+    final suspend fun startTransaction(ru.workinprogress.mongkn/TransactionOptions? = ...) // ru.workinprogress.mongkn/ClientSession.startTransaction|startTransaction(ru.workinprogress.mongkn.TransactionOptions?){}[0]
 }
 
 final class ru.workinprogress.mongkn/CommandFailedEvent { // ru.workinprogress.mongkn/CommandFailedEvent|null[0]
@@ -612,6 +640,15 @@ final class ru.workinprogress.mongkn/InsertOneResult { // ru.workinprogress.mong
     final fun toString(): kotlin/String // ru.workinprogress.mongkn/InsertOneResult.toString|toString(){}[0]
 }
 
+final class ru.workinprogress.mongkn/MongoBulkWriteException : ru.workinprogress.mongkn/MongoException { // ru.workinprogress.mongkn/MongoBulkWriteException|null[0]
+    constructor <init>(kotlin/UInt, kotlin/UInt, kotlin/String, ru.workinprogress.mongkn/BulkWriteResult, kotlin.collections/List<ru.workinprogress.mongkn/BulkWriteError>) // ru.workinprogress.mongkn/MongoBulkWriteException.<init>|<init>(kotlin.UInt;kotlin.UInt;kotlin.String;ru.workinprogress.mongkn.BulkWriteResult;kotlin.collections.List<ru.workinprogress.mongkn.BulkWriteError>){}[0]
+
+    final val result // ru.workinprogress.mongkn/MongoBulkWriteException.result|{}result[0]
+        final fun <get-result>(): ru.workinprogress.mongkn/BulkWriteResult // ru.workinprogress.mongkn/MongoBulkWriteException.result.<get-result>|<get-result>(){}[0]
+    final val writeErrors // ru.workinprogress.mongkn/MongoBulkWriteException.writeErrors|{}writeErrors[0]
+        final fun <get-writeErrors>(): kotlin.collections/List<ru.workinprogress.mongkn/BulkWriteError> // ru.workinprogress.mongkn/MongoBulkWriteException.writeErrors.<get-writeErrors>|<get-writeErrors>(){}[0]
+}
+
 final class ru.workinprogress.mongkn/MongoClient : kotlin/AutoCloseable { // ru.workinprogress.mongkn/MongoClient|null[0]
     constructor <init>(kotlin/String, kotlin/Int = ..., kotlin/Int = ..., ru.workinprogress.mongkn/CommandListener? = ...) // ru.workinprogress.mongkn/MongoClient.<init>|<init>(kotlin.String;kotlin.Int;kotlin.Int;ru.workinprogress.mongkn.CommandListener?){}[0]
 
@@ -644,17 +681,28 @@ final class ru.workinprogress.mongkn/MongoDatabase { // ru.workinprogress.mongkn
     final suspend fun runCommand(ru.workinprogress.mongkn.bson/BsonDocument): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/MongoDatabase.runCommand|runCommand(ru.workinprogress.mongkn.bson.BsonDocument){}[0]
 }
 
-final class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { // ru.workinprogress.mongkn/MongoException|null[0]
-    constructor <init>(kotlin/UInt, kotlin/UInt, kotlin/String) // ru.workinprogress.mongkn/MongoException.<init>|<init>(kotlin.UInt;kotlin.UInt;kotlin.String){}[0]
+final class ru.workinprogress.mongkn/ReadPreference { // ru.workinprogress.mongkn/ReadPreference|null[0]
+    constructor <init>(ru.workinprogress.mongkn/ReadPreferenceMode, kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> = ..., kotlin/Long? = ...) // ru.workinprogress.mongkn/ReadPreference.<init>|<init>(ru.workinprogress.mongkn.ReadPreferenceMode;kotlin.collections.List<ru.workinprogress.mongkn.bson.BsonDocument>;kotlin.Long?){}[0]
 
-    final val code // ru.workinprogress.mongkn/MongoException.code|{}code[0]
-        final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.code.<get-code>|<get-code>(){}[0]
-    final val domain // ru.workinprogress.mongkn/MongoException.domain|{}domain[0]
-        final fun <get-domain>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.domain.<get-domain>|<get-domain>(){}[0]
-    final val errorDomain // ru.workinprogress.mongkn/MongoException.errorDomain|{}errorDomain[0]
-        final fun <get-errorDomain>(): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoException.errorDomain.<get-errorDomain>|<get-errorDomain>(){}[0]
-    final val isConnectivity // ru.workinprogress.mongkn/MongoException.isConnectivity|{}isConnectivity[0]
-        final fun <get-isConnectivity>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isConnectivity.<get-isConnectivity>|<get-isConnectivity>(){}[0]
+    final val maxStalenessSeconds // ru.workinprogress.mongkn/ReadPreference.maxStalenessSeconds|{}maxStalenessSeconds[0]
+        final fun <get-maxStalenessSeconds>(): kotlin/Long? // ru.workinprogress.mongkn/ReadPreference.maxStalenessSeconds.<get-maxStalenessSeconds>|<get-maxStalenessSeconds>(){}[0]
+    final val mode // ru.workinprogress.mongkn/ReadPreference.mode|{}mode[0]
+        final fun <get-mode>(): ru.workinprogress.mongkn/ReadPreferenceMode // ru.workinprogress.mongkn/ReadPreference.mode.<get-mode>|<get-mode>(){}[0]
+    final val tags // ru.workinprogress.mongkn/ReadPreference.tags|{}tags[0]
+        final fun <get-tags>(): kotlin.collections/List<ru.workinprogress.mongkn.bson/BsonDocument> // ru.workinprogress.mongkn/ReadPreference.tags.<get-tags>|<get-tags>(){}[0]
+}
+
+final class ru.workinprogress.mongkn/TransactionOptions { // ru.workinprogress.mongkn/TransactionOptions|null[0]
+    constructor <init>(ru.workinprogress.mongkn.bson/BsonDocument? = ..., ru.workinprogress.mongkn.bson/BsonDocument? = ..., kotlin/Long? = ..., ru.workinprogress.mongkn/ReadPreference? = ...) // ru.workinprogress.mongkn/TransactionOptions.<init>|<init>(ru.workinprogress.mongkn.bson.BsonDocument?;ru.workinprogress.mongkn.bson.BsonDocument?;kotlin.Long?;ru.workinprogress.mongkn.ReadPreference?){}[0]
+
+    final val maxCommitTimeMillis // ru.workinprogress.mongkn/TransactionOptions.maxCommitTimeMillis|{}maxCommitTimeMillis[0]
+        final fun <get-maxCommitTimeMillis>(): kotlin/Long? // ru.workinprogress.mongkn/TransactionOptions.maxCommitTimeMillis.<get-maxCommitTimeMillis>|<get-maxCommitTimeMillis>(){}[0]
+    final val readConcern // ru.workinprogress.mongkn/TransactionOptions.readConcern|{}readConcern[0]
+        final fun <get-readConcern>(): ru.workinprogress.mongkn.bson/BsonDocument? // ru.workinprogress.mongkn/TransactionOptions.readConcern.<get-readConcern>|<get-readConcern>(){}[0]
+    final val readPreference // ru.workinprogress.mongkn/TransactionOptions.readPreference|{}readPreference[0]
+        final fun <get-readPreference>(): ru.workinprogress.mongkn/ReadPreference? // ru.workinprogress.mongkn/TransactionOptions.readPreference.<get-readPreference>|<get-readPreference>(){}[0]
+    final val writeConcern // ru.workinprogress.mongkn/TransactionOptions.writeConcern|{}writeConcern[0]
+        final fun <get-writeConcern>(): ru.workinprogress.mongkn.bson/BsonDocument? // ru.workinprogress.mongkn/TransactionOptions.writeConcern.<get-writeConcern>|<get-writeConcern>(){}[0]
 }
 
 final class ru.workinprogress.mongkn/UpdateManyModel : ru.workinprogress.mongkn/WriteModel<kotlin/Nothing> { // ru.workinprogress.mongkn/UpdateManyModel|null[0]
@@ -694,6 +742,19 @@ final class ru.workinprogress.mongkn/UpdateResult { // ru.workinprogress.mongkn/
         final fun <get-upsertedId>(): ru.workinprogress.mongkn.bson/BsonValue? // ru.workinprogress.mongkn/UpdateResult.upsertedId.<get-upsertedId>|<get-upsertedId>(){}[0]
 
     final fun toString(): kotlin/String // ru.workinprogress.mongkn/UpdateResult.toString|toString(){}[0]
+}
+
+open class ru.workinprogress.mongkn/MongoException : kotlin/RuntimeException { // ru.workinprogress.mongkn/MongoException|null[0]
+    constructor <init>(kotlin/UInt, kotlin/UInt, kotlin/String) // ru.workinprogress.mongkn/MongoException.<init>|<init>(kotlin.UInt;kotlin.UInt;kotlin.String){}[0]
+
+    final val code // ru.workinprogress.mongkn/MongoException.code|{}code[0]
+        final fun <get-code>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.code.<get-code>|<get-code>(){}[0]
+    final val domain // ru.workinprogress.mongkn/MongoException.domain|{}domain[0]
+        final fun <get-domain>(): kotlin/UInt // ru.workinprogress.mongkn/MongoException.domain.<get-domain>|<get-domain>(){}[0]
+    final val errorDomain // ru.workinprogress.mongkn/MongoException.errorDomain|{}errorDomain[0]
+        final fun <get-errorDomain>(): ru.workinprogress.mongkn/MongoErrorDomain // ru.workinprogress.mongkn/MongoException.errorDomain.<get-errorDomain>|<get-errorDomain>(){}[0]
+    final val isConnectivity // ru.workinprogress.mongkn/MongoException.isConnectivity|{}isConnectivity[0]
+        final fun <get-isConnectivity>(): kotlin/Boolean // ru.workinprogress.mongkn/MongoException.isConnectivity.<get-isConnectivity>|<get-isConnectivity>(){}[0]
 }
 
 final object ru.workinprogress.mongkn.bson/BsonMaxKey : ru.workinprogress.mongkn.bson/BsonValue { // ru.workinprogress.mongkn.bson/BsonMaxKey|null[0]

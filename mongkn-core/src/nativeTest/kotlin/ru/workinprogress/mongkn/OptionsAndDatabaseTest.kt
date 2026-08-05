@@ -241,6 +241,86 @@ class OptionsAndDatabaseTest {
             )
         }
 
+    /**
+     * Коллекция на клиенте, который **обнаруживает реплика-сет**.
+     *
+     * Без `replicaSet` в строке подключения драйвер считает топологию `Single` и, по правилу
+     * спецификации SDAM, при выборе сервера предпочтение чтения **игнорирует** — единственный
+     * узел годится под любое. Проверять `readPreference` на таком клиенте бессмысленно: тест
+     * зеленел бы и с полностью потерянной настройкой. Выяснилось прогоном.
+     */
+    private suspend fun replicaSetCollection(hint: String): MongoCollection<Document> {
+        val client = MongoClient(TestServer.uri("replicaSet=rs0&serverSelectionTimeoutMS=3000"))
+        clients += client
+        val collection = client.getDatabase(DATABASE).getCollection("${hint}_${counter++}")
+        collection.insertMany((0 until 5).map { n -> document { put("n", n) } })
+        return collection
+    }
+
+    @Test
+    fun `a read preference of secondary finds no server on a single node`() =
+        runTest {
+            val collection = replicaSetCollection("pref_secondary")
+
+            // Вторичных узлов в одноузловом реплика-сете нет, поэтому выбор сервера обязан
+            // не удаться. Это и есть доказательство, что предпочтение доехало.
+            val failure =
+                assertFailsWith<MongoException> {
+                    collection.withReadPreference(ReadPreference(ReadPreferenceMode.SECONDARY)).find().toList()
+                }
+
+            assertEquals(MongoErrorDomain.SERVER_SELECTION, failure.errorDomain)
+        }
+
+    @Test
+    fun `a read preference that allows the primary works`() =
+        runTest {
+            val collection = replicaSetCollection("pref_primary")
+
+            // Оборотная сторона: с тем же механизмом, но разрешающим первичный узел, чтение идёт.
+            // Без этого предыдущий тест был бы зелёным и при полностью сломанном чтении.
+            val modes =
+                listOf(
+                    ReadPreferenceMode.PRIMARY,
+                    ReadPreferenceMode.PRIMARY_PREFERRED,
+                    ReadPreferenceMode.NEAREST,
+                )
+            for (mode in modes) {
+                assertEquals(
+                    5,
+                    collection
+                        .withReadPreference(ReadPreference(mode))
+                        .find()
+                        .toList()
+                        .size,
+                    "режим $mode",
+                )
+            }
+        }
+
+    @Test
+    fun `a read preference applies to counting and distinct too`() =
+        runTest {
+            val collection =
+                replicaSetCollection("pref_other").withReadPreference(ReadPreference(ReadPreferenceMode.SECONDARY))
+
+            // Предпочтение должно доходить до всех операций чтения, а не только до find.
+            assertFailsWith<MongoException> { collection.countDocuments() }
+            assertFailsWith<MongoException> { collection.distinct("n") }
+            assertFailsWith<MongoException> { collection.aggregate(emptyList()).toList() }
+        }
+
+    @Test
+    fun `withReadPreference returns a copy`() =
+        runTest {
+            val collection = replicaSetCollection("pref_copy")
+
+            collection.withReadPreference(ReadPreference(ReadPreferenceMode.SECONDARY))
+
+            // Исходная коллекция настройку не унаследовала и продолжает читать.
+            assertEquals(5, collection.find().toList().size)
+        }
+
     private companion object {
         const val DATABASE = "mongkn_m10"
         var counter = 0

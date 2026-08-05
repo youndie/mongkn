@@ -3,6 +3,7 @@ package ru.workinprogress.mongkn
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import ru.workinprogress.mongkn.bson.BsonInt32
+import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
 import ru.workinprogress.mongkn.support.TestServer
@@ -235,6 +236,66 @@ class TransactionTest {
             val session = client.startSession()
             session.close()
             session.close()
+        }
+
+    @Test
+    fun `transaction options reach the server`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "opts")
+            val outside = client.getDatabase(DATABASE).getCollection(name)
+
+            client.startSession().use { session ->
+                val inside = session.getDatabase(DATABASE).getCollection(name)
+                session.withTransaction(
+                    TransactionOptions(
+                        readConcern = readConcern("snapshot"),
+                        writeConcern = majorityWriteConcern(timeoutMillis = 5_000),
+                        maxCommitTimeMillis = 10_000,
+                    ),
+                ) {
+                    inside.insertOne(document { put("n", 1) })
+                }
+            }
+
+            assertEquals(listOf(1), numbers(outside))
+        }
+
+    @Test
+    fun `an impossible write concern is refused when the transaction commits`() =
+        runTest {
+            val client = connect()
+            val name = prepared(client, "opts_bad")
+
+            // Именованного режима записи с таким именем на сервере нет. Проверяет, что настройки
+            // действительно доезжают: на принимаемом значении тест был бы зелёным и с потерянными.
+            assertFailsWith<MongoException> {
+                client.startSession().use { session ->
+                    val inside = session.getDatabase(DATABASE).getCollection(name)
+                    session.withTransaction(TransactionOptions(writeConcern = writeConcern(BsonString("нетТакого")))) {
+                        inside.insertOne(document { put("n", 1) })
+                    }
+                }
+            }
+        }
+
+    @Test
+    fun `an unknown write concern key is refused before reaching the server`() =
+        runTest {
+            val client = connect()
+
+            // Ключ, которого мы не умеем переводить в структуру libmongoc, — ошибка, а не
+            // молчаливый пропуск: настройка, выглядящая применённой и не применяемая, —
+            // ровно то, что чинилось в M10.
+            val failure =
+                assertFailsWith<IllegalStateException> {
+                    client.startSession().use { session ->
+                        session.startTransaction(
+                            TransactionOptions(writeConcern = document { put("нетТакогоКлюча", 1) }),
+                        )
+                    }
+                }
+            assertTrue("нетТакогоКлюча" in failure.message.orEmpty())
         }
 
     private companion object {
