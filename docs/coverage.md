@@ -2,7 +2,7 @@
 id: coverage
 title: Что покрыто, а что нет
 status: active
-date: 2026-08-04
+date: 2026-08-05
 ---
 
 # Покрытие
@@ -26,24 +26,30 @@ date: 2026-08-04
 | `findOneAndUpdate`, `findOneAndDelete`, `findOneAndReplace` | поисковые индексы: `createSearchIndex(es)`, `updateSearchIndex`, `dropSearchIndex`, `listSearchIndexes` |
 | `distinct`, `drop`, `renameCollection` | |
 
-**Настроек коллекции нет вовсе** (13 методов у официального): `withReadConcern`,
-`withWriteConcern`, `withReadPreference`, `withTimeout`, `withCodecRegistry`, `withDocumentClass`
-и соответствующие геттеры. Всё, что можно задать сегодня, задаётся строкой подключения.
+Каждая операция принимает параметр `options: Document` — туда уходит всё, что libmongoc
+берёт документом опций: `collation`, `hint`, `comment`, `let`, `bypassDocumentValidation`.
 
-## `FindFlow` — 5 из 22 методов чейнинга
+**Настройки коллекции — 3 из 13**: `withWriteConcern`, `withReadConcern`, `withTimeout`;
+каждая возвращает копию, а её значения вливаются в опции каждой операции. Нет
+`withReadPreference` (нужен replica set, чтобы отличать поведение), `withCodecRegistry`
+и `withDocumentClass` — оба про JVM-кодеки, у нас их место занимает `KSerializer`.
 
-Есть: `limit`, `skip`, `sort`, `projection`, `batchSize`.
+## `FindFlow` — 20 из 22 методов чейнинга
 
-Нет: `hint`, `hintString`, `collation`, `comment`, `let`, `max`, `min`, `maxTime`, `maxAwaitTime`,
-`noCursorTimeout`, `partial`, `returnKey`, `showRecordId`, `allowDiskUse`, `cursorType`,
-`timeoutMode` и прочие.
+Есть: `limit`, `skip`, `sort`, `projection`, `batchSize`, `hint`, `hintString`, `collation`,
+`comment`, `let`, `max`, `min`, `maxTime`, `maxAwaitTime`, `noCursorTimeout`, `partial`,
+`returnKey`, `showRecordId`, `allowDiskUse`, `cursorType`.
+
+Нет `timeoutMode` и `explain`: первый — часть CSOT, второй — отдельная команда.
 
 ## База и клиент
 
-`MongoDatabase` — 1 операция из 9: только `getCollection`. Нет `runCommand`, `createCollection`,
-`createView`, `drop`, `listCollections`, `listCollectionNames`, `aggregate`, `watch`.
+`MongoDatabase` — 5 операций из 9: `getCollection`, `runCommand`, `createCollection`, `drop`,
+`listCollectionNames`. Нет `createView`, `listCollections` (полные документы), `aggregate`,
+`watch`; первые две доступны через `runCommand`.
 
-`MongoClient` — создание, `getDatabase`, `close`. Нет `listDatabases`, `watch`, `startSession`.
+`MongoClient` — создание, `getDatabase`, `close`, `listDatabaseNames`. Нет `listDatabases`
+с полными документами, `watch`, `startSession`.
 
 ## Типы BSON — 18 из 20
 
@@ -73,13 +79,19 @@ date: 2026-08-04
 | Сверка с эталоном | дифференциальные тесты против официального драйвера, 25 полей |
 | Соответствие спецификации | **44** официальных сценария MongoDB; непокрытыми остались только требующие APM |
 | Публикация | приватный Reposilite, `linuxX64` |
-| Проверки | 123 теста на двух платформах, ABI-валидация, ktlint в гейте |
+| Проверки | 125 тестов на двух платформах, ABI-валидация, ktlint в гейте |
 
 ## Как это читать
 
-Добавить операцию сегодня стоит недорого: `deleteMany` или `updateMany` — это ~15 строк
-в `CollectionOps` по образцу соседей плюс метод в `MongoCollection`. Дорогими остаются
-подсистемы: сессии, агрегации, change streams, APM.
+Добавить операцию сегодня стоит недорого: ~15 строк в `CollectionOps` по образцу соседей
+плюс метод в `MongoCollection`. Дорогими остаются подсистемы: сессии, агрегации,
+change streams, APM.
+
+Одна оговорка про опции. Они проверены на том, что сервер их **видит**: тесты задают значения,
+которые он отвергает, и ловят отказ. Это доказывает, что документ опций доезжает до libmongoc
+(до M10 `insertOne` и `findOneAnd*` теряли его молча), но не то, что каждый ключ трактуется
+как у официального драйвера. Ключи, различимые только на replica set, — `readPreference`
+и часть `writeConcern` — не проверены никак: см. M17.
 
 То есть проект прошёл фазу «докажем, что архитектура работает» и упирается не в неизвестность,
 а в объём. Пробелы из этого документа разложены по вехам M9–M17 в [BACKLOG.md](../BACKLOG.md)

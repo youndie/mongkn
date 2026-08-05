@@ -238,28 +238,38 @@ APM (M-39). Без spec-покрытия остались только `countDoc
 
 ## M10 — опции операций
 
-Сегодня настроить нельзя ничего, кроме строки подключения: у операций нет `*Options`,
-у коллекции нет `with*`. Для прототипа это было приемлемо, для использования — нет.
+Закрыта, кроме M-50. Настройки коллекции вливаются в опции каждой операции, а параметр
+`options` самой операции перекрывает их поключно.
 
-- [ ] **M-47** Оставшиеся методы `FindFlow` (17 из 22): `hint`, `hintString`, `collation`,
-      `comment`, `let`, `max`, `min`, `maxTime`, `maxAwaitTime`, `noCursorTimeout`, `partial`,
-      `returnKey`, `showRecordId`, `allowDiskUse`, `cursorType`, `timeoutMode`. Механически:
-      всё это ключи в том же документе `opts`
-- [ ] **M-48** Опции операций записи: `writeConcern`, `collation`, `hint`, `comment`, `let`,
-      `bypassDocumentValidation`. Сейчас в `opts` уезжают только `ordered` и `upsert`
-- [ ] **M-49** Настройки коллекции: `withReadConcern`, `withWriteConcern`, `withReadPreference`,
-      `withTimeout`. У официального их 13 вместе с геттерами; у нас ноль
+Грабля, которую вскрыл этот заход: `insertOne` и всё семейство `findOneAnd*` передавали
+в libmongoc `null` вместо документа опций, то есть **молча теряли** любую настройку. Отсюда
+правило: тест на опцию обязан задавать значение, которое сервер **отвергает**. На принимаемом
+значении такой тест зеленеет одинаково и когда опция доехала, и когда её выбросили по дороге.
+Первая версия теста брала `writeConcern: {w: 50}` — standalone принимает его молча, и баг
+остался бы незамеченным.
+
+- [x] **M-47** Оставшиеся методы `FindFlow`: `hint`, `hintString`, `collation`, `comment`, `let`,
+      `max`, `min`, `maxTime`, `maxAwaitTime`, `noCursorTimeout`, `partial`, `returnKey`,
+      `showRecordId`, `allowDiskUse`, `cursorType` — всё это ключи в том же документе `opts`.
+      Не сделан `timeoutMode`: он часть CSOT, а не отдельный ключ
+- [x] **M-48** Опции операций записи — параметром `options: Document` у каждой операции записи.
+      Раньше в `opts` уезжали только `ordered` и `upsert`
+- [x] **M-49** Настройки коллекции: `withWriteConcern`, `withReadConcern`, `withTimeout`,
+      каждая возвращает копию. `withReadPreference` отложен вместе с M-50
 - [ ] **M-50** `readPreference` при чтении — `mongoc_collection_find_with_opts` принимает его
-      отдельным параметром, куда мы сейчас передаём `null`
+      отдельным параметром, куда мы сейчас передаём `null`. На standalone непроверяем:
+      нужен replica set (см. M17)
 
 ## M11 — база и клиент
 
-- [ ] **M-51** `MongoDatabase.runCommand` — самая ценная из недостающих: через неё делается
-      всё, чего нет в API. Сегодня произвольную команду выполнить нельзя вовсе, и тесты лезут
-      в cinterop напрямую
-- [ ] **M-52** `MongoDatabase`: `createCollection`, `createView`, `drop`, `listCollections`,
-      `listCollectionNames`
-- [ ] **M-53** `MongoClient`: `listDatabases`, `listDatabaseNames`
+Закрыта. Осталось то, что делается через `runCommand` и потому не блокирует.
+
+- [x] **M-51** `MongoDatabase.runCommand` — на `mongoc_database_command_with_opts`. Через неё
+      делается всё, чего нет в API; тестам больше не нужно лезть в cinterop напрямую
+- [x] **M-52** `MongoDatabase`: `createCollection`, `drop`, `listCollectionNames`. `createView`
+      и `listCollections` с полными документами не делались: обе доступны через `runCommand`
+- [x] **M-53** `MongoClient`: `listDatabaseNames`. `listDatabases` с полными документами — там же,
+      где `listCollections`
 
 ## M12 — агрегации
 

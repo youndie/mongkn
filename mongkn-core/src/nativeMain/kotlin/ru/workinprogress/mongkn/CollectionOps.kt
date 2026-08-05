@@ -82,6 +82,7 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         document: Document,
+        opts: Document,
     ): InsertOneResult =
         execute(client, databaseName, name) { collection ->
             // `_id` берём из документа, который сами и отправили, а не из ответа драйвера.
@@ -90,9 +91,11 @@ internal object CollectionOps {
             // на одной ветке драйвера и падать на другой.
             val prepared = withGeneratedId(document)
             withBson(prepared) { payload ->
-                withReply { reply, error ->
-                    if (!mongoc_collection_insert_one(collection, payload, null, reply, error)) fail(error)
-                    InsertOneResult(prepared.required("_id"))
+                withBson(opts) { options ->
+                    withReply { reply, error ->
+                        if (!mongoc_collection_insert_one(collection, payload, options, reply, error)) fail(error)
+                        InsertOneResult(prepared.required("_id"))
+                    }
                 }
             }
         }
@@ -103,6 +106,7 @@ internal object CollectionOps {
         name: String,
         documents: List<Document>,
         ordered: Boolean,
+        extraOpts: Document,
     ): InsertManyResult =
         execute(client, databaseName, name) { collection ->
             require(documents.isNotEmpty()) { "insertMany: список документов пуст" }
@@ -114,7 +118,7 @@ internal object CollectionOps {
             withBsonArray(prepared) { payload ->
                 // `ordered: false` — продолжать после ошибки. Опции передаются документом, как их
                 // и ждёт mongoc; по умолчанию драйвер считает вставку упорядоченной.
-                withBson(BsonDocument("ordered" to BsonBoolean(ordered))) { opts ->
+                withBson(withExtra("ordered" to BsonBoolean(ordered), extra = extraOpts)) { opts ->
                     withReply { reply, error ->
                         val ok =
                             mongoc_collection_insert_many(
@@ -158,11 +162,12 @@ internal object CollectionOps {
         filter: Document,
         update: Document,
         upsert: Boolean,
+        extraOpts: Document,
     ): UpdateResult =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
                 withBson(update) { modification ->
-                    withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
+                    withBson(withExtra("upsert" to BsonBoolean(upsert), extra = extraOpts)) { opts ->
                         withReply { reply, error ->
                             val ok =
                                 mongoc_collection_update_one(
@@ -191,12 +196,15 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         filter: Document,
+        opts: Document,
     ): DeleteResult =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
-                withReply { reply, error ->
-                    if (!mongoc_collection_delete_one(collection, selector, null, reply, error)) fail(error)
-                    DeleteResult(reply.toDocument().count("deletedCount"))
+                withBson(opts) { nativeOpts ->
+                    withReply { reply, error ->
+                        if (!mongoc_collection_delete_one(collection, selector, nativeOpts, reply, error)) fail(error)
+                        DeleteResult(reply.toDocument().count("deletedCount"))
+                    }
                 }
             }
         }
@@ -208,11 +216,12 @@ internal object CollectionOps {
         filter: Document,
         update: Document,
         upsert: Boolean,
+        extraOpts: Document,
     ): UpdateResult =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
                 withBson(update) { modification ->
-                    withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
+                    withBson(withExtra("upsert" to BsonBoolean(upsert), extra = extraOpts)) { opts ->
                         withReply { reply, error ->
                             val ok =
                                 mongoc_collection_update_many(
@@ -245,11 +254,12 @@ internal object CollectionOps {
         filter: Document,
         replacement: Document,
         upsert: Boolean,
+        extraOpts: Document,
     ): UpdateResult =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
                 withBson(replacement) { document ->
-                    withBson(BsonDocument("upsert" to BsonBoolean(upsert))) { opts ->
+                    withBson(withExtra("upsert" to BsonBoolean(upsert), extra = extraOpts)) { opts ->
                         withReply { reply, error ->
                             val ok =
                                 mongoc_collection_replace_one(
@@ -273,12 +283,15 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         filter: Document,
+        opts: Document,
     ): DeleteResult =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
-                withReply { reply, error ->
-                    if (!mongoc_collection_delete_many(collection, selector, null, reply, error)) fail(error)
-                    DeleteResult(reply.toDocument().count("deletedCount"))
+                withBson(opts) { nativeOpts ->
+                    withReply { reply, error ->
+                        if (!mongoc_collection_delete_many(collection, selector, nativeOpts, reply, error)) fail(error)
+                        DeleteResult(reply.toDocument().count("deletedCount"))
+                    }
                 }
             }
         }
@@ -350,22 +363,25 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         body: List<Pair<String, BsonValue>>,
+        opts: Document,
     ): Document? =
         execute(client, databaseName, name) { collection ->
             val command = BsonDocument(listOf<Pair<String, BsonValue>>("findAndModify" to BsonString(name)) + body)
             withBson(command) { payload ->
-                withReply { reply, error ->
-                    val ok =
-                        mongoc_collection_read_write_command_with_opts(
-                            collection,
-                            payload,
-                            null,
-                            null,
-                            reply,
-                            error,
-                        )
-                    if (!ok) fail(error)
-                    reply.toDocument()["value"] as? BsonDocument
+                withBson(opts) { options ->
+                    withReply { reply, error ->
+                        val ok =
+                            mongoc_collection_read_write_command_with_opts(
+                                collection,
+                                payload,
+                                null,
+                                options,
+                                reply,
+                                error,
+                            )
+                        if (!ok) fail(error)
+                        reply.toDocument()["value"] as? BsonDocument
+                    }
                 }
             }
         }
@@ -380,6 +396,7 @@ internal object CollectionOps {
         upsert: Boolean,
         sort: Document?,
         projection: Document?,
+        opts: Document,
     ): Document? =
         findAndModify(
             client,
@@ -394,6 +411,7 @@ internal object CollectionOps {
                 // Команда зовёт проекцию `fields`, а не `projection`: имя историческое.
                 projection?.let { "fields" to it },
             ),
+            opts,
         )
 
     suspend fun findOneAndReplace(
@@ -406,6 +424,7 @@ internal object CollectionOps {
         upsert: Boolean,
         sort: Document?,
         projection: Document?,
+        opts: Document,
     ): Document? =
         findAndModify(
             client,
@@ -420,6 +439,7 @@ internal object CollectionOps {
                 // Команда зовёт проекцию `fields`, а не `projection`: имя историческое.
                 projection?.let { "fields" to it },
             ),
+            opts,
         )
 
     suspend fun findOneAndDelete(
@@ -429,6 +449,7 @@ internal object CollectionOps {
         filter: Document,
         sort: Document?,
         projection: Document?,
+        opts: Document,
     ): Document? =
         findAndModify(
             client,
@@ -440,6 +461,7 @@ internal object CollectionOps {
                 sort?.let { "sort" to it },
                 projection?.let { "fields" to it },
             ),
+            opts,
         )
 
     /**
@@ -477,23 +499,26 @@ internal object CollectionOps {
         databaseName: String,
         name: String,
         filter: Document,
+        opts: Document,
     ): Long =
         execute(client, databaseName, name) { collection ->
             withBson(filter) { selector ->
-                val error = alloc<bson_error_t>()
-                // Единственная операция, отдающая результат возвращаемым значением, а не в reply.
-                // Признак ошибки — отрицательное число, а не false.
-                val count =
-                    mongoc_collection_count_documents(
-                        collection,
-                        selector,
-                        null,
-                        null,
-                        null,
-                        error.ptr,
-                    )
-                if (count < 0) fail(error.ptr)
-                count
+                withBson(opts) { nativeOpts ->
+                    val error = alloc<bson_error_t>()
+                    // Единственная операция, отдающая результат возвращаемым значением,
+                    // а не в reply. Признак ошибки — отрицательное число, а не false.
+                    val count =
+                        mongoc_collection_count_documents(
+                            collection,
+                            selector,
+                            nativeOpts,
+                            null,
+                            null,
+                            error.ptr,
+                        )
+                    if (count < 0) fail(error.ptr)
+                    count
+                }
             }
         }
 
@@ -654,6 +679,18 @@ internal object CollectionOps {
             null -> 0L
             else -> error("в ответе сервера поле \"$key\" не число: $value")
         }
+
+    /**
+     * Собирает документ опций: своя опция операции плюс то, что пришло снаружи.
+     *
+     * Снаружи приходят настройки уровня коллекции (`withWriteConcern` и соседи) и опции самого
+     * вызова. Порядок такой, что внешнее идёт последним, — но дубли ключей mongoc не ждёт,
+     * поэтому собственная опция выбрасывается, если её задали и снаружи.
+     */
+    private fun withExtra(
+        own: Pair<String, BsonValue>,
+        extra: Document,
+    ): Document = if (own.first in extra) extra else BsonDocument(listOf(own) + extra.entries)
 
     /** Ответы `update_one`, `update_many` и `replace_one` устроены одинаково. */
     private fun BsonDocument.toUpdateResult(): UpdateResult =

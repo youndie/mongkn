@@ -1,9 +1,11 @@
 package ru.workinprogress.mongkn
 
 import kotlinx.coroutines.flow.Flow
+import ru.workinprogress.mongkn.bson.BsonBoolean
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonInt64
+import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
 
@@ -44,13 +46,71 @@ public class FindFlow<T> internal constructor(
     /** Размер порции, которую сервер отдаёт за один раз. На результат не влияет. */
     public fun batchSize(size: Int): FindFlow<T> = withOption("batchSize", BsonInt32(size))
 
+    /** Индекс, которым выполнять запрос: документ ключей. */
+    public fun hint(index: Document): FindFlow<T> = withOption("hint", index)
+
+    /** Индекс по имени. */
+    public fun hintString(indexName: String): FindFlow<T> = withOption("hint", BsonString(indexName))
+
+    /** Правила сравнения строк — язык, регистр, диакритика. */
+    public fun collation(rules: Document): FindFlow<T> = withOption("collation", rules)
+
+    /** Комментарий, видимый в профайлере и логах сервера. */
+    public fun comment(text: String): FindFlow<T> = withOption("comment", BsonString(text))
+
+    /** Переменные, доступные выражениям запроса. */
+    public fun let(variables: Document): FindFlow<T> = withOption("let", variables)
+
+    /** Верхняя граница индекса (исключительно). */
+    public fun max(bound: Document): FindFlow<T> = withOption("max", bound)
+
+    /** Нижняя граница индекса (включительно). */
+    public fun min(bound: Document): FindFlow<T> = withOption("min", bound)
+
+    /**
+     * Сколько сервер вправе выполнять запрос.
+     *
+     * Это ограничение **на стороне сервера**: отмена корутины уже начатый вызов не прерывает
+     * (риск 2 ресёрча), а это указание прекратить работу.
+     */
+    public fun maxTime(millis: Long): FindFlow<T> = withOption("maxTimeMS", BsonInt64(millis))
+
+    /** Сколько ждать новых документов у tailable-курсора. Смысл имеет только с [CursorType.TAILABLE_AWAIT]. */
+    public fun maxAwaitTime(millis: Long): FindFlow<T> = withOption("maxAwaitTimeMS", BsonInt64(millis))
+
+    /** Не закрывать курсор по бездействию. */
+    public fun noCursorTimeout(enabled: Boolean = true): FindFlow<T> =
+        withOption("noCursorTimeout", BsonBoolean(enabled))
+
+    /** Отдавать частичный результат, если часть шардов недоступна. */
+    public fun partial(enabled: Boolean = true): FindFlow<T> = withOption("allowPartialResults", BsonBoolean(enabled))
+
+    /** Вернуть только ключи индекса вместо документов. */
+    public fun returnKey(enabled: Boolean = true): FindFlow<T> = withOption("returnKey", BsonBoolean(enabled))
+
+    /** Добавить к каждому документу его позицию в хранилище. */
+    public fun showRecordId(enabled: Boolean = true): FindFlow<T> = withOption("showRecordId", BsonBoolean(enabled))
+
+    /** Разрешить серверу использовать диск при сортировке больших выборок. */
+    public fun allowDiskUse(enabled: Boolean = true): FindFlow<T> = withOption("allowDiskUse", BsonBoolean(enabled))
+
+    /**
+     * Тип курсора.
+     *
+     * На проводе это не одно поле, а два флага — `tailable` и `awaitData`; перечисление собирает
+     * их в осмысленные сочетания, как это делает официальный драйвер.
+     */
+    public fun cursorType(type: CursorType): FindFlow<T> =
+        withOption("tailable", BsonBoolean(type != CursorType.NON_TAILABLE))
+            .withOption("awaitData", BsonBoolean(type == CursorType.TAILABLE_AWAIT))
+
     /**
      * Заменяет опцию, а не добавляет вторую с тем же именем.
      *
      * `BsonDocument` допускает повторяющиеся ключи, а mongoc в опциях их не ждёт: без замены
      * `limit(1).limit(2)` отправил бы документ с двумя `limit`.
      */
-    private fun withOption(
+    internal fun withOption(
         name: String,
         value: BsonValue,
     ): FindFlow<T> =

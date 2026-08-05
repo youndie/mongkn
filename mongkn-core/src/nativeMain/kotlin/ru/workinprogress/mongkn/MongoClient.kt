@@ -121,6 +121,9 @@ public class MongoClient(
 
     public fun getDatabase(name: String): MongoDatabase = MongoDatabase(this, name)
 
+    /** Имена баз на сервере. */
+    public suspend fun listDatabaseNames(): List<String> = DatabaseOps.listDatabaseNames(this)
+
 /*
  * Уничтожает пул и снимает инициализацию драйвера.
  *

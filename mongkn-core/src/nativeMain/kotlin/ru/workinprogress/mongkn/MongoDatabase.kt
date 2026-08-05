@@ -2,6 +2,7 @@ package ru.workinprogress.mongkn
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
+import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
 
 /**
@@ -31,4 +32,25 @@ public class MongoDatabase internal constructor(
         name: String,
         codec: KSerializer<T>,
     ): MongoCollection<T> = MongoCollection(client, this.name, name, codec)
+
+    /**
+     * Выполняет произвольную команду и возвращает ответ сервера.
+     *
+     * Через неё делается всё, чего нет в типизированном API: индексы, статистика,
+     * административные команды. Первый ключ документа — имя команды, и порядок здесь значим
+     * (решение Р4 — ровно тот случай, ради которого документ упорядоченный).
+     */
+    public suspend fun runCommand(command: Document): Document = DatabaseOps.runCommand(client, name, command)
+
+    /** Создаёт коллекцию явно — например capped или с валидатором. */
+    public suspend fun createCollection(
+        name: String,
+        options: Document = BsonDocument(),
+    ): Unit = DatabaseOps.createCollection(client, this.name, name, options)
+
+    /** Удаляет базу целиком вместе со всеми коллекциями. */
+    public suspend fun drop(): Unit = DatabaseOps.dropDatabase(client, name)
+
+    /** Имена коллекций в этой базе. */
+    public suspend fun listCollectionNames(): List<String> = DatabaseOps.listCollectionNames(client, name)
 }
