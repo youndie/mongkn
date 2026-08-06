@@ -101,6 +101,14 @@ final enum class ru.workinprogress.mongkn/ReturnDocument : kotlin/Enum<ru.workin
     final fun values(): kotlin/Array<ru.workinprogress.mongkn/ReturnDocument> // ru.workinprogress.mongkn/ReturnDocument.values|values#static(){}[0]
 }
 
+abstract interface ru.workinprogress.mongkn.bson/BsonDecoder : kotlinx.serialization.encoding/Decoder { // ru.workinprogress.mongkn.bson/BsonDecoder|null[0]
+    abstract fun decodeBsonValue(): ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/BsonDecoder.decodeBsonValue|decodeBsonValue(){}[0]
+}
+
+abstract interface ru.workinprogress.mongkn.bson/BsonEncoder : kotlinx.serialization.encoding/Encoder { // ru.workinprogress.mongkn.bson/BsonEncoder|null[0]
+    abstract fun encodeBsonValue(ru.workinprogress.mongkn.bson/BsonValue) // ru.workinprogress.mongkn.bson/BsonEncoder.encodeBsonValue|encodeBsonValue(ru.workinprogress.mongkn.bson.BsonValue){}[0]
+}
+
 abstract interface ru.workinprogress.mongkn/CommandListener { // ru.workinprogress.mongkn/CommandListener|null[0]
     open fun failed(ru.workinprogress.mongkn/CommandFailedEvent) // ru.workinprogress.mongkn/CommandListener.failed|failed(ru.workinprogress.mongkn.CommandFailedEvent){}[0]
     open fun started(ru.workinprogress.mongkn/CommandStartedEvent) // ru.workinprogress.mongkn/CommandListener.started|started(ru.workinprogress.mongkn.CommandStartedEvent){}[0]
