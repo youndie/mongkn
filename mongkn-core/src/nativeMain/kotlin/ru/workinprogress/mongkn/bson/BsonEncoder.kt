@@ -26,13 +26,23 @@ import kotlinx.serialization.modules.SerializersModule
 @OptIn(ExperimentalSerializationApi::class)
 internal class BsonValueEncoder(
     override val serializersModule: SerializersModule = EmptySerializersModule(),
-) : AbstractEncoder() {
+) : AbstractEncoder(),
+    BsonEncoder {
     /** Куда складывать очередное значение. Меняется при входе в структуру. */
     private var sink: (BsonValue) -> Unit = { result = it }
 
     private var result: BsonValue = BsonNull
 
     fun encoded(): BsonValue = result
+
+    /**
+     * Принимает готовое значение от пользовательского сериализатора.
+     *
+     * Сюда попадают все нестандартные типы: свой сериализатор всегда получает **корневой**
+     * кодировщик, потому что вложенные (документ, массив, Map) отдают сериализуемые элементы
+     * через `encodeToBsonValue`, а тот заводит новый корень.
+     */
+    override fun encodeBsonValue(value: BsonValue): Unit = sink(value)
 
     override fun encodeValue(value: Any): Unit =
         throw SerializationException("mongkn: тип ${value::class.simpleName} не поддержан в BSON")

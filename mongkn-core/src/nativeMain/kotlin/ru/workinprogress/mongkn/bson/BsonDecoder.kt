@@ -23,7 +23,16 @@ import kotlinx.serialization.modules.SerializersModule
 internal class BsonValueDecoder(
     private val value: BsonValue,
     override val serializersModule: SerializersModule = EmptySerializersModule(),
-) : AbstractDecoder() {
+) : AbstractDecoder(),
+    BsonDecoder {
+    /**
+     * Отдаёт текущее значение как есть.
+     *
+     * Свой десериализатор всегда получает **корневой** декодировщик: и документ, и массив
+     * отдают сериализуемые элементы, заводя под них новый `BsonValueDecoder`.
+     */
+    override fun decodeBsonValue(): BsonValue = value
+
     override fun decodeValue(): Any =
         when (value) {
             is BsonString -> value.value
