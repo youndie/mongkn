@@ -24,13 +24,13 @@
 - 🔐 **SCRAM, TLS, x509** — проверено на серверах с `--auth` и `--tlsMode requireTLS`
 - 📊 **Наблюдаемость** — `CommandListener` (APM) и обработчик логов драйвера
 - 🧩 **Свои типы** — `BsonEncoder` / `BsonDecoder` как точка расширения
-- 🧪 **248 тестов** и **71 официальный spec-сценарий MongoDB** из 75
+- 🧪 **251 тест** и **71 официальный spec-сценарий MongoDB** из 75
 
 ## Быстрый старт
 
 ```kotlin
 dependencies {
-    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.5")
+    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.6")
 }
 ```
 
