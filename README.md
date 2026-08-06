@@ -30,7 +30,7 @@
 
 ```kotlin
 dependencies {
-    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.4")
+    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.5")
 }
 ```
 
