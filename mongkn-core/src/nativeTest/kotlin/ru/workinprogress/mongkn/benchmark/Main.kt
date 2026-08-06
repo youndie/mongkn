@@ -9,7 +9,10 @@ import kotlinx.cinterop.value
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.count
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import mongkn.cinterop.bson_destroy
@@ -58,10 +61,21 @@ private data class Person(
 
 private const val DATABASE = "mongkn_bench"
 
+/**
+ * Аргумент — имя секции; без него выполняются все.
+ *
+ * Заведено не для удобства, а ради профилировщика (M-77): чтение занимает несколько процентов
+ * общего времени прогона, и профиль всего бенчмарка описывал бы вставки и конкурентную нагрузку.
+ * `benchmark.kexe read` даёт профиль, в котором видно только то, что разбирается.
+ */
 @OptIn(ExperimentalForeignApi::class)
-fun main() {
+fun main(args: Array<String>) {
+    val only = args.firstOrNull()
     println("mongkn: замер надбавки поверх libmongoc")
-    println("сервер: ${TestServer.host}, сборка: release, раундов: ${Bench.ROUNDS} + прогрев")
+    println(
+        "сервер: ${TestServer.host}, сборка: release, раундов: ${Bench.ROUNDS} + прогрев" +
+            if (only == null) "" else ", только секция: $only",
+    )
 
     MongoClient(TestServer.uri()).use { client ->
         val sample =
@@ -72,14 +86,20 @@ fun main() {
             }
 
         runBlocking { client.getDatabase(DATABASE).drop() }
-        insertBenchmarks(client, sample)
-        findBenchmarks(client, sample)
-        codecBenchmarks(sample)
+        if (only == null) insertBenchmarks(client, sample)
+        // Чтению нужны засеянные документы, поэтому засев идёт и в режиме одной секции.
+        if (only == null || only == "read") {
+            findBenchmarks(client, sample)
+            readPathBenchmarks(client)
+        }
+        if (only == null) codecBenchmarks(sample)
         runBlocking { client.getDatabase(DATABASE).drop() }
     }
-    concurrencyBenchmarks()
-    MongoClient(TestServer.uri()).use { client ->
-        runBlocking { client.getDatabase(DATABASE).drop() }
+    if (only == null) {
+        concurrencyBenchmarks()
+        MongoClient(TestServer.uri()).use { client ->
+            runBlocking { client.getDatabase(DATABASE).drop() }
+        }
     }
 }
 
@@ -210,6 +230,177 @@ private fun findBenchmarks(
 
     println("  (на операцию раунда приходится $documents документов)")
     Bench.compare("проход по $documents документам", "курсор C + toDocument", floor, "mongkn Flow", viaApi)
+}
+
+/**
+ * Из чего складывается надбавка пути чтения (M-77).
+ *
+ * [findBenchmarks] отвечает, **сколько** стоит путь чтения целиком; здесь — **где** это тратится.
+ *
+ * Лестница из пяти уровней, каждый добавляет ровно один слой к предыдущему, и разность соседей
+ * и есть цена слоя:
+ *
+ * 1. `курсор` — только `mongoc_cursor_next`, документ не трогаем. Пол абсолютный: столько стоит
+ *    сам драйвер и сеть до локального сервера;
+ * 2. `+ toDocument` — перевод каждого документа в Kotlin. Это пол [findBenchmarks];
+ * 3. `+ flow` — та же работа внутри `flow { }`, собираемого **в том же контексте**. Разность
+ *    со второй ступенью — цена машинерии потока: приостановка на `emit` и возобновление;
+ * 4. `+ flowOn` — то же с `.flowOn(dispatcher)`, как в `CollectionOps.find`. Здесь между
+ *    производителем и потребителем появляется канал, и каждый документ пересекает границу
+ *    контекстов;
+ * 5. `mongkn.find()` — публичный API целиком: плюс семафор, аренда клиента из пула, разбор опций.
+ *
+ * Профилировщик отвечал бы на тот же вопрос стеками, но на Kotlin/Native половина кадров там —
+ * машинерия корутин, и «где время» пришлось бы додумывать. Лестница отвечает разностями замеров:
+ * каждое число получено тем же способом, что и остальные, и сравнивать их между собой законно.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun readPathBenchmarks(client: MongoClient) {
+    val documents = 5_000
+    val source = client.getDatabase(DATABASE).getCollection("read")
+    val rounds = 20
+
+    Bench.section("Из чего состоит надбавка чтения (проход по $documents документам)")
+
+    // Курсор открывается и освобождается на каждом уровне одинаково; вынести это в общую функцию
+    // нельзя: на третьем и четвёртом уровнях внутрь попадает `emit`, а он suspend, и обычная
+    // лямбда его не примет. Ровно по этой причине `MongoClient.useClient` объявлен `inline`.
+    val cursorOnly =
+        Bench.measure(rounds) { count ->
+            runBlocking {
+                repeat(count) {
+                    client.withClient { handle ->
+                        val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
+                        val filter = BsonDocument().toNativeBson()
+                        val opts = BsonDocument().toNativeBson()
+                        val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
+                        memScoped {
+                            val current = allocPointerTo<bson_t>()
+                            var seen = 0
+                            while (mongoc_cursor_next(cursor, current.ptr)) seen++
+                            check(seen == documents) { "прочитано $seen вместо $documents" }
+                        }
+                        mongoc_cursor_destroy(cursor)
+                        bson_destroy(opts)
+                        bson_destroy(filter)
+                        mongoc_collection_destroy(collection)
+                    }
+                }
+            }
+        }
+
+    val withConversion =
+        Bench.measure(rounds) { count ->
+            runBlocking {
+                repeat(count) {
+                    client.withClient { handle ->
+                        val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
+                        val filter = BsonDocument().toNativeBson()
+                        val opts = BsonDocument().toNativeBson()
+                        val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
+                        memScoped {
+                            val current = allocPointerTo<bson_t>()
+                            var seen = 0
+                            while (mongoc_cursor_next(cursor, current.ptr)) {
+                                current.value?.toDocument()
+                                seen++
+                            }
+                            check(seen == documents) { "прочитано $seen вместо $documents" }
+                        }
+                        mongoc_cursor_destroy(cursor)
+                        bson_destroy(opts)
+                        bson_destroy(filter)
+                        mongoc_collection_destroy(collection)
+                    }
+                }
+            }
+        }
+
+    /** Тот же цикл, что в `Cursor.drainCursor`, — уровни должны отличаться ровно одним слоем. */
+    fun cursorFlow(): Flow<Document> =
+        flow {
+            client.withPermit {
+                client.useClient { handle ->
+                    val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
+                    val filter = BsonDocument().toNativeBson()
+                    val opts = BsonDocument().toNativeBson()
+                    val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
+                    try {
+                        memScoped {
+                            val current = allocPointerTo<bson_t>()
+                            while (mongoc_cursor_next(cursor, current.ptr)) {
+                                emit(current.value?.toDocument() ?: error("NULL при true"))
+                            }
+                        }
+                    } finally {
+                        mongoc_cursor_destroy(cursor)
+                        bson_destroy(opts)
+                        bson_destroy(filter)
+                        mongoc_collection_destroy(collection)
+                    }
+                }
+            }
+        }
+
+    val viaFlow =
+        Bench.measure(rounds) { count ->
+            runBlocking {
+                repeat(count) {
+                    val seen = cursorFlow().count()
+                    check(seen == documents) { "прочитано $seen вместо $documents" }
+                }
+            }
+        }
+
+    val viaFlowOn =
+        Bench.measure(rounds) { count ->
+            runBlocking {
+                repeat(count) {
+                    val seen = cursorFlow().flowOn(client.dispatcher).count()
+                    check(seen == documents) { "прочитано $seen вместо $documents" }
+                }
+            }
+        }
+
+    val viaApi =
+        Bench.measure(rounds) { count ->
+            runBlocking {
+                repeat(count) {
+                    val seen = source.find().count()
+                    check(seen == documents) { "прочитано $seen вместо $documents" }
+                }
+            }
+        }
+
+    fun perDocument(result: Bench.Result): String = Bench.format(result.perOperation / documents)
+
+    println("  на документ, мкс:")
+    println("    1. курсор без перевода:       ${perDocument(cursorOnly)}")
+    println("    2. + toDocument:              ${perDocument(withConversion)}")
+    println("    3. + flow (тот же контекст):  ${perDocument(viaFlow)}")
+    println("    4. + flowOn(dispatcher):      ${perDocument(viaFlowOn)}")
+    println("    5. mongkn.find():             ${perDocument(viaApi)}")
+    println("  цена слоёв, мкс на документ:")
+    println(
+        "    перевод в Document: ${
+            Bench.format((withConversion.perOperation - cursorOnly.perOperation) / documents)
+        }",
+    )
+    println(
+        "    машинерия Flow:     ${
+            Bench.format((viaFlow.perOperation - withConversion.perOperation) / documents)
+        }",
+    )
+    println(
+        "    переход контекста:  ${
+            Bench.format((viaFlowOn.perOperation - viaFlow.perOperation) / documents)
+        }",
+    )
+    println(
+        "    остальное в API:    ${
+            Bench.format((viaApi.perOperation - viaFlowOn.perOperation) / documents)
+        }",
+    )
 }
 
 /**
