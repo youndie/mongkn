@@ -189,7 +189,8 @@ internal class BsonValueDecoder(
         private val document: BsonDocument,
         private val descriptor: SerialDescriptor,
         override val serializersModule: SerializersModule,
-    ) : AbstractDecoder() {
+    ) : AbstractDecoder(),
+        BsonDecoder {
         /** Куда дошёл обход описания. */
         private var scan = 0
 
@@ -241,8 +242,17 @@ internal class BsonValueDecoder(
             return deserializer.deserialize(field())
         }
 
-        private fun field(): BsonValueDecoder =
-            BsonValueDecoder(document[descriptor.getElementName(current)] ?: BsonNull, serializersModule)
+        /**
+         * Отдаёт текущее поле как есть — зеркало `DocumentEncoder.encodeBsonValue`.
+         *
+         * Нужно ровно для nullable-полей: `decodeNullableSerializableElement` передаёт
+         * десериализатору **этот** объект, а не отдельный декодировщик поля.
+         */
+        override fun decodeBsonValue(): BsonValue = raw()
+
+        private fun raw(): BsonValue = document[descriptor.getElementName(current)] ?: BsonNull
+
+        private fun field(): BsonValueDecoder = BsonValueDecoder(raw(), serializersModule)
     }
 
     /**
@@ -264,8 +274,17 @@ internal class BsonValueDecoder(
          * `IndexOutOfBounds: index 4, size 4`.
          */
         private val valuesPerEntry: Int = 1,
-    ) : AbstractDecoder() {
+    ) : AbstractDecoder(),
+        BsonDecoder {
         private var current = 0
+
+        /**
+         * Отдаёт текущий элемент и сдвигает позицию — так же, как это делает [next].
+         *
+         * Позицию двигать обязательно: для nullable-элемента фреймворк зовёт этот путь вместо
+         * `decodeSerializableElement`, и без сдвига последовательность встала бы на месте.
+         */
+        override fun decodeBsonValue(): BsonValue = values[current++]
 
         override fun decodeSequentially(): Boolean = true
 

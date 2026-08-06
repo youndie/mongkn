@@ -65,6 +65,13 @@ class BsonSerializationTest {
     )
 
     @Serializable
+    private data class Refund(
+        val id: String,
+        @Serializable(with = MoneySerializer::class)
+        val compensation: Money?,
+    )
+
+    @Serializable
     private data class Basket(
         @Serializable(with = MoneySerializer::class)
         val cheapest: Money,
@@ -106,6 +113,37 @@ class BsonSerializationTest {
         assertIs<BsonArray>(prices)
         assertTrue(prices.values.all { it is BsonDecimal128 }, "в массиве не decimal128: ${prices.values}")
         assertEquals(basket, decodeFromDocument(Basket.serializer(), document))
+    }
+
+    @Test
+    fun `a nullable field reaches the custom serializer too`() {
+        // Путь у nullable-поля другой: фреймворк зовёт encodeNullableSerializableElement,
+        // а не encodeSerializableElement. Если его не перехватить, сериализатор получит
+        // составной кодировщик вместо корневого — и точка расширения просто не сработает.
+        val document = encodeToDocument(Refund.serializer(), Refund("R-1", Money("3.50")))
+
+        val compensation = document["compensation"]
+        assertIs<BsonDecimal128>(
+            compensation,
+            "ждали decimal128, получили ${compensation?.let { it::class.simpleName }}",
+        )
+        assertEquals("3.50", compensation.value)
+    }
+
+    @Test
+    fun `a nullable field survives the round trip in both states`() {
+        val filled = Refund("R-2", Money("1.00"))
+        val empty = Refund("R-3", null)
+
+        assertEquals(filled, decodeFromDocument(Refund.serializer(), encodeToDocument(Refund.serializer(), filled)))
+        assertEquals(empty, decodeFromDocument(Refund.serializer(), encodeToDocument(Refund.serializer(), empty)))
+    }
+
+    @Test
+    fun `a null in a nullable field stays null in the document`() {
+        val document = encodeToDocument(Refund.serializer(), Refund("R-4", null))
+
+        assertEquals(BsonNull, document["compensation"])
     }
 
     @Test

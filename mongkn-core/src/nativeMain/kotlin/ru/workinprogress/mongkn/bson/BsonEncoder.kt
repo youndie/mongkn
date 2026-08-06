@@ -103,11 +103,21 @@ internal class BsonValueEncoder(
         }
     }
 
-    /** Собирает документ из именованных полей. */
+    /**
+     * Собирает документ из именованных полей.
+     *
+     * Реализует [BsonEncoder] сам, а не полагается на то, что сериализуемые элементы уйдут
+     * в новый корневой кодировщик. Причина конкретная: у **nullable**-поля путь другой —
+     * фреймворк зовёт `encodeNullableSerializableElement`, а его стандартная реализация
+     * передаёт сериализатору **этот** объект. Пока составные кодировщики не были
+     * `BsonEncoder`, такое поле до точки расширения не доходило вовсе, и пользовательский
+     * сериализатор падал с «поддерживается только BSON».
+     */
     private class DocumentEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
-    ) : AbstractEncoder() {
+    ) : AbstractEncoder(),
+        BsonEncoder {
         private val entries = mutableListOf<Pair<String, BsonValue>>()
         private var key: String? = null
 
@@ -118,6 +128,8 @@ internal class BsonValueEncoder(
             key = descriptor.getElementName(index)
             return true
         }
+
+        override fun encodeBsonValue(value: BsonValue) = put(value)
 
         override fun encodeValue(value: Any) = put(scalar(value))
 
@@ -150,12 +162,17 @@ internal class BsonValueEncoder(
         override fun endStructure(descriptor: SerialDescriptor) = onEnd(BsonDocument(entries.toList()))
     }
 
-    /** Собирает массив. */
+    /** Собирает массив. [BsonEncoder] — по той же причине, что и у документа. */
     private class ArrayEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
-    ) : AbstractEncoder() {
+    ) : AbstractEncoder(),
+        BsonEncoder {
         private val values = mutableListOf<BsonValue>()
+
+        override fun encodeBsonValue(value: BsonValue) {
+            values += value
+        }
 
         override fun encodeValue(value: Any) {
             values += scalar(value)
@@ -196,9 +213,12 @@ internal class BsonValueEncoder(
     private class MapEncoder(
         override val serializersModule: SerializersModule,
         private val onEnd: (BsonValue) -> Unit,
-    ) : AbstractEncoder() {
+    ) : AbstractEncoder(),
+        BsonEncoder {
         private val entries = mutableListOf<Pair<String, BsonValue>>()
         private var key: String? = null
+
+        override fun encodeBsonValue(value: BsonValue) = accept(value)
 
         override fun encodeValue(value: Any) = accept(scalar(value))
 
