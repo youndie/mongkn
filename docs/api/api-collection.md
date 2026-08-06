@@ -79,7 +79,7 @@ BsonValue
 | Сигнатура | Заметки |
 |---|---|
 | `suspend fun insertOne(document: Document): InsertOneResult` | драфт предлагал `Boolean`; сервер отдаёт `insertedId` (Р3) |
-| `suspend fun insertMany(documents: List<Document>, ordered: Boolean = true): InsertManyResult` | пустой список отвергается до обращения к серверу; `ordered = false` — продолжать после ошибки |
+| `suspend fun insertMany(documents: List<Document>, ordered: Boolean = true): InsertManyResult` | пустой список отвергается до обращения к серверу; `ordered = false` — продолжать после ошибки, и тогда отказ приносит `MongoBulkWriteException` со счётчиками применённого (M-80), как и у `bulkWrite` |
 | `suspend fun updateOne(filter: Document, update: Document, upsert: Boolean = false): UpdateResult` | обновление **документом**, не агрегационным конвейером — выбор перегрузки сделан генератором механически (§1.10) |
 | `suspend fun deleteOne(filter: Document): DeleteResult` | |
 | `suspend fun countDocuments(filter: Document = Document()): Long` | единственная операция, где libmongoc отдаёт результат возвращаемым значением, а ошибку — отрицательным числом |

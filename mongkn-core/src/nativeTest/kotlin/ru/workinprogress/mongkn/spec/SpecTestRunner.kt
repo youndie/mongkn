@@ -1,12 +1,15 @@
 package ru.workinprogress.mongkn.spec
 
 import kotlinx.coroutines.flow.toList
+import ru.workinprogress.mongkn.BulkWriteResult
 import ru.workinprogress.mongkn.CommandStartedEvent
 import ru.workinprogress.mongkn.DeleteManyModel
 import ru.workinprogress.mongkn.DeleteOneModel
 import ru.workinprogress.mongkn.InsertOneModel
+import ru.workinprogress.mongkn.MongoBulkWriteException
 import ru.workinprogress.mongkn.MongoClient
 import ru.workinprogress.mongkn.MongoCollection
+import ru.workinprogress.mongkn.MongoErrorDomain
 import ru.workinprogress.mongkn.MongoException
 import ru.workinprogress.mongkn.ReplaceOneModel
 import ru.workinprogress.mongkn.ReturnDocument
@@ -49,11 +52,18 @@ import ru.workinprogress.mongkn.bson.Document
  * * `expectEvents` проверяется только для `commandStartedEvent`; сценарий с другими типами
  *   событий или с неизвестным нам оператором сопоставления **пропускается**, а не проходит;
  * * `runOnRequirements` умеет версию сервера и топологию; всё прочее (тип аутентификации,
- *   serverless) по-прежнему повод честно пропустить сценарий.
+ *   serverless) по-прежнему повод честно пропустить сценарий;
+ * * `expectError` сверяется по `errorCode`, `isClientError` и частичному результату пакетной
+ *   записи; ожидание с ключом, которого мы не разбираем, — повод пропустить сценарий (M-80).
+ *   До M-80 проверялся лишь сам факт отказа, то есть сценарий про код ошибки был зелёным
+ *   при **любой** ошибке;
+ * * из операций уровня раннера реализована одна — `failPoint`; сущностей поддержаны коллекция,
+ *   база и `testRunner`, но не курсоры и не сессии.
  */
 internal class SpecTestRunner(
+    /** Строка подключения без параметров сценария — основа для клиента файла. */
     private val uri: String,
-    private val client: MongoClient,
+    private val shared: MongoClient,
     /** Записывает команды клиента — источник правды для `expectEvents`. */
     private val recorder: SpecEventRecorder,
     /** Версия сервера покомпонентно — для `runOnRequirements`. */
@@ -82,6 +92,20 @@ internal class SpecTestRunner(
 
     private val report = Report()
 
+    /** Имена failpoint'ов, поставленных сценарием, — чтобы снять их, чем бы он ни кончился. */
+    private val configuredFailPoints = mutableSetOf<String>()
+
+    /**
+     * Клиент текущего файла.
+     *
+     * Обычно это [shared] — один клиент на весь прогон. Файл, объявивший `uriOptions`, получает
+     * свой: настройки подключения там не украшение. `retryReads: false` в
+     * `estimatedDocumentCount.json` — ровно то, без чего сценарий с обрывом соединения проверяет
+     * не то, что написано: драйвер молча повторяет чтение на новом соединении, операция проходит,
+     * и «ожидалась ошибка» превращается в зелёное «ошибки не было». Найдено прогоном (M-80).
+     */
+    private var client: MongoClient = shared
+
     fun report(): Report = report
 
     suspend fun runFile(
@@ -95,6 +119,31 @@ internal class SpecTestRunner(
             return
         }
 
+        // Свой клиент — только если файл просил особых настроек подключения. Наблюдатель тот же:
+        // `expectEvents` сверяется по командам того клиента, которым сценарий и выполнялся.
+        val own =
+            entities.uriOptions
+                .takeIf { it.isNotEmpty() }
+                ?.let { options ->
+                    // Основа приходит уже с параметрами, но полагаться на это незачем: строка
+                    // без `?` дала бы `mongodb://host&retryReads=false`, то есть хост с амперсандом.
+                    val separator = if ('?' in uri) "&" else "/?"
+                    MongoClient(uri + separator + options.joinToString("&"), commandListener = recorder)
+                }
+        client = own ?: shared
+        try {
+            runTests(file, fileName, entities)
+        } finally {
+            client = shared
+            own?.close()
+        }
+    }
+
+    private suspend fun runTests(
+        file: BsonDocument,
+        fileName: String,
+        entities: Entities,
+    ) {
         for (test in file.arrayOf("tests")) {
             val case = test as? BsonDocument ?: continue
             val name = "$fileName :: ${case.stringOf("description")}"
@@ -102,7 +151,7 @@ internal class SpecTestRunner(
             val skipReason =
                 unmetRequirements(file)
                     ?: unmetRequirements(case)
-                    ?: unsupportedOperation(case)
+                    ?: unsupportedOperation(case, entities)
                     ?: unsupportedEvents(case)
             if (skipReason != null) {
                 report.skipped += name to skipReason
@@ -112,7 +161,13 @@ internal class SpecTestRunner(
             seedInitialData(file)
             // Чистится после засева: события подготовки к сценарию не относятся.
             recorder.clear()
-            runOperations(case, entities, name)
+            // Failpoint, оставшийся включённым, сломал бы следующие сценарии, а искать причину
+            // пришлось бы в них — поэтому снимается и после падения тоже.
+            try {
+                runOperations(case, entities, name)
+            } finally {
+                disableFailPoints()
+            }
             val observed = recorder.started()
             verifyOutcome(case, name)
             verifyEvents(case, observed, name)
@@ -125,21 +180,51 @@ internal class SpecTestRunner(
 
     // --- разбор описания -------------------------------------------------------------------
 
-    /** id коллекции → (база, коллекция). `null`, если файл использует сущность, которой у нас нет. */
-    private fun collectEntities(file: BsonDocument): Map<String, Pair<String, String>>? {
+    /**
+     * Сущности сценария: id → адрес.
+     *
+     * Базы держатся наравне с коллекциями, а не только как ступень к ним: операции `dropCollection`
+     * и `createCollection` объявлены в формате **на базе**, и без этой половины они выглядели бы
+     * как «объект не поддержан» (так и было до M-80).
+     */
+    private class Entities(
+        /** id → (база, коллекция). */
+        val collections: Map<String, Pair<String, String>>,
+        /** id → имя базы. */
+        val databases: Map<String, String>,
+        /** Параметры строки подключения, затребованные файлом; пусто — годится общий клиент. */
+        val uriOptions: List<String>,
+    )
+
+    /** `null`, если файл использует сущность, которой у нас нет. */
+    private fun collectEntities(file: BsonDocument): Entities? {
         val databases = mutableMapOf<String, String>()
         val collections = mutableMapOf<String, Pair<String, String>>()
+        val uriOptions = mutableListOf<String>()
 
         for (entry in file.arrayOf("createEntities")) {
             val entity = entry as? BsonDocument ?: return null
             val (kind, body) = entity.entries.firstOrNull() ?: return null
             val spec = body as? BsonDocument ?: return null
             when (kind) {
+                // Клиент один на файл; из его настроек умеем то, что переводится в строку
+                // подключения. Настройку, которой не умеем, пропускаем **файлом**: молча
+                // подключиться иначе, чем просит сценарий, — это проверять не тот драйвер.
                 "client" -> {
-                    Unit
+                    val requested = spec["uriOptions"] as? BsonDocument ?: BsonDocument()
+                    for ((option, value) in requested.entries) {
+                        when {
+                            option == "retryReads" && value is BsonBoolean -> {
+                                uriOptions += "retryReads=${value.value}"
+                            }
+
+                            else -> {
+                                return null
+                            }
+                        }
+                    }
                 }
 
-                // один клиент на прогон; настройки клиента не поддерживаем
                 "database" -> {
                     databases[spec.stringOf("id")] = spec.stringOf("databaseName")
                 }
@@ -154,7 +239,7 @@ internal class SpecTestRunner(
                 }
             }
         }
-        return collections
+        return Entities(collections, databases, uriOptions)
     }
 
     /**
@@ -203,19 +288,38 @@ internal class SpecTestRunner(
         return allowed.filterIsInstance<BsonString>().any { it.value == topology.wire }
     }
 
-    private fun unsupportedOperation(case: BsonDocument): String? {
+    private fun unsupportedOperation(
+        case: BsonDocument,
+        entities: Entities,
+    ): String? {
         for (entry in case.arrayOf("operations")) {
             val operation = entry as? BsonDocument ?: return "операция не документ"
             val name = operation.stringOf("name")
             val target = operation.stringOf("object")
             val allowed = SUPPORTED[name] ?: return "операция '$name' не реализована"
-            if (!target.startsWith("collection")) return "объект '$target' не коллекция"
+
+            // Сущность ищется в разобранном `createEntities`, а не угадывается по имени: `collection0`
+            // и `database0` — соглашение сценариев, а не правило формата, и опираться на него значило
+            // бы выполнить операцию над не тем объектом при первом же файле, где принято иначе.
+            val kind = OBJECT_KIND[name] ?: return "неизвестен вид объекта для '$name'"
+            val known =
+                when (kind) {
+                    ObjectKind.COLLECTION -> target in entities.collections
+                    ObjectKind.DATABASE -> target in entities.databases
+                    ObjectKind.TEST_RUNNER -> target == "testRunner"
+                }
+            if (!known) return "объект '$target' не подходит операции '$name'"
 
             // Молча проигнорировать незнакомый аргумент опаснее, чем пропустить тест: сценарий
             // с `ordered: false` прошёл бы «успешно», проверив совсем не то, что задумано.
             val arguments = (operation["arguments"] as? BsonDocument)?.keys.orEmpty()
             val extra = arguments - allowed
             if (extra.isNotEmpty()) return "аргументы не поддержаны: ${extra.sorted()}"
+
+            (operation["expectError"] as? BsonDocument)?.let { expected ->
+                val unknown = expected.keys - KNOWN_ERROR_EXPECTATIONS
+                if (unknown.isNotEmpty()) return "ожидание ошибки не разобрано: ${unknown.sorted()}"
+            }
         }
         return null
     }
@@ -241,23 +345,22 @@ internal class SpecTestRunner(
 
     private suspend fun runOperations(
         case: BsonDocument,
-        entities: Map<String, Pair<String, String>>,
+        entities: Entities,
         name: String,
     ) {
         for (entry in case.arrayOf("operations")) {
             val operation = entry as? BsonDocument ?: continue
-            val target =
-                entities[operation.stringOf("object")]
-                    ?: error("$name: неизвестная сущность ${operation.stringOf("object")}")
-            val collection = client.getDatabase(target.first).getCollection(target.second)
+            val operationName = operation.stringOf("name")
             val arguments = operation["arguments"] as? BsonDocument ?: BsonDocument()
 
+            val expectedError = operation["expectError"] as? BsonDocument
             val expectsError = operation["expectError"] != null
             val actual =
                 try {
-                    invoke(collection, operation.stringOf("name"), arguments)
+                    perform(operation, operationName, arguments, entities, name)
                 } catch (e: MongoException) {
                     check(expectsError) { "$name: операция упала неожиданно: ${e.message}" }
+                    expectedError?.let { verifyError(it, e, name) }
                     continue
                 }
             check(!expectsError) { "$name: ожидалась ошибка, а операция прошла" }
@@ -267,6 +370,131 @@ internal class SpecTestRunner(
             // чем перечислено в сценарии (например upsertedCount там, где его не ждут).
             check(SpecMatcher.matches(expected, actual, root = true)) {
                 "$name: результат не совпал\n  ожидалось: $expected\n  получено:  $actual"
+            }
+        }
+    }
+
+    /** Выполняет операцию над той сущностью, к которой она относится по формату. */
+    private suspend fun perform(
+        operation: BsonDocument,
+        operationName: String,
+        arguments: BsonDocument,
+        entities: Entities,
+        name: String,
+    ): BsonValue {
+        val target = operation.stringOf("object")
+        return when (OBJECT_KIND[operationName]) {
+            ObjectKind.TEST_RUNNER -> {
+                configureFailPoint(arguments.documentOf("failPoint"))
+                BsonNull
+            }
+
+            ObjectKind.DATABASE -> {
+                val databaseName = entities.databases[target] ?: error("$name: неизвестная база $target")
+                onDatabase(databaseName, operationName, arguments)
+            }
+
+            else -> {
+                val address = entities.collections[target] ?: error("$name: неизвестная сущность $target")
+                invoke(client.getDatabase(address.first).getCollection(address.second), operationName, arguments)
+            }
+        }
+    }
+
+    /**
+     * Инсценирует сбой через `configureFailPoint`.
+     *
+     * Ставится на `admin` того же клиента, которым идёт сценарий, — другого у нас и нет: раннер
+     * работает одним клиентом, и аргумент `client` сценария сверять не с чем. Имя failpoint'а
+     * запоминается, чтобы снять его после сценария: `mode: {times: 1}` расходуется первой же
+     * командой, но полагаться на это нельзя — сценарий вправе не дойти до операции.
+     */
+    private suspend fun configureFailPoint(failPoint: BsonDocument) {
+        client.getDatabase("admin").runCommand(failPoint)
+        configuredFailPoints += (failPoint["configureFailPoint"] as? BsonString)?.value ?: return
+    }
+
+    private suspend fun disableFailPoints() {
+        for (failPoint in configuredFailPoints) {
+            client.getDatabase("admin").runCommand(
+                BsonDocument(
+                    "configureFailPoint" to BsonString(failPoint),
+                    "mode" to BsonString("off"),
+                ),
+            )
+        }
+        configuredFailPoints.clear()
+    }
+
+    private suspend fun onDatabase(
+        databaseName: String,
+        operationName: String,
+        arguments: BsonDocument,
+    ): BsonValue {
+        val database = client.getDatabase(databaseName)
+        when (operationName) {
+            "dropCollection" -> {
+                // Своего `dropCollection` у базы нет — он есть у коллекции, и это та же команда.
+                // Отсутствующая коллекция удалению не мешает: сервер отвечает `NamespaceNotFound`,
+                // а сценарий пользуется этой операцией именно как уборкой перед созданием.
+                try {
+                    database.getCollection(arguments.stringOf("collection")).drop()
+                } catch (e: MongoException) {
+                    if (e.code != NAMESPACE_NOT_FOUND) throw e
+                }
+            }
+
+            "createCollection" -> {
+                // Всё, кроме имени, уходит документом опций: так создаётся и представление
+                // (`viewOn` плюс `pipeline`), которое сценарию и нужно.
+                val options = BsonDocument(arguments.entries.filterNot { it.first == "collection" })
+                database.createCollection(arguments.stringOf("collection"), options)
+            }
+
+            else -> {
+                error("операция базы '$operationName' не реализована")
+            }
+        }
+        return BsonNull
+    }
+
+    /**
+     * Сверяет пойманное исключение с `expectError`.
+     *
+     * До M-80 проверялся только сам факт отказа: сценарий, ждущий кода 8, был зелёным при любой
+     * ошибке — в том числе при упавшем соединении вместо ответа сервера. Ключи, которых мы
+     * разбирать не умеем, приводят к пропуску сценария (см. [KNOWN_ERROR_EXPECTATIONS]),
+     * а не к молчаливому «сошлось».
+     */
+    private fun verifyError(
+        expected: BsonDocument,
+        actual: MongoException,
+        name: String,
+    ) {
+        (expected["errorCode"] as? BsonInt32)?.let {
+            check(actual.code == it.value.toUInt()) {
+                "$name: ожидался код ${it.value}, получен ${actual.code} (${actual.message})"
+            }
+        }
+        (expected["isClientError"] as? BsonBoolean)?.let {
+            // Клиентская ошибка — та, которую сервер не присылал: обрыв соединения, отказ выбора
+            // сервера, разбор ответа. Домен `SERVER` означает ровно обратное — ответ сервера
+            // с кодом MongoDB (M-63), поэтому сравнение доменом точнее любого разбора текста.
+            val clientSide = actual.errorDomain != MongoErrorDomain.SERVER
+            check(clientSide == it.value) {
+                "$name: ожидалась ${if (it.value) "клиентская" else "серверная"} ошибка, " +
+                    "получен домен ${actual.errorDomain} (${actual.message})"
+            }
+        }
+        (expected["expectResult"] as? BsonDocument)?.let { wanted ->
+            // Частичный результат упавшей пакетной записи. Есть только у [MongoBulkWriteException];
+            // обычное исключение его не несёт, и сценарий с таким ожиданием обязан пропуститься,
+            // а не сойтись «по умолчанию».
+            val partial =
+                (actual as? MongoBulkWriteException)?.result
+                    ?: error("$name: ожидался частичный результат, а исключение его не несёт")
+            check(SpecMatcher.matches(wanted, partial.describe(), root = true)) {
+                "$name: частичный результат не совпал\n  ожидалось: $wanted\n  получено:  ${partial.describe()}"
             }
         }
     }
@@ -386,7 +614,13 @@ internal class SpecTestRunner(
             }
 
             "estimatedDocumentCount" -> {
-                BsonInt64(collection.estimatedDocumentCount())
+                // `maxTimeMS` уходит документом опций — тем самым, который операция научилась
+                // принимать в M-80. Сценарий сверяет не только результат, но и отправленную
+                // команду: `maxTimeMS` обязан оказаться в `count`.
+                val options =
+                    arguments.intOf("maxTimeMS")?.let { BsonDocument("maxTimeMS" to BsonInt64(it.toLong())) }
+                        ?: BsonDocument()
+                BsonInt64(collection.estimatedDocumentCount(options))
             }
 
             "find" -> {
@@ -417,15 +651,7 @@ internal class SpecTestRunner(
                         arguments.arrayOf("requests").filterIsInstance<BsonDocument>().map(::writeModel),
                         ordered = arguments.flagOf("ordered", default = true),
                     )
-                BsonDocument(
-                    "insertedCount" to BsonInt32(result.insertedCount.toInt()),
-                    "matchedCount" to BsonInt32(result.matchedCount.toInt()),
-                    "modifiedCount" to BsonInt32(result.modifiedCount.toInt()),
-                    "deletedCount" to BsonInt32(result.deletedCount.toInt()),
-                    "upsertedCount" to BsonInt32(result.upsertedCount.toInt()),
-                    "insertedIds" to BsonDocument(result.insertedIds.map { it.key.toString() to it.value }),
-                    "upsertedIds" to BsonDocument(result.upsertedIds.map { it.key.toString() to it.value }),
-                )
+                result.describe()
             }
 
             "countDocuments" -> {
@@ -652,6 +878,24 @@ internal class SpecTestRunner(
 
     private fun BsonDocument.documentOf(key: String): Document = this[key] as? BsonDocument ?: BsonDocument()
 
+    /**
+     * Результат пакетной записи в том виде, в каком его ждёт официальный формат.
+     *
+     * Одна функция на два случая: успех сверяется по `expectResult` операции, частичный результат
+     * упавшей записи — по `expectResult` **внутри** `expectError`. Формы там одинаковые, и держать
+     * их разными реализациями значило бы однажды разойтись.
+     */
+    private fun BulkWriteResult.describe(): BsonDocument =
+        BsonDocument(
+            "insertedCount" to BsonInt32(insertedCount.toInt()),
+            "matchedCount" to BsonInt32(matchedCount.toInt()),
+            "modifiedCount" to BsonInt32(modifiedCount.toInt()),
+            "deletedCount" to BsonInt32(deletedCount.toInt()),
+            "upsertedCount" to BsonInt32(upsertedCount.toInt()),
+            "insertedIds" to BsonDocument(insertedIds.map { it.key.toString() to it.value }),
+            "upsertedIds" to BsonDocument(upsertedIds.map { it.key.toString() to it.value }),
+        )
+
     private companion object {
         /** Операторы сопоставления, реализованные в [SpecMatcher]. */
         val SUPPORTED_OPERATORS = setOf("\$\$unsetOrMatches", "\$\$type", "\$\$exists")
@@ -675,10 +919,47 @@ internal class SpecTestRunner(
                 "findOneAndReplace" to setOf("filter", "replacement", "returnDocument", "upsert", "sort", "projection"),
                 "findOneAndDelete" to setOf("filter", "sort", "projection"),
                 "distinct" to setOf("fieldName", "filter"),
-                "estimatedDocumentCount" to emptySet(),
+                "estimatedDocumentCount" to setOf("maxTimeMS"),
                 // Веха M12. `pipeline` обязателен, остальное — опции, которые мы учитываем.
                 "aggregate" to setOf("pipeline", "batchSize", "allowDiskUse", "let", "comment", "hint"),
                 "bulkWrite" to setOf("requests", "ordered"),
+                // M-80. Операции не над коллекцией: две над базой и одна над самим раннером.
+                "dropCollection" to setOf("collection"),
+                "createCollection" to setOf("collection", "viewOn", "pipeline"),
+                "failPoint" to setOf("client", "failPoint"),
             )
+
+        /**
+         * Операция → сущность, к которой она относится по формату.
+         *
+         * Таблицей, а не догадкой по имени сущности: `dropCollection` объявлена **на базе**,
+         * хотя по названию похожа на операцию коллекции, и наоборот — `drop` бывает у обеих.
+         */
+        val OBJECT_KIND: Map<String, ObjectKind> =
+            SUPPORTED.keys.associateWith { operation ->
+                when (operation) {
+                    "dropCollection", "createCollection" -> ObjectKind.DATABASE
+                    "failPoint" -> ObjectKind.TEST_RUNNER
+                    else -> ObjectKind.COLLECTION
+                }
+            }
+
+        /**
+         * Ключи `expectError`, которые раннер действительно проверяет.
+         *
+         * Всё прочее (`errorLabelsContain`, `errorContains`, `errorResponse`) — повод пропустить
+         * сценарий: ожидание, которое мы не сверяем, делает красный тест зелёным.
+         */
+        val KNOWN_ERROR_EXPECTATIONS = setOf("isError", "isClientError", "errorCode", "expectResult")
+
+        /** `NamespaceNotFound` — удалять нечего; для уборки перед созданием это не ошибка. */
+        const val NAMESPACE_NOT_FOUND: UInt = 26u
+    }
+
+    /** Вид сущности, над которой выполняется операция. */
+    private enum class ObjectKind {
+        COLLECTION,
+        DATABASE,
+        TEST_RUNNER,
     }
 }

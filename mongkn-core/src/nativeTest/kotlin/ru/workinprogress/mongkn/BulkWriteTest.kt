@@ -367,11 +367,87 @@ class BulkWriteTest {
             }
         }
 
+    @Test
+    fun `insertMany reports what did apply when unordered`() =
+        runTest {
+            val collection = seeded("insert_many_partial", count = 0)
+
+            // `insertMany` — такая же пакетная запись, и при `ordered = false` сервер точно так же
+            // продолжает после отказа. До M-80 отсюда летело обычное [MongoException],
+            // и применённая часть терялась: одинаковый случай, два разных исключения.
+            val failure =
+                assertFailsWith<MongoBulkWriteException> {
+                    collection.insertMany(
+                        listOf(
+                            document { put("_id", 1) },
+                            document { put("_id", 1) },
+                            document { put("_id", 3) },
+                        ),
+                        ordered = false,
+                    )
+                }
+
+            assertEquals(2, failure.result.insertedCount)
+            assertContentEquals(listOf(1, 3), collection.find().toList().map { (it["_id"] as BsonInt32).value })
+
+            val error = failure.writeErrors.single()
+            assertEquals(1, error.index, "позиция отказавшего документа в списке")
+            assertEquals(DUPLICATE_KEY, error.code)
+
+            // Идентификаторы отказавших вставок в применённые не попадают — то же правило,
+            // что и у `bulkWrite`.
+            assertEquals(
+                listOf(0, 2),
+                failure.result.insertedIds.keys
+                    .sorted(),
+            )
+        }
+
+    @Test
+    fun `a bulk failure carries the labels the server sent`() =
+        runTest {
+            val client = connect()
+            val collection = client.getDatabase(DATABASE).getCollection("labels_${counter++}")
+            val admin = client.getDatabase("admin")
+
+            // Метки — единственный надёжный признак того, что операцию стоит повторить, и по ним
+            // же `withTransaction` решает судьбу транзакции. Пакетное исключение их не несло,
+            // и заметить это можно было только здесь: обычное исключение метки несёт с M-73.
+            admin.runCommand(
+                document {
+                    put("configureFailPoint", "failCommand")
+                    putDocument("mode") { put("times", 1) }
+                    putDocument("data") {
+                        putArray("failCommands") { add("insert") }
+                        put("errorCode", WRITE_CONFLICT)
+                        putArray("errorLabels") { add("TransientTransactionError") }
+                    }
+                },
+            )
+            try {
+                val failure =
+                    assertFailsWith<MongoBulkWriteException> {
+                        collection.bulkWrite(listOf(InsertOneModel(document { put("_id", 1) })))
+                    }
+                assertTrue(failure.isTransientTransaction, "метки потеряны: ${failure.labels}")
+            } finally {
+                admin.runCommand(
+                    document {
+                        put("configureFailPoint", "failCommand")
+                        put("mode", "off")
+                    },
+                )
+            }
+        }
+
     private companion object {
         const val DATABASE = "mongkn_bulk"
 
         /** Код MongoDB для дубликата ключа. */
         const val DUPLICATE_KEY: UInt = 11000u
+
+        /** `WriteConflict` — код, который сервер сам помечает как временный. */
+        const val WRITE_CONFLICT = 112
         var counter = 0
         var cleaned = false
     }

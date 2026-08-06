@@ -163,9 +163,41 @@ internal object CollectionOps {
                                 reply,
                                 error,
                             )
-                        if (!ok) raise(error, reply)
+                        val document = reply.toDocument()
+                        // Ответ заполнен и при неуспехе, и с `ordered = false` это не мелочь:
+                        // часть документов уже в базе. Раньше отсюда летело обычное
+                        // [MongoException], и применённая часть терялась — ровно то, ради чего
+                        // для `bulkWrite` заведён [MongoBulkWriteException]. Одна и та же
+                        // ситуация давала два разных исключения; нашлось официальным сценарием
+                        // «InsertMany continue-on-error behavior with unordered» (M-80).
+                        if (!ok) {
+                            val value = error.pointed
+                            val failed = document.failedIndices()
+                            throw MongoBulkWriteException(
+                                value.domain,
+                                value.code,
+                                value.message.toKString(),
+                                BulkWriteResult(
+                                    insertedCount = document.count("insertedCount"),
+                                    // Вставка не обновляет и не удаляет — нули здесь не заглушка,
+                                    // а полный ответ: официальный сценарий сверяет и их.
+                                    matchedCount = 0,
+                                    modifiedCount = 0,
+                                    deletedCount = 0,
+                                    upsertedCount = 0,
+                                    insertedIds =
+                                        prepared
+                                            .mapIndexed { index, item -> index to item.required("_id") }
+                                            .filter { it.first !in failed }
+                                            .toMap(),
+                                    upsertedIds = emptyMap(),
+                                ),
+                                document.writeErrors(),
+                                labelsOf(reply),
+                            )
+                        }
                         InsertManyResult(
-                            insertedCount = reply.toDocument().count("insertedCount"),
+                            insertedCount = document.count("insertedCount"),
                             insertedIds = prepared.map { it.required("_id") },
                         )
                     }
@@ -358,12 +390,19 @@ internal object CollectionOps {
         client: Target,
         databaseName: String,
         name: String,
+        opts: Document,
+        readPreference: Document? = null,
     ): Long =
         execute(client, databaseName, name) { collection ->
-            withReply { reply, error ->
-                val count = mongoc_collection_estimated_document_count(collection, null, null, reply, error)
-                if (count < 0) raise(error, reply)
-                count
+            withBson(opts) { options ->
+                withReply { reply, error ->
+                    val count =
+                        withReadPrefs(readPreference) { prefs ->
+                            mongoc_collection_estimated_document_count(collection, options, prefs, reply, error)
+                        }
+                    if (count < 0) raise(error, reply)
+                    count
+                }
             }
         }
 
@@ -880,6 +919,10 @@ internal object CollectionOps {
                             value.message.toKString(),
                             outcome,
                             document.writeErrors(),
+                            // Метки нужны `withTransaction`: по ним, а не по кодам, решается,
+                            // повторять ли транзакцию. Пакетная запись их не несла — исправлено
+                            // вместе с переводом `insertMany` на это исключение (M-80).
+                            labelsOf(reply),
                         )
                     }
                     outcome

@@ -336,8 +336,14 @@ public class MongoCollection<T> internal constructor(
      * Оценка числа документов по метаданным коллекции.
      *
      * Быстрее [countDocuments], но неточна и фильтр не принимает — так устроена сама операция.
+     *
+     * Опции и настройки коллекции она принимает наравне с остальными чтениями. До M-80 это было
+     * не так: параметра не было вовсе, и `withTimeout`, `withReadConcern`, `withReadPreference`
+     * молча не действовали — единственная операция чтения, которая их теряла. Нашлось
+     * официальным сценарием `estimatedDocumentCount with maxTimeMS`, который до того пропускался.
      */
-    public suspend fun estimatedDocumentCount(): Long = CollectionOps.estimatedDocumentCount(target, databaseName, name)
+    public suspend fun estimatedDocumentCount(options: Document = BsonDocument()): Long =
+        CollectionOps.estimatedDocumentCount(target, databaseName, name, opts(options), readPreference)
 
     /** Уникальные значения поля среди подходящих документов. */
     public suspend fun distinct(

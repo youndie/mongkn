@@ -16,11 +16,16 @@ public class BulkWriteError(
 }
 
 /**
- * Неуспех [MongoCollection.bulkWrite] со счётчиками того, что **всё-таки применилось**.
+ * Неуспех пакетной записи — [MongoCollection.bulkWrite] или [MongoCollection.insertMany] —
+ * со счётчиками того, что **всё-таки применилось**.
  *
  * Существует ради `ordered = false`. При неупорядоченном пакете сервер продолжает после ошибки,
  * поэтому «операция не удалась» — неполная правда: часть записей уже в базе. Обычное исключение
  * эту часть теряло, и узнать её можно было только повторным чтением коллекции.
+ *
+ * `insertMany` присоединился к этому в M-80: до того он в той же ситуации бросал обычное
+ * [MongoException], то есть одинаковый случай давал разные исключения в зависимости от того,
+ * какой операцией записывали.
  *
  * ```
  * try {
@@ -44,4 +49,14 @@ public class MongoBulkWriteException(
     message: String,
     public val result: BulkWriteResult,
     public val writeErrors: List<BulkWriteError>,
-) : MongoException(domain, code, message)
+    /**
+     * Метки ошибки — как у [MongoException], и здесь они не для полноты картины.
+     *
+     * По ним `withTransaction` решает, повторять ли транзакцию. Пакетная запись, потерявшая метки,
+     * означала бы транзакцию, которую не перезапустят, хотя сервер прямо об этом просит.
+     * Раньше их не было ни у одного пакетного исключения; замечено при переводе `insertMany`
+     * на это исключение в M-80 — до того `insertMany` бросал обычное [MongoException] **с**
+     * метками, и перевод молча забрал бы их.
+     */
+    labels: Set<String> = emptySet(),
+) : MongoException(domain, code, message, labels)
