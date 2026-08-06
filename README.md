@@ -31,6 +31,8 @@
 ```kotlin
 dependencies {
     implementation("ru.workinprogress.mongkn:mongkn-core:0.1.6")
+    // не обязателен, но пример ниже без него не соберётся: infix-DSL живёт здесь
+    implementation("ru.workinprogress.mongkn:mongkn-extensions:0.1.6")
 }
 ```
 

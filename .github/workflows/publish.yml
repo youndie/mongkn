@@ -44,7 +44,9 @@ jobs:
           REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
           REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
         run: |
-          ./gradlew :mongkn-core:publishAllPublicationsToReposilitePrivateRepository \
+          ./gradlew \
+            :mongkn-core:publishAllPublicationsToReposilitePrivateRepository \
+            :mongkn-extensions:publishAllPublicationsToReposilitePrivateRepository \
             -PVERSION=${{ steps.version.outputs.value }}
 
       # Успешная публикация говорит только то, что загрузка не упала. Что попало в артефакт,
@@ -55,11 +57,17 @@ jobs:
           REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          BASE=https://maven.internal/private/ru/workinprogress/mongkn/mongkn-core/$VERSION
-          MODULE=$(curl -fsSL -u "$REPOSILITE_USER:$REPOSILITE_SECRET" "$BASE/mongkn-core-$VERSION.module")
-          echo "$MODULE" | grep -o '"org.jetbrains.kotlin.native.target": "[a-z0-9_]*"' | sort -u
-          if ! echo "$MODULE" | grep -q '"org.jetbrains.kotlin.native.target": "linux_x64"'; then
-            echo "::error::в опубликованном модуле нет варианта linux_x64 — артефакт собран не на том хосте"
-            exit 1
-          fi
-          echo "Опубликовано: ru.workinprogress.mongkn:mongkn-core:$VERSION"
+          ROOT=https://maven.internal/private/ru/workinprogress/mongkn
+          # Оба модуля, а не только core: extensions публикуется той же версией, и разъехавшиеся
+          # версии потребитель увидит как «No matching variant» уже у себя.
+          for MODULE_NAME in mongkn-core mongkn-extensions; do
+            BASE=$ROOT/$MODULE_NAME/$VERSION
+            MODULE=$(curl -fsSL -u "$REPOSILITE_USER:$REPOSILITE_SECRET" "$BASE/$MODULE_NAME-$VERSION.module")
+            echo "$MODULE_NAME:"
+            echo "$MODULE" | grep -o '"org.jetbrains.kotlin.native.target": "[a-z0-9_]*"' | sort -u
+            if ! echo "$MODULE" | grep -q '"org.jetbrains.kotlin.native.target": "linux_x64"'; then
+              echo "::error::в $MODULE_NAME нет варианта linux_x64 — артефакт собран не на том хосте"
+              exit 1
+            fi
+            echo "Опубликовано: ru.workinprogress.mongkn:$MODULE_NAME:$VERSION"
+          done
