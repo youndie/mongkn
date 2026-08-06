@@ -614,13 +614,10 @@ internal class SpecTestRunner(
             }
 
             "estimatedDocumentCount" -> {
-                // `maxTimeMS` уходит документом опций — тем самым, который операция научилась
-                // принимать в M-80. Сценарий сверяет не только результат, но и отправленную
-                // команду: `maxTimeMS` обязан оказаться в `count`.
-                val options =
-                    arguments.intOf("maxTimeMS")?.let { BsonDocument("maxTimeMS" to BsonInt64(it.toLong())) }
-                        ?: BsonDocument()
-                BsonInt64(collection.estimatedDocumentCount(options))
+                // Опции уходят документом — тем самым, который операция научилась принимать
+                // в M-80. Сценарии сверяют не только результат, но и отправленную команду:
+                // `maxTimeMS` и `comment` обязаны оказаться в `count`.
+                BsonInt64(collection.estimatedDocumentCount(arguments.options()))
             }
 
             "find" -> {
@@ -655,7 +652,7 @@ internal class SpecTestRunner(
             }
 
             "countDocuments" -> {
-                BsonInt64(collection.countDocuments(arguments.documentOf("filter")))
+                BsonInt64(collection.countDocuments(arguments.documentOf("filter"), arguments.options()))
             }
 
             else -> {
@@ -879,6 +876,21 @@ internal class SpecTestRunner(
     private fun BsonDocument.documentOf(key: String): Document = this[key] as? BsonDocument ?: BsonDocument()
 
     /**
+     * Аргументы сценария, которые в mongkn уходят **документом опций**, а не параметрами.
+     *
+     * `comment` берётся любого типа BSON, а не только строкой: сервер с 4.4 принимает здесь
+     * документ, и сценарий с документом-комментарием, приведённым к строке, проверял бы не то,
+     * что написано.
+     */
+    private fun BsonDocument.options(): Document =
+        BsonDocument(
+            listOfNotNull(
+                this["comment"]?.let { "comment" to it },
+                intOf("maxTimeMS")?.let { "maxTimeMS" to BsonInt64(it.toLong()) },
+            ),
+        )
+
+    /**
      * Результат пакетной записи в том виде, в каком его ждёт официальный формат.
      *
      * Одна функция на два случая: успех сверяется по `expectResult` операции, частичный результат
@@ -911,7 +923,7 @@ internal class SpecTestRunner(
                 "updateOne" to setOf("filter", "update", "upsert"),
                 "deleteOne" to setOf("filter"),
                 "find" to setOf("filter", "limit", "skip", "sort", "batchSize"),
-                "countDocuments" to setOf("filter"),
+                "countDocuments" to setOf("filter", "comment"),
                 "updateMany" to setOf("filter", "update", "upsert"),
                 "replaceOne" to setOf("filter", "replacement", "upsert"),
                 "deleteMany" to setOf("filter"),
@@ -919,7 +931,7 @@ internal class SpecTestRunner(
                 "findOneAndReplace" to setOf("filter", "replacement", "returnDocument", "upsert", "sort", "projection"),
                 "findOneAndDelete" to setOf("filter", "sort", "projection"),
                 "distinct" to setOf("fieldName", "filter"),
-                "estimatedDocumentCount" to setOf("maxTimeMS"),
+                "estimatedDocumentCount" to setOf("maxTimeMS", "comment"),
                 // Веха M12. `pipeline` обязателен, остальное — опции, которые мы учитываем.
                 "aggregate" to setOf("pipeline", "batchSize", "allowDiskUse", "let", "comment", "hint"),
                 "bulkWrite" to setOf("requests", "ordered"),

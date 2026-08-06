@@ -31,6 +31,11 @@ val specTestFiles =
         // Веха M12.
         "aggregate.json",
         "bulkWrite.json",
+        // M-40. Отдельного файла под `countDocuments` в наборе нет — есть только эти два,
+        // и оба про `comment`. Именно из-за них операция и оставалась без spec-покрытия:
+        // передать комментарий было нечем, пока `countDocuments` не принимал опций.
+        "countDocuments-comment.json",
+        "estimatedDocumentCount-comment.json",
     )
 
 val specTestsDir: Provider<Directory> = layout.buildDirectory.dir("spec-tests")

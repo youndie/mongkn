@@ -444,9 +444,18 @@ public class MongoCollection<T> internal constructor(
         options: Document = BsonDocument(),
     ): DeleteResult = CollectionOps.deleteOne(target, databaseName, name, filter, opts(options))
 
-    /** Считает документы по фильтру. */
-    public suspend fun countDocuments(filter: Document = BsonDocument()): Long =
-        CollectionOps.countDocuments(target, databaseName, name, filter, opts(BsonDocument()), readPreference)
+    /**
+     * Считает документы по фильтру.
+     *
+     * Параметр опций появился в M-40 — последняя операция, которая его не имела. Через него
+     * проходит всё, что libmongoc берёт документом опций: `comment`, `hint`, `collation`,
+     * `maxTimeMS`. До этого сюда нельзя было передать даже комментарий, хотя соседние операции
+     * его принимали.
+     */
+    public suspend fun countDocuments(
+        filter: Document = BsonDocument(),
+        options: Document = BsonDocument(),
+    ): Long = CollectionOps.countDocuments(target, databaseName, name, filter, opts(options), readPreference)
 
     /**
      * Выполняет агрегационный конвейер.
