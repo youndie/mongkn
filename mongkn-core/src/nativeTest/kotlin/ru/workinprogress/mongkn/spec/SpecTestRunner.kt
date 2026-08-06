@@ -48,8 +48,8 @@ import ru.workinprogress.mongkn.bson.Document
  *   в выбранных файлах;
  * * `expectEvents` проверяется только для `commandStartedEvent`; сценарий с другими типами
  *   событий или с неизвестным нам оператором сопоставления **пропускается**, а не проходит;
- * * `runOnRequirements` умеет только версию сервера; топологию не спрашиваем и такие сценарии
- *   честно пропускаем.
+ * * `runOnRequirements` умеет версию сервера и топологию; всё прочее (тип аутентификации,
+ *   serverless) по-прежнему повод честно пропустить сценарий.
  */
 internal class SpecTestRunner(
     private val uri: String,
@@ -58,6 +58,8 @@ internal class SpecTestRunner(
     private val recorder: SpecEventRecorder,
     /** Версия сервера покомпонентно — для `runOnRequirements`. */
     private val version: List<Int>,
+    /** Топология развёртывания — вторая половина `runOnRequirements`. */
+    private val topology: Topology,
 ) {
     data class Report(
         val executed: MutableList<String> = mutableListOf(),
@@ -158,10 +160,9 @@ internal class SpecTestRunner(
     /**
      * Проверяет `runOnRequirements`: возвращает причину пропуска или `null`, если требования сняты.
      *
-     * Умеет только версию сервера — этого хватает для выбранных файлов. Всё остальное
-     * (топология, тип аутентификации, serverless) честно отказывается выполнять сценарий,
-     * а не делает вид, что требование выполнено: молчаливое «подходит» превратило бы
-     * непроверенное в зелёное.
+     * Умеет версию сервера и топологию. Всё остальное (тип аутентификации, serverless) честно
+     * отказывается выполнять сценарий, а не делает вид, что требование выполнено: молчаливое
+     * «подходит» превратило бы непроверенное в зелёное.
      */
     private fun unmetRequirements(node: BsonDocument): String? {
         val requirements = node.arrayOf("runOnRequirements").filterIsInstance<BsonDocument>()
@@ -172,7 +173,8 @@ internal class SpecTestRunner(
                 val unknown = requirement.keys - KNOWN_REQUIREMENTS
                 when {
                     unknown.isNotEmpty() -> "runOnRequirements: не умеем проверять ${unknown.sorted()}"
-                    !satisfies(requirement) -> "runOnRequirements: версия сервера не подходит"
+                    !satisfiesVersion(requirement) -> "runOnRequirements: версия сервера не подходит"
+                    !satisfiesTopology(requirement) -> "runOnRequirements: топология ${topology.wire} не подходит"
                     else -> null
                 }
             }
@@ -180,7 +182,7 @@ internal class SpecTestRunner(
         return if (reasons.any { it == null }) null else reasons.filterNotNull().first()
     }
 
-    private fun satisfies(requirement: BsonDocument): Boolean {
+    private fun satisfiesVersion(requirement: BsonDocument): Boolean {
         (requirement["minServerVersion"] as? BsonString)?.let {
             if (compareVersions(version, parseVersion(it.value)) < 0) return false
         }
@@ -188,6 +190,17 @@ internal class SpecTestRunner(
             if (compareVersions(version, parseVersion(it.value)) > 0) return false
         }
         return true
+    }
+
+    /**
+     * `topologies` — список допустимых топологий; отсутствие ключа означает «любая».
+     *
+     * Незнакомое имя топологии (`load-balanced`) требование **не** удовлетворяет: мы такого
+     * развёртывания не поднимаем, и совпасть с ним нечему.
+     */
+    private fun satisfiesTopology(requirement: BsonDocument): Boolean {
+        val allowed = (requirement["topologies"] as? BsonArray)?.values ?: return true
+        return allowed.filterIsInstance<BsonString>().any { it.value == topology.wire }
     }
 
     private fun unsupportedOperation(case: BsonDocument): String? {
@@ -644,7 +657,7 @@ internal class SpecTestRunner(
         val SUPPORTED_OPERATORS = setOf("\$\$unsetOrMatches", "\$\$type", "\$\$exists")
 
         /** Требования, которые раннер умеет вычислять. Остальные — повод пропустить. */
-        val KNOWN_REQUIREMENTS = setOf("minServerVersion", "maxServerVersion")
+        val KNOWN_REQUIREMENTS = setOf("minServerVersion", "maxServerVersion", "topologies")
 
         /** Операция → аргументы, которые mongkn действительно учитывает. */
         val SUPPORTED: Map<String, Set<String>> =

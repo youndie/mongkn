@@ -223,6 +223,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
     providers.environmentVariable("MONGKN_TEST_HOST").orNull?.let { environment("MONGKN_TEST_HOST", it) }
     providers.environmentVariable("MONGKN_TEST_AUTH_HOST").orNull?.let { environment("MONGKN_TEST_AUTH_HOST", it) }
     providers.environmentVariable("MONGKN_TEST_TLS_HOST").orNull?.let { environment("MONGKN_TEST_TLS_HOST", it) }
+    // Адрес mongos: в Linux-контейнере кластер живёт не на 127.0.0.1, как и остальные серверы.
+    providers.environmentVariable("MONGKN_TEST_SHARD_HOST").orNull?.let { environment("MONGKN_TEST_SHARD_HOST", it) }
     // Путь к сертификатам — абсолютный: `tlsCAFile` в строке подключения относительный не простит,
     // а рабочий каталог нативного теста не определён.
     environment(

@@ -55,7 +55,8 @@ class SpecConformanceTest {
             // действительно отправил, а подключить APM после создания клиента libmongoc не даёт.
             val recorder = SpecEventRecorder()
             val connection = MongoClient(uri, commandListener = recorder).also { client = it }
-            val runner = SpecTestRunner(uri, connection, recorder, serverVersion(connection))
+            val runner =
+                SpecTestRunner(uri, connection, recorder, serverVersion(connection), topology(connection))
 
             for (name in files) {
                 val path = "$directory/$name"

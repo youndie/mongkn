@@ -2,8 +2,8 @@
 # Поднимает и настраивает все тестовые серверы mongkn.
 #
 # Compose описывает контейнеры, но не умеет то, что делается **после** старта: инициировать
-# replica set, завести пользователей. Поэтому обёртка: `docker compose up` плюс четыре команды,
-# каждая из которых обязательна и ни одна не очевидна.
+# replica set, завести пользователей, собрать шардированный кластер. Поэтому обёртка:
+# `docker compose up` плюс команды, каждая из которых обязательна и ни одна не очевидна.
 #
 # Использование:
 #   ci/dev-servers.sh up     — поднять и настроить
@@ -54,7 +54,12 @@ case "${1:-up}" in
     docker exec mongkn-tls mongosh --quiet --tls --tlsCAFile /etc/mongo-tls/ca.pem --eval \
       "try { db.getSiblingDB('\$external').runCommand({createUser: '$SUBJECT', roles: [{role:'root', db:'admin'}]}) } catch (e) {}" >/dev/null
 
-    echo "серверы готовы: 27017 (replica set), 27019 (SCRAM), 27020 (TLS)"
+    # Шардированный кластер: три `rs.initiate` и два `addShard` внутри контейнера.
+    # Вынесено отдельным скриптом, потому что тем же скриптом кластер собирается в CI
+    # на macOS-раннере, где docker недоступен и процессы запускаются напрямую.
+    MONGKN_SHARD_EXEC="docker exec mongkn-shard" ./ci/shard/init.sh
+
+    echo "серверы готовы: 27017 (replica set), 27019 (SCRAM), 27020 (TLS), 27021 (mongos)"
     ;;
   down)
     docker compose down -v

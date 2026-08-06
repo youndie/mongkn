@@ -112,6 +112,27 @@ jobs:
           # (docker compose + инициализация). В CI шаги оставлены раздельными: на macOS-раннере
           # docker недоступен, и mongod там ставится через brew.
 
+      # Четвёртый контур — шардированный кластер (M-66): конфигурационный реплика-сет, два шарда
+      # и mongos. Раскладка портов у контейнера и у процессов на macOS одна и та же, поэтому
+      # запускает кластер один скрипт, а доводит до рабочего состояния — другой, общий для обоих.
+      # Отличается только то, как позвать mongosh, и это ровно одна переменная.
+      - name: Поднять шардированный кластер (Linux)
+        if: runner.os == 'Linux'
+        env:
+          MONGKN_PLATFORM: linux/amd64
+        run: |
+          docker compose up -d mongo-shard
+          MONGKN_SHARD_EXEC="docker exec mongkn-shard" ./ci/shard/init.sh
+
+      - name: Поднять шардированный кластер (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # brew не кладёт mongod и mongos в PATH, а скрипт зовёт их по имени: он рассчитан
+          # и на контейнер, где они лежат в системных каталогах.
+          export PATH="$(brew --prefix)/opt/mongodb-community@8.0/bin:$PATH"
+          MONGKN_SHARD_DBROOT=/tmp/mongkn-shard ./ci/shard/start.sh
+          ./ci/shard/init.sh
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Сборка и тесты
