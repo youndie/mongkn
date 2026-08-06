@@ -65,7 +65,9 @@ public fun not(filter: Document): Document = BsonDocument("\$nor" to BsonArray(l
 
 // --- внутреннее --------------------------------------------------------------------------
 
-private fun String.compare(
+// internal, а не private: тем же сборщиком пользуются одноимённые функции в [FilterScope],
+// которые отличаются только тем, что значение уже закодировано сериализатором поля.
+internal fun String.compare(
     operator: String,
     value: Any?,
 ): Document = BsonDocument(this to BsonDocument(operator to bsonOf(value)))

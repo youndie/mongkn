@@ -28,6 +28,20 @@ public class UpdateResult(
     public val modifiedCount: Long,
     public val upsertedId: BsonValue?,
 ) {
+    /**
+     * Запрос нашёл документ или создал его апсертом.
+     *
+     * Намеренно **не** `wasAcknowledged` из официального драйвера: то свойство отвечает на
+     * другой вопрос — подтвердил ли сервер запись вообще (при `w: 0` он не подтверждает,
+     * и остальные поля тогда бессмысленны). Здесь речь о результате запроса.
+     *
+     * Заведено потому, что иначе каждый потребитель пишет
+     * `matchedCount > 0 || modifiedCount > 0 || upsertedId != null` заново — и однажды забудет
+     * третье слагаемое, а с ним и все апсерты.
+     */
+    public val matchedAny: Boolean
+        get() = matchedCount > 0 || modifiedCount > 0 || upsertedId != null
+
     override fun toString(): String =
         "UpdateResult(matchedCount=$matchedCount, modifiedCount=$modifiedCount, upsertedId=$upsertedId)"
 }

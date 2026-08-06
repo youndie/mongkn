@@ -228,8 +228,6 @@ internal class BsonValueDecoder(
 
         override fun decodeChar(): Char = field().decodeChar()
 
-        // decodeNullableSerializableElement в AbstractDecoder тоже final: он опирается
-        // на decodeNotNullMark() составного декодера, поэтому достаточно правильно ответить здесь.
         override fun decodeNotNullMark(): Boolean = field().decodeNotNullMark()
 
         override fun <T> decodeSerializableElement(
@@ -241,6 +239,23 @@ internal class BsonValueDecoder(
             current = index
             return deserializer.deserialize(field())
         }
+
+        /**
+         * Зеркало `DocumentEncoder.encodeNullableSerializableElement` — но перехватывать
+         * приходится **другой** метод.
+         *
+         * `decodeNullableSerializableElement` в `AbstractDecoder` финальный, и внутри он зовёт
+         * не `decodeSerializableElement`, а `decodeSerializableValue` — то есть читает значение
+         * **этим** декодировщиком. Для вложенной структуры это значит, что `Address?`
+         * разбирается по документу верхнего уровня и падает с «нет обязательных полей
+         * city, zip», хотя они лежат во вложенном документе. Правильного ответа на
+         * `decodeNotNullMark` тут мало: в null упирается только пустой случай, а ломается
+         * непустой.
+         *
+         * Индекс поля к этому моменту уже проставлен: его кладёт [decodeElementIndex].
+         */
+        override fun <T> decodeSerializableValue(deserializer: kotlinx.serialization.DeserializationStrategy<T>): T =
+            deserializer.deserialize(field())
 
         /**
          * Отдаёт текущее поле как есть — зеркало `DocumentEncoder.encodeBsonValue`.
@@ -321,6 +336,13 @@ internal class BsonValueDecoder(
             deserializer: kotlinx.serialization.DeserializationStrategy<T>,
             previousValue: T?,
         ): T = deserializer.deserialize(next())
+
+        /**
+         * То же, что у документа: nullable-элемент читается декодировщиком элемента, а не этим.
+         * Позиция при этом сдвигается — элемент считается прочитанным.
+         */
+        override fun <T> decodeSerializableValue(deserializer: kotlinx.serialization.DeserializationStrategy<T>): T =
+            deserializer.deserialize(next())
 
         private fun next(): BsonValueDecoder = BsonValueDecoder(values[current++], serializersModule)
     }

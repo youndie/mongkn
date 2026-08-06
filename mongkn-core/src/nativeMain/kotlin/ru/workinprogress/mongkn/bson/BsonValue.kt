@@ -1,5 +1,11 @@
 package ru.workinprogress.mongkn.bson
 
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+
 /**
  * Значение BSON.
  *
@@ -76,6 +82,45 @@ public class BsonObjectId(
     public companion object {
         public const val SIZE: Int = 12
         private const val HEX: String = "0123456789abcdef"
+
+        /** Случайная часть — общая на процесс: см. [generate]. */
+        private val processRandom: ByteArray by lazy { Random.nextBytes(5) }
+
+        @OptIn(ExperimentalAtomicApi::class)
+        private val counter = AtomicInt(Random.nextInt())
+
+        /**
+         * Новый `_id` — то, что официальный драйвер делает конструктором `ObjectId()`.
+         *
+         * Формат по действующей спецификации MongoDB (ревизия 2020 года): 4 байта — секунды
+         * от эпохи, 5 байт — случайное значение, общее на процесс, 3 байта — счётчик, тоже общий
+         * и растущий по кругу. Старый вариант с machine id и pid спецификация оставила: он давал
+         * коллизии при рестарте процесса на той же машине.
+         *
+         * Случайные 5 байт фиксируются **один раз**, а не выбираются на каждый вызов: иначе два
+         * id, выпущенные в одну секунду, различались бы только счётчиком, и главная защита
+         * от совпадения между процессами исчезла бы.
+         */
+        @OptIn(ExperimentalAtomicApi::class, ExperimentalTime::class)
+        public fun generate(): BsonObjectId {
+            val bytes = ByteArray(SIZE)
+
+            val epochMillis = Clock.System.now().toEpochMilliseconds()
+            val seconds = (epochMillis / 1000).toInt()
+            bytes[0] = (seconds ushr 24).toByte()
+            bytes[1] = (seconds ushr 16).toByte()
+            bytes[2] = (seconds ushr 8).toByte()
+            bytes[3] = seconds.toByte()
+
+            processRandom.copyInto(bytes, destinationOffset = 4)
+
+            val count = counter.fetchAndAdd(1) and 0xFFFFFF
+            bytes[9] = (count ushr 16).toByte()
+            bytes[10] = (count ushr 8).toByte()
+            bytes[11] = count.toByte()
+
+            return BsonObjectId(bytes)
+        }
 
         /** Разбирает каноническое 24-символьное представление. */
         public fun parse(hex: String): BsonObjectId {

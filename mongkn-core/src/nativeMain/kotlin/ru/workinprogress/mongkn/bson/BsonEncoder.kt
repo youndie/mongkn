@@ -152,6 +152,16 @@ internal class BsonValueEncoder(
             if (value is BsonValue) put(value) else put(encodeToBsonValue(serializer, value))
         }
 
+        override fun <T : Any> encodeNullableSerializableElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+            serializer: kotlinx.serialization.SerializationStrategy<T>,
+            value: T?,
+        ) {
+            key = descriptor.getElementName(index)
+            put(nullableElement(serializer, value))
+        }
+
         override fun beginStructure(descriptor: SerialDescriptor) =
             error("mongkn: структуры внутри документа идут через encodeSerializableElement")
 
@@ -198,6 +208,15 @@ internal class BsonValueEncoder(
             values += if (value is BsonValue) value else encodeToBsonValue(serializer, value)
         }
 
+        override fun <T : Any> encodeNullableSerializableElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+            serializer: kotlinx.serialization.SerializationStrategy<T>,
+            value: T?,
+        ) {
+            values += nullableElement(serializer, value)
+        }
+
         override fun beginStructure(descriptor: SerialDescriptor) =
             error("mongkn: структуры внутри массива идут через encodeSerializableElement")
 
@@ -236,6 +255,13 @@ internal class BsonValueEncoder(
             value: T,
         ) = accept(if (value is BsonValue) value else encodeToBsonValue(serializer, value))
 
+        override fun <T : Any> encodeNullableSerializableElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+            serializer: kotlinx.serialization.SerializationStrategy<T>,
+            value: T?,
+        ) = accept(nullableElement(serializer, value))
+
         override fun beginStructure(descriptor: SerialDescriptor) =
             error("mongkn: структуры внутри Map идут через encodeSerializableElement")
 
@@ -255,6 +281,28 @@ internal class BsonValueEncoder(
     }
 
     private companion object {
+        /**
+         * Значение nullable-элемента — для всех трёх составных кодировщиков одинаково.
+         *
+         * Существует потому, что стандартная реализация `encodeNullableSerializableElement`
+         * передаёт сериализатору **сам составной кодировщик**, а не заводит новый корневой,
+         * как это делает `encodeSerializableElement`. Для вложенной структуры это заканчивается
+         * вызовом `beginStructure` на составном кодировщике — то есть падением: обычное поле
+         * вида `Address?` не кодировалось вовсе, хотя не-nullable `Address` работал.
+         *
+         * Поэтому непустое значение уходит тем же путём, что и у не-nullable элемента —
+         * через отдельный корневой кодировщик.
+         */
+        fun <T : Any> nullableElement(
+            serializer: kotlinx.serialization.SerializationStrategy<T>,
+            value: T?,
+        ): BsonValue =
+            when (value) {
+                null -> BsonNull
+                is BsonValue -> value
+                else -> encodeToBsonValue(serializer, value)
+            }
+
         fun scalar(value: Any): BsonValue =
             when (value) {
                 is String -> BsonString(value)
@@ -272,8 +320,13 @@ internal class BsonValueEncoder(
     }
 }
 
-/** Кодирует значение в [BsonValue]. */
-internal fun <T> encodeToBsonValue(
+/**
+ * Кодирует значение в [BsonValue] — тем же сериализатором, каким оно легло бы в документ.
+ *
+ * Публично ради `mongkn-extensions`: фильтр обязан кодировать значение так же, как кодируется
+ * само поле, иначе `"shopId" eq id` сравнивает строку с `ObjectId` и молча не находит ничего.
+ */
+public fun <T> encodeToBsonValue(
     serializer: kotlinx.serialization.SerializationStrategy<T>,
     value: T,
 ): BsonValue = BsonValueEncoder().also { serializer.serialize(it, value) }.encoded()

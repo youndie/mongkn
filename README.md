@@ -23,8 +23,10 @@
 - 🧭 **Все топологии** — standalone, replica set, шардированный кластер через `mongos`
 - 🔐 **SCRAM, TLS, x509** — проверено на серверах с `--auth` и `--tlsMode requireTLS`
 - 📊 **Наблюдаемость** — `CommandListener` (APM) и обработчик логов драйвера
-- 🧩 **Свои типы** — `BsonEncoder` / `BsonDecoder` как точка расширения
-- 🧪 **251 тест** и **71 официальный spec-сценарий MongoDB** из 75
+- 🧩 **Свои типы** — `BsonEncoder` / `BsonDecoder` как точка расширения, плюс готовые
+  сериализаторы `ObjectId` и даты
+- 🧪 **284 теста** и **71 официальный spec-сценарий MongoDB** из 75
+- 🚚 **Проверено переносом настоящего сервиса** — внутренний сервис, а не примером из документации
 
 ## Быстрый старт
 
@@ -57,6 +59,10 @@ fun main() = runBlocking {
 Точка расширения устроена как `JsonEncoder.encodeJsonElement` в `kotlinx-serialization-json`:
 сериализатор проверяет тип кодировщика и отдаёт готовый `BsonValue`. Нужно тем типам,
 у которых в BSON есть точное представление — деньги в `decimal128` тому примером.
+
+Самые частые случаи уже готовы в `mongkn-extensions`: `StringAsBsonObjectId` (`_id` и ссылки —
+`ObjectId` на проводе, `String` в коде) и `InstantAsBsonDateTime` (иначе не работают
+TTL-индексы). Полностью — [docs/api/serialization.md](docs/api/serialization.md).
 
 ```kotlin
 object MoneySerializer : KSerializer<Money> {
@@ -125,6 +131,7 @@ object MoneySerializer : KSerializer<Money> {
 | | |
 |---|---|
 | [docs/coverage.md](docs/coverage.md) | что умеет, а что нет — цифрами |
+| [docs/api/serialization.md](docs/api/serialization.md) | свои типы, `_id`, пустые поля, почему фильтр может ничего не найти |
 | [docs/performance.md](docs/performance.md) | сколько стоит обвязка: на записи неразличимо, на чтении +52 % |
 | [docs/research/](docs/research/) | решения и почему очевидное здесь трижды неверно |
 | [BACKLOG.md](BACKLOG.md) | что дальше |
