@@ -18,7 +18,9 @@ docker run --rm --platform linux/amd64 \
   -v mongkn-gradle-amd64:/gradle \
   -v mongkn-konan-amd64:/konan \
   mongkn-ci:amd64 sh -c "
-    for port in 27017 27019 27020; do
+    # 27021 — mongos шардированного контура (M-66). Добавлен позже остальных: на Linux-хосте
+    # проброс не нужен вовсе, и без него тесты шарда молча не находят кластер.
+    for port in 27017 27019 27020 27021; do
       socat TCP-LISTEN:\$port,fork,reuseaddr,bind=127.0.0.1 TCP:host.docker.internal:\$port &
     done
     sleep 1

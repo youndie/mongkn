@@ -43,6 +43,12 @@ fun findIncludeDir(rel: String): File? =
         .flatMap { include -> listOf(include) + (include.listFiles()?.filter { it.isDirectory } ?: emptyList()) }
         .firstOrNull { File(it, rel).isFile }
 
+/** Каталог, в котором лежит библиотека с этим именем. */
+fun findLibDir(name: String): File? =
+    libDirs.firstOrNull { dir ->
+        dir.listFiles()?.any { it.name == "lib$name.dylib" || it.name == "lib$name.so" } == true
+    }
+
 /**
  * Каталоги с библиотеками.
  *
@@ -76,6 +82,65 @@ fun findLibName(stem: String): String? {
             ?.minByOrNull { it.length }
     }
 }
+
+/**
+ * Описание cinterop с **вписанными** опциями линковки.
+ *
+ * Исходный `mongoc.def` их не содержит: имена библиотек и каталоги у 1.x и 2.x разные, и проект
+ * разрешает их перебором (решение Р1). Но опции линковки обязаны попасть в **klib**, иначе
+ * потребитель получит библиотеку, которую нечем слинковать, — проверено сборкой настоящего
+ * потребителя против опубликованного артефакта.
+ *
+ * Поэтому `.def` собирается: исходный текст плюс `linkerOpts` и `libraryPaths` с уже
+ * разрешёнными значениями. Это не отменяет решение Р1, а доводит его до конца — раньше
+ * разрешение доезжало только до наших собственных бинарников.
+ */
+val generatedDefinition: Provider<RegularFile> =
+    layout.buildDirectory.file("cinterop/mongoc.def").also { target ->
+        val source = project.file("src/nativeInterop/cinterop/mongoc.def")
+        val mongoc = findLibName("mongoc") ?: error("mongkn: не найдена libmongoc в $libDirs")
+        val bson = findLibName("bson") ?: error("mongkn: не найдена libbson в $libDirs")
+        // Только те каталоги, где библиотеки действительно лежат. `libDirs` — это ещё и все
+        // подкаталоги `lib`, нужные для перебора; вписывать их полсотни в klib незачем.
+        val neededDirs = listOf(mongoc, bson).mapNotNull(::findLibDir).distinct()
+        /*
+         * На Linux нужен --allow-shlib-undefined, и это не перестраховка.
+         *
+         * Kotlin/Native линкует своим sysroot с намеренно старой glibc — ради переносимости
+         * бинарника. Системная libbson собрана против glibc дистрибутива, которая новее,
+         * и тянет символы вроде strlcpy@GLIBC_2.38 и pthread_once@GLIBC_2.34. ld.lld по
+         * умолчанию считает неразрешённые ссылки **внутри чужой .so** ошибкой и падает.
+         *
+         * Флаг тоже обязан ехать в klib: у потребителя та же самая libbson и та же самая
+         * старая glibc в sysroot. Пока он стоял только в `binaries.all`, потребитель упирался
+         * в эти два символа — проверено.
+         */
+        val platformLinkerOpts =
+            // Без префикса `-Wl,`: из `.def` опции уходят прямо в `ld.lld`, а не через драйвер
+            // компилятора, и тот отвечает `unknown argument '-Wl,--allow-shlib-undefined'`.
+            if (System.getProperty("os.name") == "Linux") "--allow-shlib-undefined " else ""
+        val file = target.get().asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            source.readText() +
+                """
+
+                # Ниже — сгенерировано mongkn-core/build.gradle.kts, править здесь бесполезно.
+                #
+                # Эти строки и делают klib пригодным для потребителя: без них он собирается
+                # и публикуется, но не линкуется на чужой стороне.
+                #
+                # Каталог поиска указан **внутри** `linkerOpts`, а не только в `libraryPaths`,
+                # и это не дублирование: `libraryPaths` действует на этапе cinterop, а до
+                # линковки у потребителя не доходит. С одним лишь `libraryPaths` ошибка меняется
+                # с «undefined symbol» на «unable to find library -lmongoc-1.0» — проверено.
+                linkerOpts = $platformLinkerOpts${neededDirs.joinToString(
+                    " ",
+                ) { "-L" + it.absolutePath }} -l$mongoc -l$bson
+                libraryPaths = ${neededDirs.joinToString(" ") { it.absolutePath }}
+                """.trimIndent() + "\n",
+        )
+    }
 
 /**
  * Дифференциальные тесты (M-28): нативная сторона — вторая из трёх фаз.
@@ -133,7 +198,7 @@ kotlin {
     hostTarget.apply {
         compilations.getByName("main") {
             cinterops.create("mongoc") {
-                definitionFile.set(project.file("src/nativeInterop/cinterop/mongoc.def"))
+                definitionFile.set(generatedDefinition)
                 packageName("mongkn.cinterop")
 
                 val mongocInclude = findIncludeDir("mongoc/mongoc.h")
@@ -165,33 +230,9 @@ kotlin {
             entryPoint = "ru.workinprogress.mongkn.benchmark.main"
         }
 
-        binaries.all {
-            val mongoc = findLibName("mongoc") ?: error("mongkn: не найдена libmongoc в $libDirs")
-            val bson = findLibName("bson") ?: error("mongkn: не найдена libbson в $libDirs")
-
-            /*
-             * На Linux нужен --allow-shlib-undefined, и это не перестраховка.
-             *
-             * Kotlin/Native линкует своим sysroot с намеренно старой glibc — ради переносимости
-             * бинарника. Системная libbson собрана против glibc дистрибутива, которая новее,
-             * и тянет символы вроде strlcpy@GLIBC_2.38 и pthread_once@GLIBC_2.34. ld.lld по
-             * умолчанию считает неразрешённые ссылки **внутри чужой .so** ошибкой и падает.
-             *
-             * Разрешать их на этапе линковки незачем: динамический загрузчик найдёт их в реальной
-             * glibc системы при запуске. Флаг снимает именно эту проверку и только для
-             * разделяемых библиотек — неразрешённые символы нашего кода по-прежнему ошибка.
-             */
-            val platformOpts =
-                if (System.getProperty("os.name") == "Linux") {
-                    listOf("-Wl,--allow-shlib-undefined")
-                } else {
-                    emptyList()
-                }
-            linkerOpts(
-                libDirs.flatMap { listOf("-L${it.absolutePath}") } +
-                    listOf("-l$mongoc", "-l$bson") + platformOpts,
-            )
-        }
+        // Опций линковки здесь больше нет: все они в сгенерированном `.def` и потому едут
+        // в klib. Пока они стояли тут, наши собственные бинарники собирались, а у потребителя
+        // библиотека не линковалась вовсе.
     }
 
     // Source set'ы `nativeMain` / `nativeTest` заводить руками нельзя: их уже создаёт
