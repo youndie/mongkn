@@ -14,6 +14,16 @@
 # Раньше их было шесть: те же три плюс копии в docker-сети для Linux-прогона. Копии убраны —
 # контейнер сборки ходит на хост через `host.docker.internal`, см. CLAUDE.md.
 #
+# Порты и имена контейнеров **разводятся**: на одной машине может жить и контур разработчика,
+# и контур прогона CI (self-hosted раннер в WSL стоит там же, где работают руками). Значения
+# по умолчанию — те же, что были, поэтому обычный `ci/dev-servers.sh up` ничего не меняет.
+# Сдвиг задаётся через MONGKN_PORT_OFFSET, см. ci/dev-servers.sh.
+#
+# Порт сдвигается **и внутри контейнера**, а публикуется один в один. Иначе реплика-сет объявляет
+# себя портом, на котором внутри никто не слушает: адрес члена обязан быть одним и тем же
+# с обеих сторон. Первая версия сдвигала только публикуемый порт — сдвинутый контур объявлял
+# себя адресом соседнего, и тесты уходили в чужие серверы.
+#
 # Память ограничена намеренно. WiredTiger по умолчанию забирает половину ОЗУ машины минус
 # гигабайт, то есть на 16-гигабайтном ноутбуке каждый из трёх серверов счёл бы себя вправе
 # занять несколько гигабайт. Для тестовых объёмов хватает четверти гигабайта — это минимум,
@@ -43,10 +53,11 @@ services:
   # иначе сервер объявит себя под своим hostname, и драйвер уйдёт по недостижимому адресу.
   mongo:
     <<: *common
-    container_name: mongkn-it
-    ports: ["27017:27017"]
+    container_name: ${MONGKN_PREFIX:-mongkn}-it
+    ports: ["${MONGKN_PORT_RS:-27017}:${MONGKN_PORT_RS:-27017}"]
     command: >
       mongod --replSet rs0 --bind_ip_all
+      --port ${MONGKN_PORT_RS:-27017}
       --wiredTigerCacheSizeGB 0.25
       --setParameter enableTestCommands=1
 
@@ -54,13 +65,14 @@ services:
   # из значащих для URI символов — скриптом инициализации.
   mongo-auth:
     <<: *common
-    container_name: mongkn-auth
-    ports: ["27019:27017"]
+    container_name: ${MONGKN_PREFIX:-mongkn}-auth
+    ports: ["${MONGKN_PORT_AUTH:-27019}:${MONGKN_PORT_AUTH:-27019}"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: mongkn_test
       MONGO_INITDB_ROOT_PASSWORD: mongkn_secret
     command: >
       mongod --bind_ip_all
+      --port ${MONGKN_PORT_AUTH:-27019}
       --wiredTigerCacheSizeGB 0.25
       --setParameter enableTestCommands=1
 
@@ -72,8 +84,8 @@ services:
   # клиентский сертификат обязательным, и обычное TLS-подключение сервер молча закрывает.
   mongo-tls:
     <<: *common
-    container_name: mongkn-tls
-    ports: ["27020:27017"]
+    container_name: ${MONGKN_PREFIX:-mongkn}-tls
+    ports: ["${MONGKN_PORT_TLS:-27020}:${MONGKN_PORT_TLS:-27020}"]
     volumes:
       - ./build/tls:/tls:ro
     entrypoint: ["sh", "-c"]
@@ -84,6 +96,7 @@ services:
         && chown -R mongodb:mongodb /etc/mongo-tls
         && chmod 400 /etc/mongo-tls/*
         && exec docker-entrypoint.sh mongod --bind_ip_all
+        --port ${MONGKN_PORT_TLS:-27020}
         --tlsMode requireTLS
         --tlsCertificateKeyFile /etc/mongo-tls/server.pem
         --tlsCAFile /etc/mongo-tls/ca.pem
@@ -100,11 +113,16 @@ services:
   # честный ответ на вопрос, сколько контур стоит.
   mongo-shard:
     <<: *common
-    container_name: mongkn-shard
-    ports: ["27021:27021"]
+    container_name: ${MONGKN_PREFIX:-mongkn}-shard
+    # Наружу выходит только mongos: конфигурационный набор и шарды живут внутри контейнера
+    # и хостовых портов не занимают.
+    ports: ["${MONGKN_PORT_MONGOS:-27021}:${MONGKN_PORT_MONGOS:-27021}"]
     mem_limit: 1g
     volumes:
       - ./ci/shard:/shard:ro
     environment:
       MONGKN_SHARD_FOREGROUND: "1"
+      # Сдвиг уезжает внутрь: ci/shard/start.sh поднимает все четыре процесса на сдвинутых
+      # портах, и адреса членов совпадают с публикуемыми.
+      MONGKN_PORT_OFFSET: ${MONGKN_PORT_OFFSET:-0}
     entrypoint: ["bash", "/shard/start.sh"]
