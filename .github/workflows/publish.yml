@@ -1,0 +1,72 @@
+name: publish
+
+# Публикация в приватный Reposilite. Только вручную: библиотека выкладывается по решению,
+# а не на каждый push.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия (пусто — 0.1.<номер прогона>, как у соседних проектов)'
+        required: false
+        type: string
+
+jobs:
+  publish:
+    name: linuxX64 → maven
+    # Self-hosted раннер здесь **macOS/ARM64**, а публикуемая платформа — linuxX64. Сборка идёт
+    # в контейнере с `--platform linux/amd64`, потому что Kotlin/Native не компилирует на хосте
+    # linux-aarch64 (§1.18 ресёрча). На ARM-маке это означает эмуляцию QEMU, то есть десяток
+    # с лишним минут вместо пары.
+    #
+    # Если скорость станет важнее, замена — `runs-on: ubuntu-latest` и запуск gradle напрямую,
+    # без контейнера: там Linux x86_64 нативно, и соседний `core` публикуется именно так.
+    # Одна строка, поведение артефакта не меняется.
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION="0.1.${{ github.run_number }}"; fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Публикуем $VERSION"
+
+      - name: Образ для сборки под Linux
+        run: docker build -t mongkn-ci:amd64 --platform linux/amd64 ci/
+
+      # Артефакт **обязан** быть linuxX64. Собери мы его на macOS-хосте — уехал бы `macosArm64`,
+      # и потребитель получил бы «No matching variant» вместо библиотеки. Проверка ниже смотрит
+      # на то, что реально опубликовано, а не на зелёный прогон.
+      - name: Опубликовать
+        env:
+          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD":/src \
+            -v mongkn-gradle-amd64:/gradle \
+            -v mongkn-konan-amd64:/konan \
+            -e REPOSILITE_USER -e REPOSILITE_SECRET \
+            mongkn-ci:amd64 \
+            ./gradlew :mongkn-core:publishAllPublicationsToReposilitePrivateRepository \
+              -PVERSION=${{ steps.version.outputs.value }}
+
+      # Успешная публикация говорит только то, что загрузка не упала. Что попало в артефакт,
+      # показывает его `.module`: там перечислены варианты, и по ним видно, тот ли это таргет.
+      - name: Проверить опубликованное
+        env:
+          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          BASE=https://maven.internal/private/ru/workinprogress/mongkn/mongkn-core/$VERSION
+          MODULE=$(curl -fsSL -u "$REPOSILITE_USER:$REPOSILITE_SECRET" "$BASE/mongkn-core-$VERSION.module")
+          echo "$MODULE" | grep -o '"org.jetbrains.kotlin.native.target": "[a-z0-9_]*"' | sort -u
+          if ! echo "$MODULE" | grep -q '"org.jetbrains.kotlin.native.target": "linux_x64"'; then
+            echo "::error::в опубликованном модуле нет варианта linux_x64 — артефакт собран не на том хосте"
+            exit 1
+          fi
+          echo "Опубликовано: ru.workinprogress.mongkn:mongkn-core:$VERSION"
