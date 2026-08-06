@@ -1,22 +1,38 @@
-# mongkn
+<div align="center">
 
-MongoDB для Kotlin/Native — обвязка над официальным C-драйвером (`libmongoc`) с API, форма
-которого снята с `mongodb-driver-kotlin-coroutine`.
+# 🍃 mongkn
 
-На Kotlin/Native официального драйвера MongoDB нет: `mongodb-driver-kotlin-coroutine` живёт
-только на JVM. `mongkn` пытается сделать так, чтобы `cinterop` к libmongoc был написан один раз
-и спрятан за `suspend fun insertOne(...)` и `fun find(...): Flow<Document>`.
+**MongoDB для Kotlin/Native — по-настоящему, а не «когда-нибудь допилим».**
 
-**Статус: рабочий прототип.** Шесть операций (`insertOne`, `insertMany`, `updateOne`,
-`deleteOne`, `countDocuments`, `find`), типизированные коллекции и infix-DSL, 81 тест — включая дифференциальные против
-официального драйвера, стресс-тесты пула соединений, проверку утечек через подменённый
-аллокатор libbson и property-тесты кодека. Форма API снята с официального `mongodb-driver-kotlin-coroutine`, а совпадение с ним проверяется
-**дифференциальными тестами**: один и тот же документ проходит через официальный JVM-драйвер
-и через mongkn на одном mongod, и результаты сверяются в обе стороны.
+Официального драйвера MongoDB для Kotlin/Native нет: `mongodb-driver-kotlin-coroutine` живёт
+только на JVM. `mongkn` пишет `cinterop` к `libmongoc` один раз и прячет его за
+`suspend fun insertOne(…)` и `fun find(…): Flow<Document>`.
 
-Генерация API через KSP была и от неё отказались — обоснование в
-[ресёрче](docs/research/research-architecture.md), решение Р9. Дальше — раннер spec-тестов
-MongoDB и стресс-тест пула, см. [BACKLOG.md](BACKLOG.md).
+`Kotlin/Native` · `libmongoc` · `kotlinx.coroutines` · `kotlinx.serialization`
+
+</div>
+
+---
+
+## Что умеет
+
+- 🗂 **Операции коллекции — 23 из 30**: вставка, обновление, удаление, `find`, агрегации,
+  индексы, `bulkWrite`, `findOneAnd*`, `distinct`
+- 🔁 **Транзакции и сессии** — `withTransaction` с повторами по меткам сервера
+- 📡 **Потоки изменений** — `watch` на коллекции, базе и клиенте, с автоматическим возобновлением
+- 🧭 **Все топологии** — standalone, replica set, шардированный кластер через `mongos`
+- 🔐 **SCRAM, TLS, x509** — проверено на серверах с `--auth` и `--tlsMode requireTLS`
+- 📊 **Наблюдаемость** — `CommandListener` (APM) и обработчик логов драйвера
+- 🧩 **Свои типы** — `BsonEncoder` / `BsonDecoder` как точка расширения
+- 🧪 **248 тестов** и **71 официальный spec-сценарий MongoDB** из 75
+
+## Быстрый старт
+
+```kotlin
+dependencies {
+    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.4")
+}
+```
 
 ```kotlin
 @Serializable
@@ -32,72 +48,86 @@ fun main() = runBlocking {
 }
 ```
 
-Документы можно и без маппинга — `getCollection("people")` даёт `MongoCollection<Document>`.
+Без маппинга тоже можно: `getCollection("people")` даёт `MongoCollection<Document>`.
 
-## Модули
+## Свои типы
 
-| Модуль | Что делает |
-|---|---|
-| `mongkn-core` | Kotlin/Native: cinterop, BSON, клиент, операции |
-| `mongkn-extensions` | Kotlin/Native: infix-DSL фильтров и обновлений |
-| `mongkn-difftest` | JVM: эталон для дифференциальных тестов — официальный драйвер |
-
-## Требования
-
-- Kotlin 2.4.10, Gradle 9.5.0 (обёртка в репозитории)
-- mongo-c-driver 2.x: `brew install mongo-c-driver`
-
-## Сборка
-
-```bash
-./gradlew :mongkn-core:build
-```
-
-Интеграционным тестам нужны локальные серверы — одиночный mongod их не заменяет: набору нужны
-replica set, сервер с аутентификацией, сервер с обязательным TLS и шардированный кластер.
-Все поднимаются одной командой:
-
-```bash
-./ci/dev-servers.sh up
-```
-
-## Подключение
+Точка расширения устроена как `JsonEncoder.encodeJsonElement` в `kotlinx-serialization-json`:
+сериализатор проверяет тип кодировщика и отдаёт готовый `BsonValue`. Нужно тем типам,
+у которых в BSON есть точное представление — деньги в `decimal128` тому примером.
 
 ```kotlin
-repositories {
-    maven("https://maven.internal/private") {
-        credentials {
-            username = System.getenv("REPOSILITE_USER")
-            password = System.getenv("REPOSILITE_SECRET")
-        }
-    }
-}
+object MoneySerializer : KSerializer<Money> {
+    override val descriptor = PrimitiveSerialDescriptor("Money", PrimitiveKind.STRING)
 
-dependencies {
-    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.0-SNAPSHOT")
-    implementation("ru.workinprogress.mongkn:mongkn-extensions:0.1.0-SNAPSHOT") // infix-DSL, по желанию
+    override fun serialize(encoder: Encoder, value: Money) {
+        val bson = encoder as? BsonEncoder
+            ?: throw SerializationException("Money сериализуется только в BSON")
+        bson.encodeBsonValue(BsonDecimal128(value.toPlainString()))
+    }
+
+    override fun deserialize(decoder: Decoder): Money {
+        val bson = decoder as? BsonDecoder
+            ?: throw SerializationException("Money читается только из BSON")
+        return Money((bson.decodeBsonValue() as BsonDecimal128).value)
+    }
 }
 ```
 
-**Целевая платформа — `linuxX64`.** macOS используется для разработки, но артефакты под него
-не публикуются. Публикация выполняется из Linux-контейнера — см. [CLAUDE.md](CLAUDE.md).
+## Устройство
 
-## Тесты
+| Слой | |
+|---|---|
+| **cinterop** | `libmongoc` 1.26+ и 2.x; имена библиотек и пути к заголовкам разрешаются в Gradle — у веток они разные |
+| **Ресурсы** | `mongoc_client_pool_t` плюс семафор: `mongoc_client_t` не потокобезопасен, а `pool_pop` блокирует неотменяемо |
+| **Потоки** | свой пул под блокирующие вызовы — `Dispatchers.IO` на Kotlin/Native `internal`, вопреки документации |
+| **BSON** | 18 типов из 20, своя древесная модель и формат `kotlinx.serialization` поверх неё |
+| **Курсоры** | `Flow`, освобождаемый при любом исходе сбора, включая отмену |
+
+| Модуль | |
+|---|---|
+| `mongkn-core` | cinterop, BSON, клиент, операции |
+| `mongkn-extensions` | infix-DSL фильтров и обновлений |
+| `mongkn-difftest` | JVM-эталон: официальный драйвер для дифференциальных тестов |
+
+## Сборка и тесты
 
 ```bash
 ./gradlew build
 ```
 
-Нужен локальный mongod и — на первом прогоне — сеть: официальные spec-тесты MongoDB
-скачиваются в `build/` и в репозиторий не кладутся ([CC BY-NC-SA](https://github.com/mongodb/specifications)).
+```bash
+./ci/dev-servers.sh up
+```
 
-## Что уже умеет
+Интеграционным тестам нужен не один mongod, а четыре контура: replica set (иначе нет транзакций
+и потоков изменений), сервер с `--auth`, сервер с обязательным TLS и шардированный кластер.
+Без них тесты **падают, а не пропускаются**.
 
-Шесть операций коллекции из тридцати, все типы BSON кроме двух устаревших, типизированные
-коллекции и infix-DSL. Подробно и с цифрами — [docs/coverage.md](docs/coverage.md).
+Совпадение с официальным драйвером проверяется **дифференциальными тестами**: один документ
+проходит через JVM-драйвер и через mongkn на одном mongod, результаты сверяются в обе стороны.
+Плюс официальные spec-тесты MongoDB, стресс пула, счётчик аллокаций libbson и property-тесты
+кодека.
+
+## Ограничения
+
+- **Публикуется только `linuxX64`.** macOS-таргет собирается для разработки и чтобы в CI
+  проверялась ветка драйвера 2.x — но наружу не выкладывается
+- **Минимум libmongoc — 1.26** (Ubuntu 24.04 LTS). Ветка 2.x на Linux из пакетов не ставится
+  нигде, только сборка из исходников
+- **На Windows не собирается**: хостовый таргет там `mingwX64`, которого нет. Работайте из WSL2
+- Нет: GridFS, шифрования на стороне клиента, поисковых индексов Atlas
 
 ## Документация
 
-[docs/](docs/README.md) — слоёная документация. Начинать с
-[research-architecture](docs/research/research-architecture.md): там разобрано, почему
-архитектура именно такая и где исходный замысел пришлось поменять.
+| | |
+|---|---|
+| [docs/coverage.md](docs/coverage.md) | что умеет, а что нет — цифрами |
+| [docs/performance.md](docs/performance.md) | сколько стоит обвязка: на записи неразличимо, на чтении +52 % |
+| [docs/research/](docs/research/) | решения и почему очевидное здесь трижды неверно |
+| [BACKLOG.md](BACKLOG.md) | что дальше |
+| [CLAUDE.md](CLAUDE.md) | как собрать, поднять серверы и опубликовать |
+
+---
+
+<div align="center"><sub>Сделано, чтобы Kotlin/Native наконец умел в Mongo.</sub></div>
