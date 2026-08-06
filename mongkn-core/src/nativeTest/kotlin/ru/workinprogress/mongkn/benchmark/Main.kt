@@ -62,40 +62,46 @@ private data class Person(
 private const val DATABASE = "mongkn_bench"
 
 /**
- * Аргумент — имя секции; без него выполняются все.
+ * Аргумент — имя секции (`insert`, `read`, `codec`, `load`); без него выполняются все.
  *
- * Заведено не для удобства, а ради профилировщика (M-77): чтение занимает несколько процентов
- * общего времени прогона, и профиль всего бенчмарка описывал бы вставки и конкурентную нагрузку.
- * `benchmark.kexe read` даёт профиль, в котором видно только то, что разбирается.
+ * Заведено по двум причинам, и обе про повторяемость. Первая — профилировщик (M-77): чтение
+ * занимает несколько процентов общего времени, и профиль всего бенчмарка описывал бы вставки
+ * и конкурентную нагрузку. Вторая — перепроверка: числа плавают от прогона к прогону, и гонять
+ * одну секцию несколько раз надо уметь, не оплачивая каждый раз остальные.
  */
 @OptIn(ExperimentalForeignApi::class)
 fun main(args: Array<String>) {
     val only = args.firstOrNull()
+
+    fun runs(section: String): Boolean = only == null || only == section
+
     println("mongkn: замер надбавки поверх libmongoc")
     println(
         "сервер: ${TestServer.host}, сборка: release, раундов: ${Bench.ROUNDS} + прогрев" +
             if (only == null) "" else ", только секция: $only",
     )
 
-    MongoClient(TestServer.uri()).use { client ->
-        val sample =
-            document {
-                put("name", "Ада")
-                put("born", 1815)
-                put("city", "Лондон")
-            }
+    if (runs("insert") || runs("read") || runs("codec")) {
+        MongoClient(TestServer.uri()).use { client ->
+            val sample =
+                document {
+                    put("name", "Ада")
+                    put("born", 1815)
+                    put("city", "Лондон")
+                }
 
-        runBlocking { client.getDatabase(DATABASE).drop() }
-        if (only == null) insertBenchmarks(client, sample)
-        // Чтению нужны засеянные документы, поэтому засев идёт и в режиме одной секции.
-        if (only == null || only == "read") {
-            findBenchmarks(client, sample)
-            readPathBenchmarks(client)
+            runBlocking { client.getDatabase(DATABASE).drop() }
+            if (runs("insert")) insertBenchmarks(client, sample)
+            // Чтению нужны засеянные документы, поэтому засев идёт и в режиме одной секции.
+            if (runs("read")) {
+                findBenchmarks(client, sample)
+                readPathBenchmarks(client)
+            }
+            if (runs("codec")) codecBenchmarks(sample)
+            runBlocking { client.getDatabase(DATABASE).drop() }
         }
-        if (only == null) codecBenchmarks(sample)
-        runBlocking { client.getDatabase(DATABASE).drop() }
     }
-    if (only == null) {
+    if (runs("load")) {
         concurrencyBenchmarks()
         MongoClient(TestServer.uri()).use { client ->
             runBlocking { client.getDatabase(DATABASE).drop() }
