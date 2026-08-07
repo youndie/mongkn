@@ -273,56 +273,54 @@ private fun readPathBenchmarks(client: MongoClient) {
     // Курсор открывается и освобождается на каждом уровне одинаково; вынести это в общую функцию
     // нельзя: на третьем и четвёртом уровнях внутрь попадает `emit`, а он suspend, и обычная
     // лямбда его не примет. Ровно по этой причине `MongoClient.useClient` объявлен `inline`.
-    val cursorOnly =
-        Bench.measure(rounds) { count ->
-            runBlocking {
-                repeat(count) {
-                    client.withClient { handle ->
-                        val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
-                        val filter = BsonDocument().toNativeBson()
-                        val opts = BsonDocument().toNativeBson()
-                        val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
-                        memScoped {
-                            val current = allocPointerTo<bson_t>()
-                            var seen = 0
-                            while (mongoc_cursor_next(cursor, current.ptr)) seen++
-                            check(seen == documents) { "прочитано $seen вместо $documents" }
-                        }
-                        mongoc_cursor_destroy(cursor)
-                        bson_destroy(opts)
-                        bson_destroy(filter)
-                        mongoc_collection_destroy(collection)
+    val cursorOnlyBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                client.withClient { handle ->
+                    val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
+                    val filter = BsonDocument().toNativeBson()
+                    val opts = BsonDocument().toNativeBson()
+                    val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
+                    memScoped {
+                        val current = allocPointerTo<bson_t>()
+                        var seen = 0
+                        while (mongoc_cursor_next(cursor, current.ptr)) seen++
+                        check(seen == documents) { "прочитано $seen вместо $documents" }
                     }
+                    mongoc_cursor_destroy(cursor)
+                    bson_destroy(opts)
+                    bson_destroy(filter)
+                    mongoc_collection_destroy(collection)
                 }
             }
         }
+    }
 
-    val withConversion =
-        Bench.measure(rounds) { count ->
-            runBlocking {
-                repeat(count) {
-                    client.withClient { handle ->
-                        val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
-                        val filter = BsonDocument().toNativeBson()
-                        val opts = BsonDocument().toNativeBson()
-                        val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
-                        memScoped {
-                            val current = allocPointerTo<bson_t>()
-                            var seen = 0
-                            while (mongoc_cursor_next(cursor, current.ptr)) {
-                                current.value?.toDocument()
-                                seen++
-                            }
-                            check(seen == documents) { "прочитано $seen вместо $documents" }
+    val withConversionBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                client.withClient { handle ->
+                    val collection = mongoc_client_get_collection(handle, DATABASE, "read")!!
+                    val filter = BsonDocument().toNativeBson()
+                    val opts = BsonDocument().toNativeBson()
+                    val cursor = mongoc_collection_find_with_opts(collection, filter, opts, null)!!
+                    memScoped {
+                        val current = allocPointerTo<bson_t>()
+                        var seen = 0
+                        while (mongoc_cursor_next(cursor, current.ptr)) {
+                            current.value?.toDocument()
+                            seen++
                         }
-                        mongoc_cursor_destroy(cursor)
-                        bson_destroy(opts)
-                        bson_destroy(filter)
-                        mongoc_collection_destroy(collection)
+                        check(seen == documents) { "прочитано $seen вместо $documents" }
                     }
+                    mongoc_cursor_destroy(cursor)
+                    bson_destroy(opts)
+                    bson_destroy(filter)
+                    mongoc_collection_destroy(collection)
                 }
             }
         }
+    }
 
     /** Тот же цикл, что в `Cursor.drainCursor`, — уровни должны отличаться ровно одним слоем. */
     fun cursorFlow(): Flow<Document> =
@@ -350,35 +348,41 @@ private fun readPathBenchmarks(client: MongoClient) {
             }
         }
 
-    val viaFlow =
-        Bench.measure(rounds) { count ->
-            runBlocking {
-                repeat(count) {
-                    val seen = cursorFlow().count()
-                    check(seen == documents) { "прочитано $seen вместо $documents" }
-                }
+    val viaFlowBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                val seen = cursorFlow().count()
+                check(seen == documents) { "прочитано $seen вместо $documents" }
             }
         }
+    }
 
-    val viaFlowOn =
-        Bench.measure(rounds) { count ->
-            runBlocking {
-                repeat(count) {
-                    val seen = cursorFlow().flowOn(client.dispatcher).count()
-                    check(seen == documents) { "прочитано $seen вместо $documents" }
-                }
+    val viaFlowOnBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                val seen = cursorFlow().flowOn(client.dispatcher).count()
+                check(seen == documents) { "прочитано $seen вместо $documents" }
             }
         }
+    }
 
-    val viaApi =
-        Bench.measure(rounds) { count ->
-            runBlocking {
-                repeat(count) {
-                    val seen = source.find().count()
-                    check(seen == documents) { "прочитано $seen вместо $documents" }
-                }
+    val viaApiBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                val seen = source.find().count()
+                check(seen == documents) { "прочитано $seen вместо $documents" }
             }
         }
+    }
+
+    // Вперемешку, а не подряд: разности уровней иначе меряют дрейф машины, а не цену слоёв.
+    val (cursorOnly, withConversion, viaFlow, viaFlowOn, viaApi) =
+        Bench.measureAll(
+            // Первый параметр — число **проходов** в раунде, как и у Bench.measure: локальная
+            // `rounds` названа неудачно, но менять её имя здесь значит трогать и соседние секции.
+            rounds,
+            bodies = listOf(cursorOnlyBody, withConversionBody, viaFlowBody, viaFlowOnBody, viaApiBody),
+        )
 
     fun perDocument(result: Bench.Result): String = Bench.format(result.perOperation / documents)
 
