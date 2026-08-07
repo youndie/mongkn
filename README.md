@@ -1,43 +1,81 @@
-<div align="center">
+# mongkn
 
-# 🍃 mongkn
+[![ktlint](https://img.shields.io/badge/ktlint%20code--style-%E2%9D%A4-FF4081.svg)](https://ktlint.github.io/)
+[![kotlin](https://img.shields.io/badge/Kotlin-2.4.10-blue?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![native](https://img.shields.io/badge/Native-blue?logoColor=white)](https://kotlinlang.org)
+[![mongkn-core](https://reposilite.kotlin.website/api/badge/latest/snapshots/io/github/youndie/mongkn/mongkn-core?name=mongkn-core&color=40c14a&prefix=v)](https://reposilite.kotlin.website/#/snapshots/io/github/youndie/mongkn/mongkn-core)
+[![license](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
-**MongoDB для Kotlin/Native — по-настоящему, а не «когда-нибудь допилим».**
+MongoDB for Kotlin/Native: a binding over the official C driver (`libmongoc`) with an API whose
+shape is taken from `mongodb-driver-kotlin-coroutine`.
 
-Официального драйвера MongoDB для Kotlin/Native нет: `mongodb-driver-kotlin-coroutine` живёт
-только на JVM. `mongkn` пишет `cinterop` к `libmongoc` один раз и прячет его за
-`suspend fun insertOne(…)` и `fun find(…): Flow<Document>`.
+There is no official MongoDB driver for Kotlin/Native — `mongodb-driver-kotlin-coroutine` is
+JVM-only. mongkn writes the `cinterop` once and hides it behind `suspend fun insertOne(…)` and
+`fun find(…): Flow<Document>`.
 
-`Kotlin/Native` · `libmongoc` · `kotlinx.coroutines` · `kotlinx.serialization`
+## Overview
 
-</div>
+- 23 of 30 collection operations: insert, update, delete, `find`, aggregation, indexes,
+  `bulkWrite`, `findOneAnd*`, `distinct`
+- Sessions and transactions, `withTransaction` retrying on server error labels
+- Change streams on collection, database and client, with automatic resumption
+- All topologies: standalone, replica set, sharded cluster through `mongos`
+- SCRAM, TLS and x509, verified against servers started with `--auth` and `--tlsMode requireTLS`
+- Command monitoring (`CommandListener`) and a driver log handler
+- 18 of 20 BSON types, own tree model and a `kotlinx.serialization` format on top
+- `BsonEncoder` / `BsonDecoder` as the extension point for custom types, plus ready-made
+  serializers for `ObjectId` and dates
 
----
+## Performance
 
-## Что умеет
+Overhead over the C driver it wraps, measured by a release binary against a local `mongo:8`
+([docs/performance.md](docs/performance.md) — methodology and full tables).
 
-- 🗂 **Операции коллекции — 23 из 30**: вставка, обновление, удаление, `find`, агрегации,
-  индексы, `bulkWrite`, `findOneAnd*`, `distinct`
-- 🔁 **Транзакции и сессии** — `withTransaction` с повторами по меткам сервера
-- 📡 **Потоки изменений** — `watch` на коллекции, базе и клиенте, с автоматическим возобновлением
-- 🧭 **Все топологии** — standalone, replica set, шардированный кластер через `mongos`
-- 🔐 **SCRAM, TLS, x509** — проверено на серверах с `--auth` и `--tlsMode requireTLS`
-- 📊 **Наблюдаемость** — `CommandListener` (APM) и обработчик логов драйвера
-- 🧩 **Свои типы** — `BsonEncoder` / `BsonDecoder` как точка расширения, плюс готовые
-  сериализаторы `ObjectId` и даты
-- 🧪 **294 теста** (на Linux из них выполняются 277) и **71 официальный spec-сценарий
-  MongoDB** из 75
-- 🚚 **Проверено переносом настоящего сервиса** — внутренний сервис на Ktor, а не пример из документации
+| | |
+|---|---|
+| Write, per operation | 1470 µs against 1492 µs for bare C — below the measurement threshold |
+| Read into a class, per document | **1.26 µs** on Linux/x86_64, **1.66 µs** on macOS/arm64 |
+| Read overhead over a bare C cursor loop | −0.35 %, indistinguishable |
+| BSON round trip `Document` → `bson_t` → `Document` | 1.25 µs |
+| `kotlinx.serialization` codec on top of that | 0.27 µs, about 5 % of the mandatory conversion |
+| Throughput, 64 coroutines | 10 565 ops/s on 8 cores, ~20 000 ops/s on 20 cores |
+| Resident memory | 21.9 MB idle, 93 MB under 256 concurrent operations |
 
-## Быстрый старт
+Two changes did most of that. Documents cross the coroutine channel **in batches of 64** rather
+than one at a time, and a typed collection decodes straight from the cursor into the class instead
+of building an intermediate `Document`. The latter removes 37 % of the decoding work.
+
+Both were measured before and after **within one run**. Comparing separate runs is not sound here:
+the floor — a bare C loop with no mongkn code in it — moved by 1.5× between runs on a busy machine.
+
+The throughput knob is `ioThreads`, not the client pool: `libmongoc` calls are blocking, so
+concurrency equals the number of threads. The default is 32; on a many-core server under high
+concurrency set it explicitly and measure memory — 64 threads cost +68 % resident memory under
+load, and nothing at all when idle, because the threads are created lazily.
+
+## Add dependencies
 
 ```kotlin
+repositories {
+    mavenCentral()
+    maven {
+        name = "WipSnapshots"
+        url = uri("https://reposilite.kotlin.website/snapshots")
+    }
+}
+
 dependencies {
-    implementation("ru.workinprogress.mongkn:mongkn-core:0.1.7")
-    // не обязателен, но пример ниже без него не соберётся: infix-DSL живёт здесь
-    implementation("ru.workinprogress.mongkn:mongkn-extensions:0.1.7")
+    implementation("io.github.youndie.mongkn:mongkn-core:$mongkn_version")
+    // optional: infix DSL for filters and updates
+    implementation("io.github.youndie.mongkn:mongkn-extensions:$mongkn_version")
 }
 ```
+
+The C driver must be installed: `apt install libmongoc-dev libbson-dev` on Linux,
+`brew install mongo-c-driver` on macOS. Only the host target is built — `cinterop` needs the
+headers of the target platform — and only `linuxX64` is published.
+
+## Usage
 
 ```kotlin
 @Serializable
@@ -53,17 +91,20 @@ fun main() = runBlocking {
 }
 ```
 
-Без маппинга тоже можно: `getCollection("people")` даёт `MongoCollection<Document>`.
+Untyped works too: `getCollection("people")` returns a `MongoCollection<Document>`.
 
-## Свои типы
+Inside `filter { }` and `update { }` both the field name and the value are resolved against the
+class. A property renamed with `@SerialName` fails loudly instead of querying a field that does not
+exist, and the value is encoded with the **field's** serializer rather than by its Kotlin runtime
+type. The second check exists because the failure it prevents is silent: a `String` compared
+against a stored `ObjectId` matches nothing, and MongoDB reports no error.
 
-Точка расширения устроена как `JsonEncoder.encodeJsonElement` в `kotlinx-serialization-json`:
-сериализатор проверяет тип кодировщика и отдаёт готовый `BsonValue`. Нужно тем типам,
-у которых в BSON есть точное представление — деньги в `decimal128` тому примером.
+## Custom types
 
-Самые частые случаи уже готовы в `mongkn-extensions`: `StringAsBsonObjectId` (`_id` и ссылки —
-`ObjectId` на проводе, `String` в коде) и `InstantAsBsonDateTime` (иначе не работают
-TTL-индексы). Полностью — [docs/api/serialization.md](docs/api/serialization.md).
+The extension point mirrors `JsonEncoder.encodeJsonElement` from `kotlinx-serialization-json`:
+a serializer recognises the encoder and hands it a ready `BsonValue`. Needed by types with an exact
+BSON representation — money as `decimal128`, timestamps as `dateTime` (a TTL index silently stops
+deleting when the field holds a string).
 
 ```kotlin
 object MoneySerializer : KSerializer<Money> {
@@ -71,73 +112,75 @@ object MoneySerializer : KSerializer<Money> {
 
     override fun serialize(encoder: Encoder, value: Money) {
         val bson = encoder as? BsonEncoder
-            ?: throw SerializationException("Money сериализуется только в BSON")
+            ?: throw SerializationException("Money is only serialisable to BSON")
         bson.encodeBsonValue(BsonDecimal128(value.toPlainString()))
     }
 
     override fun deserialize(decoder: Decoder): Money {
         val bson = decoder as? BsonDecoder
-            ?: throw SerializationException("Money читается только из BSON")
+            ?: throw SerializationException("Money is only readable from BSON")
         return Money((bson.decodeBsonValue() as BsonDecimal128).value)
     }
 }
 ```
 
-## Устройство
+`StringAsBsonObjectId` and `InstantAsBsonDateTime` ship in `mongkn-extensions`.
 
-| Слой | |
+## Internals
+
+| Layer | |
 |---|---|
-| **cinterop** | `libmongoc` 1.26+ и 2.x; имена библиотек и пути к заголовкам разрешаются в Gradle — у веток они разные |
-| **Ресурсы** | `mongoc_client_pool_t` плюс семафор: `mongoc_client_t` не потокобезопасен, а `pool_pop` блокирует неотменяемо |
-| **Потоки** | свой пул под блокирующие вызовы — `Dispatchers.IO` на Kotlin/Native `internal`, вопреки документации |
-| **BSON** | 18 типов из 20, своя древесная модель и формат `kotlinx.serialization` поверх неё |
-| **Курсоры** | `Flow`, освобождаемый при любом исходе сбора, включая отмену |
+| cinterop | `libmongoc` 1.26+ and 2.x; library names and header paths are resolved in Gradle — they differ between branches |
+| Resources | `mongoc_client_pool_t` plus a semaphore: `mongoc_client_t` is not thread-safe and `pool_pop` blocks uninterruptibly |
+| Threads | a dedicated pool for blocking calls — `Dispatchers.IO` is `internal` on Kotlin/Native, contrary to its own documentation |
+| Cursors | a `Flow` that releases the cursor on every outcome, cancellation included |
+| Decoding | typed collections read from `bson_iter_t` directly; maps, polymorphism and `BsonValue` fields fall back to the tree decoder, per subtree |
 
-| Модуль | |
+| Module | |
 |---|---|
-| `mongkn-core` | cinterop, BSON, клиент, операции |
-| `mongkn-extensions` | infix-DSL фильтров и обновлений |
-| `mongkn-difftest` | JVM-эталон: официальный драйвер для дифференциальных тестов |
+| `mongkn-core` | cinterop, BSON, client, operations |
+| `mongkn-extensions` | infix DSL for filters and updates, ObjectId and date serializers |
+| `mongkn-difftest` | JVM reference: the official driver, used for differential tests |
 
-## Сборка и тесты
+## Testing
 
-```bash
-./gradlew build
-```
+294 tests on macOS, 277 of them on Linux, plus **71 of 75 official MongoDB specification
+scenarios** — the four skipped ones need a server version we do not run.
 
-```bash
-./ci/dev-servers.sh up
-```
+Integration tests need four separate contours, and none reduces to another: a replica set (without
+it there are no transactions and no change streams), a server with `--auth`, a server with
+`--tlsMode requireTLS`, and a `mongos` in front of a sharded cluster. Without those servers the
+tests **fail** rather than skip.
 
-Интеграционным тестам нужен не один mongod, а четыре контура: replica set (иначе нет транзакций
-и потоков изменений), сервер с `--auth`, сервер с обязательным TLS и шардированный кластер.
-Без них тесты **падают, а не пропускаются**.
+Agreement with the official driver is checked by **differential tests**: one document goes through
+the JVM driver and through mongkn against the same `mongod`, and results are compared both ways.
+The two read paths are compared against each other for the same reason — the risk is not that one
+is wrong, but that they diverge in a corner case.
 
-Совпадение с официальным драйвером проверяется **дифференциальными тестами**: один документ
-проходит через JVM-драйвер и через mongkn на одном mongod, результаты сверяются в обе стороны.
-Плюс официальные spec-тесты MongoDB, стресс пула, счётчик аллокаций libbson и property-тесты
-кодека.
+Failure modes are staged with server failpoints rather than simulated on the client: cancellation
+mid-call, a broken cursor, retried reads and writes, a resumed change stream. Each failpoint is
+bound to its own client by `appName`, because `mode: {times: 1}` is otherwise spent by whichever
+command arrives first.
 
-## Ограничения
+## What mongkn is not
 
-- **Публикуется только `linuxX64`.** macOS-таргет собирается для разработки и чтобы в CI
-  проверялась ветка драйвера 2.x — но наружу не выкладывается
-- **Минимум libmongoc — 1.26** (Ubuntu 24.04 LTS). Ветка 2.x на Linux из пакетов не ставится
-  нигде, только сборка из исходников
-- **На Windows не собирается**: хостовый таргет там `mingwX64`, которого нет. Работайте из WSL2
-- Нет: GridFS, шифрования на стороне клиента, поисковых индексов Atlas
+- **Not a drop-in JVM driver.** The API shape follows `mongodb-driver-kotlin-coroutine`, but the
+  surface is narrower: 23 of 30 collection operations, no GridFS, no client-side field level
+  encryption, no Atlas Search indexes.
+- **Not cross-compiling.** Only the host target is built, because `cinterop` needs the target's
+  headers. There is no `mingwX64` build — on Windows, work from WSL2.
+- **Not a complete BSON model.** `dbpointer` and `code with scope` are rejected on read: the first
+  is removed from the specification, the second is deprecated.
 
-## Документация
+## Documentation
 
-| | |
-|---|---|
-| [docs/coverage.md](docs/coverage.md) | что умеет, а что нет — цифрами |
-| [docs/api/serialization.md](docs/api/serialization.md) | свои типы, `_id`, пустые поля, почему фильтр может ничего не найти |
-| [docs/performance.md](docs/performance.md) | сколько стоит обвязка: после батчей чтения — неразличимо и на записи, и на чтении |
-| [docs/research/](docs/research/) | решения и почему очевидное здесь трижды неверно |
-| [BACKLOG.md](BACKLOG.md) | что дальше |
-| [CLAUDE.md](CLAUDE.md) | как собрать, поднять серверы и опубликовать |
+[docs/](docs/) — architecture research with the reasoning behind each decision, coverage in
+numbers, the performance study and the serialization guide. Written in Russian.
 
----
+The research document is worth reading before changing anything: several decisions here are
+counter-intuitive, and the backlog records cases where the obvious answer was measured and turned
+out to be wrong.
 
-<div align="center"><sub>Сделано, чтобы Kotlin/Native наконец умел в Mongo.</sub></div>
+## License
+
+Apache 2.0, the same licence as the `mongo-c-driver` this library wraps. See [LICENSE](LICENSE).

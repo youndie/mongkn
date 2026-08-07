@@ -20,18 +20,21 @@ apply(plugin = "maven-publish")
 configure<PublishingExtension> {
     repositories {
         /*
-         * Адрес репозитория берётся из настройки, а не записан здесь.
+         * Куда выкладывается mongkn.
          *
-         * Причина не в секретности — репозиторий и так за паролем, — а в том, что это чужая
-         * инфраструктура: у каждого, кто соберёт mongkn, она своя. Задаётся свойством
-         * `MONGKN_REPO_URL` (в `~/.gradle/gradle.properties`) или одноимённой переменной
-         * окружения; без него блок просто не заводится, и остаётся `publishToMavenLocal`.
+         * Адрес записан здесь намеренно, в отличие от учётных данных: он **нужен потребителю**,
+         * чтобы забрать библиотеку, — то есть это часть публичного договора, а не приватная
+         * настройка. Чтение оттуда анонимное, запись под паролем.
+         *
+         * Переопределяется свойством `MONGKN_REPO_URL` или одноимённой переменной окружения —
+         * на случай своего зеркала.
          */
         val repositoryUrl =
             providers.gradleProperty("MONGKN_REPO_URL").orNull
                 ?: System.getenv("MONGKN_REPO_URL")
+                ?: "https://reposilite.kotlin.website/snapshots"
 
-        if (repositoryUrl != null) {
+        run {
             maven {
                 name = "mongknRepo"
                 url = uri(repositoryUrl)

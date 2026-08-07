@@ -8,7 +8,7 @@ plugins {
 }
 
 // Координаты задаются всем проектам, а не только корню: подпроект по умолчанию получает
-// группой имя корневого проекта, и артефакты уехали бы в `mongkn`, а не в `ru.workinprogress.mongkn`.
+// группой имя корневого проекта, и артефакты уехали бы в `mongkn`, а не в `io.github.youndie.mongkn`.
 /*
  * ktlint подключается всем подпроектам разом.
  *
@@ -27,6 +27,8 @@ subprojects {
 }
 
 allprojects {
-    group = "ru.workinprogress.mongkn"
+    // `io.github.<логин>` — координаты, право на которые доказывается владением аккаунтом
+    // GitHub. Свой домен потребовал бы отдельного подтверждения владения им.
+    group = "io.github.youndie.mongkn"
     version = providers.gradleProperty("VERSION").getOrElse("0.1.0-SNAPSHOT")
 }

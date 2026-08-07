@@ -70,7 +70,9 @@ done
 section "История: внутренние имена"
 history_hits=0
 for marker in $MARKERS; do
-    commits=$(git log --all -S"$marker" --oneline 2>/dev/null | wc -l | tr -d ' ')
+    # --pickaxe-regex обязателен: без него -S ищет маркер **дословно** и находит сам текст
+    # выражения в этом скрипте, а не адрес в коде. Скрипт из поиска исключён по той же причине.
+    commits=$(git log --all -S"$marker" --pickaxe-regex --oneline -- . ':(exclude)ci/public-audit.sh' 2>/dev/null | wc -l | tr -d ' ')
     messages=$(git log --all --grep="$marker" --oneline 2>/dev/null | wc -l | tr -d ' ')
     if [ "$commits" != "0" ] || [ "$messages" != "0" ]; then
         history_hits=1
