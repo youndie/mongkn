@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import mongkn.cinterop.bson_destroy
@@ -28,6 +29,7 @@ import ru.workinprogress.mongkn.MongoClient
 import ru.workinprogress.mongkn.bson.BsonDocument
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.decodeFromDocument
+import ru.workinprogress.mongkn.bson.decodeFromNative
 import ru.workinprogress.mongkn.bson.document
 import ru.workinprogress.mongkn.bson.encodeToDocument
 import ru.workinprogress.mongkn.bson.toDocument
@@ -375,14 +377,53 @@ private fun readPathBenchmarks(client: MongoClient) {
         }
     }
 
+    // Ради M-83: типизированная коллекция читает документ сразу в класс, минуя Document.
+    // Нетипизированной эта правка не касается вовсе — ей Document и нужен, — поэтому мерить
+    // выигрыш можно только отдельной ступенью.
+    val typed = client.getDatabase(DATABASE).getCollection<Person>("read")
+    val viaTypedBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                val seen = typed.find().count()
+                check(seen == documents) { "прочитано $seen вместо $documents" }
+            }
+        }
+    }
+
+    // Как типизированная коллекция читалась **до** M-83: сначала Document, потом разбор из него.
+    // Без этой ступени выигрыш не с чем сравнивать: ступень 5 читает в Document и разбора класса
+    // не делает вовсе, то есть меряет другую работу.
+    val viaTypedOldBody = { count: Int ->
+        runBlocking {
+            repeat(count) {
+                val seen = source.find().map { decodeFromDocument(Person.serializer(), it) }.count()
+                check(seen == documents) { "прочитано $seen вместо $documents" }
+            }
+        }
+    }
+
     // Вперемешку, а не подряд: разности уровней иначе меряют дрейф машины, а не цену слоёв.
-    val (cursorOnly, withConversion, viaFlow, viaFlowOn, viaApi) =
+    val levels =
         Bench.measureAll(
             // Первый параметр — число **проходов** в раунде, как и у Bench.measure: локальная
             // `rounds` названа неудачно, но менять её имя здесь значит трогать и соседние секции.
             rounds,
-            bodies = listOf(cursorOnlyBody, withConversionBody, viaFlowBody, viaFlowOnBody, viaApiBody),
+            bodies =
+                listOf(
+                    cursorOnlyBody,
+                    withConversionBody,
+                    viaFlowBody,
+                    viaFlowOnBody,
+                    viaApiBody,
+                    viaTypedOldBody,
+                    viaTypedBody,
+                ),
         )
+
+    val (cursorOnly, withConversion, viaFlow, viaFlowOn) = levels
+    val viaApi = levels[4]
+    val viaTypedOld = levels[5]
+    val viaTyped = levels[6]
 
     fun perDocument(result: Bench.Result): String = Bench.format(result.perOperation / documents)
 
@@ -392,6 +433,8 @@ private fun readPathBenchmarks(client: MongoClient) {
     println("    3. + flow (тот же контекст):  ${perDocument(viaFlow)}")
     println("    4. + flowOn(dispatcher):      ${perDocument(viaFlowOn)}")
     println("    5. mongkn.find():             ${perDocument(viaApi)}")
+    println("    6. find() в класс, как было:  ${perDocument(viaTypedOld)}")
+    println("    7. find() в класс напрямую:   ${perDocument(viaTyped)}")
     println("  цена слоёв, мкс на документ:")
     println(
         "    перевод в Document: ${
@@ -522,6 +565,27 @@ private fun codecBenchmarks(sample: Document) {
             repeat(count) { decodeFromDocument(Person.serializer(), encoded) }
         }
     println("  Document → класс: $decode")
+
+    // Два пути чтения документа в класс на одном и том же bson_t, без сервера и курсора:
+    // старый строит промежуточный Document, новый (M-83) читает прямо из итератора.
+    // Меряются вперемешку — разность здесь и есть весь смысл правки.
+    val native = sample.toNativeBson()
+    val (viaTree, viaCursor) =
+        Bench.measureAll(
+            operations,
+            bodies =
+                listOf(
+                    { count: Int -> repeat(count) { decodeFromDocument(Person.serializer(), native.toDocument()) } },
+                    { count: Int -> repeat(count) { decodeFromNative(Person.serializer(), native) } },
+                ),
+        )
+    bson_destroy(native)
+    println("  bson_t → класс через Document: $viaTree")
+    println("  bson_t → класс напрямую (M-83): $viaCursor")
+    println(
+        "    выигрыш: ${Bench.format(viaTree.perOperation - viaCursor.perOperation)} мкс/оп " +
+            "(${Bench.format((viaTree.perOperation - viaCursor.perOperation) / viaTree.perOperation * 100)} %)",
+    )
 
     Bench.compare(
         "цена типизированной коллекции против Document",

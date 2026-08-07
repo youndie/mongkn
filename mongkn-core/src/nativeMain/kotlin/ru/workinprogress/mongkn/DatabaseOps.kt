@@ -153,7 +153,7 @@ internal object DatabaseOps {
                             val cursor =
                                 mongoc_database_aggregate(database, nativePipeline, nativeOpts, null)
                                     ?: error("mongoc_database_aggregate вернул NULL")
-                            drainCursor(cursor, batchOf(opts))
+                            drainCursor(cursor, batchOf(opts)) { it.toDocument() }
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativePipeline)

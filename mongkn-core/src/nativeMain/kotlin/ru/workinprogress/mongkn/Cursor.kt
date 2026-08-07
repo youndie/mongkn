@@ -52,16 +52,17 @@ import ru.workinprogress.mongkn.bson.toNativeBson
  * `inline`, потому что внутри вызывается [FlowCollector.emit].
  */
 @OptIn(ExperimentalForeignApi::class)
-internal suspend inline fun FlowCollector<List<Document>>.drainCursor(
+internal suspend inline fun <R> FlowCollector<List<R>>.drainCursor(
     cursor: CPointer<mongoc_cursor_t>,
     batchSize: Int = DOCUMENT_BATCH,
+    read: (CPointer<bson_t>) -> R,
 ) {
     try {
         memScoped {
             val current = allocPointerTo<bson_t>()
-            var batch = ArrayList<Document>(batchSize)
+            var batch = ArrayList<R>(batchSize)
             while (mongoc_cursor_next(cursor, current.ptr)) {
-                batch.add(current.value?.toDocument() ?: error("mongoc_cursor_next отдал NULL при true"))
+                batch.add(read(current.value ?: error("mongoc_cursor_next отдал NULL при true")))
                 if (batch.size >= batchSize) {
                     emit(batch)
                     batch = ArrayList(batchSize)
@@ -119,7 +120,7 @@ internal fun batchOf(opts: Document): Int {
  * Ставится **после** `flowOn`: канал пересекает список, а потребитель видит обычный
  * `Flow<Document>` и о батчах не знает.
  */
-internal fun Flow<List<Document>>.flattenDocuments(): Flow<Document> =
+internal fun <R> Flow<List<R>>.flattenDocuments(): Flow<R> =
     flow {
         collect { batch ->
             for (document in batch) emit(document)

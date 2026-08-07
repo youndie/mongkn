@@ -8,6 +8,7 @@ import ru.workinprogress.mongkn.bson.BsonInt64
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.decodeFromDocument
+import ru.workinprogress.mongkn.bson.decodeFromNative
 import ru.workinprogress.mongkn.bson.encodeToDocument
 
 /**
@@ -499,10 +500,22 @@ public class MongoCollection<T> internal constructor(
      * Возвращает [FindFlow] — он **является** `Flow`, поэтому `find().toList()` работает как
      * прежде, а `find().sort(…).limit(…)` добавился сверху (решение Р8).
      */
+    @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
     public fun find(filter: Document = BsonDocument()): FindFlow<T> =
         FindFlow(
             source = { query, opts ->
-                CollectionOps.find(target, databaseName, name, query, opts, readPreference).map(::fromDocument)
+                // Типизированная коллекция читает документ **сразу** в свой тип, минуя Document
+                // (M-83): промежуточное дерево тут же выбрасывалось бы, а стоит оно больше
+                // половины пути чтения. Коллекции без кодека Document и нужен — она идёт прежним
+                // путём и ничего не теряет.
+                if (codec == null) {
+                    @Suppress("UNCHECKED_CAST")
+                    CollectionOps.find(target, databaseName, name, query, opts, readPreference) as Flow<T>
+                } else {
+                    CollectionOps.findAs(target, databaseName, name, query, opts, readPreference) {
+                        decodeFromNative(codec, it)
+                    }
+                }
             },
             filter = filter,
             opts = opts(BsonDocument()),

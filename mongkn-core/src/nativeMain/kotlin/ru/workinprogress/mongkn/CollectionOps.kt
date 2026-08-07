@@ -646,7 +646,27 @@ internal object CollectionOps {
         filter: Document,
         opts: Document,
         readPreference: Document? = null,
-    ): Flow<Document> =
+    ): Flow<Document> = findAs(client, databaseName, name, filter, opts, readPreference) { it.toDocument() }
+
+    /**
+     * То же, что [find], но документ переводится **сразу** в нужный тип (M-83).
+     *
+     * Существует ради типизированных коллекций: `MongoCollection<Person>` иначе строила бы
+     * промежуточный [Document] и тут же его выбрасывала, а это больше половины пути чтения.
+     * `MongoCollection<Document>` пользуется [find] и ничего не теряет — ей [Document] и нужен.
+     *
+     * @param read вызывается на каждый документ, пока указатель ещё действителен: он принадлежит
+     *   курсору и живёт только до следующего `mongoc_cursor_next`.
+     */
+    fun <R> findAs(
+        client: Target,
+        databaseName: String,
+        name: String,
+        filter: Document,
+        opts: Document,
+        readPreference: Document? = null,
+        read: (CPointer<bson_t>) -> R,
+    ): Flow<R> =
         flow {
             client.withPermit {
                 client.useClient { handle ->
@@ -661,7 +681,7 @@ internal object CollectionOps {
                                 withReadPrefs(readPreference) { prefs ->
                                     mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, prefs)
                                 } ?: error("mongoc_collection_find_with_opts вернул NULL")
-                            drainCursor(cursor, batchOf(opts))
+                            drainCursor(cursor, batchOf(opts), read)
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativeFilter)
@@ -712,7 +732,7 @@ internal object CollectionOps {
                                         prefs,
                                     )
                                 } ?: error("mongoc_collection_aggregate вернул NULL")
-                            drainCursor(cursor, batchOf(opts))
+                            drainCursor(cursor, batchOf(opts)) { it.toDocument() }
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativePipeline)
@@ -821,7 +841,7 @@ internal object CollectionOps {
                             val cursor =
                                 mongoc_collection_find_indexes_with_opts(collection, nativeOpts)
                                     ?: error("mongoc_collection_find_indexes_with_opts вернул NULL")
-                            drainCursor(cursor, batchOf(opts))
+                            drainCursor(cursor, batchOf(opts)) { it.toDocument() }
                         } finally {
                             bson_destroy(nativeOpts)
                         }

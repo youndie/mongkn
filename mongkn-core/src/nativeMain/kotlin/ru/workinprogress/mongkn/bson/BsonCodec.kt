@@ -318,7 +318,7 @@ private fun MemScope.readEntries(iter: CPointer<bson_iter_t>): List<Pair<String,
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun MemScope.readValue(
+internal fun MemScope.readValue(
     iter: CPointer<bson_iter_t>,
     key: String,
 ): BsonValue =
@@ -433,7 +433,7 @@ private fun MemScope.readValue(
     }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun MemScope.recurse(iter: CPointer<bson_iter_t>): CPointer<bson_iter_t> {
+internal fun MemScope.recurse(iter: CPointer<bson_iter_t>): CPointer<bson_iter_t> {
     val child = alloc<bson_iter_t>()
     check(bson_iter_recurse(iter, child.ptr)) { "bson_iter_recurse: вложенное значение повреждено" }
     return child.ptr
