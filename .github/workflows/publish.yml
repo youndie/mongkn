@@ -1,52 +1,52 @@
 name: publish
 
-# Публикация в Maven-репозиторий. Только вручную: библиотека выкладывается по решению,
-# а не на каждый push.
+# Publishing to a Maven repository. Manual only: the library goes out by decision, not on every push.
 #
-# Адрес и учётные данные — в секретах репозитория (MONGKN_REPO_URL / _USER / _SECRET),
-# в файлах их нет: у каждого, кто соберёт mongkn, репозиторий свой.
+# The address and the credentials live in repository secrets (MONGKN_REPO_URL / _USER / _SECRET),
+# never in files: whoever builds mongkn publishes to their own repository.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Версия (пусто — 0.1.<номер прогона>, как у соседних проектов)'
+        description: 'Version (empty — 0.1.<run number>)'
         required: false
         type: string
 
 jobs:
   publish:
     name: linuxX64 → maven
-    # Хостовый ubuntu — нативный Linux x86_64, ровно та платформа, под которую мы публикуем.
+    # A hosted ubuntu is a native Linux x86_64 — exactly the platform we publish for.
     #
-    # Здесь стоял self-hosted раннер, и для публичного репозитория это было бы дырой: PR
-    # из чужого форка исполнял бы свой код на домашней машине. Собирать на macOS-раннере тоже
-    # нельзя — там доступна только задача publishMacosArm64…, и наивная публикация выложила бы
-    # macosArm64 под координатами mongkn, а потребитель получил бы «No matching variant».
+    # A self-hosted runner used to stand here, and on a public repository that would be a hole:
+    # a pull request from someone else's fork would execute its own code on a home machine.
+    # Building on a macOS runner is not an option either — only the publishMacosArm64… task is
+    # available there, and a naive publish would push macosArm64 under mongkn's coordinates,
+    # leaving the consumer with "No matching variant" instead of a library.
     runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Драйвер MongoDB
+      - name: MongoDB C driver
         run: |
           sudo apt-get update
           sudo apt-get install -y libmongoc-dev libbson-dev
 
-      - name: Версия
+      - name: Version
         id: version
         run: |
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then VERSION="0.1.${{ github.run_number }}"; fi
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Публикуем $VERSION"
+          echo "Publishing $VERSION"
 
-      # Артефакт **обязан** быть linuxX64. Собери мы его на macOS-хосте — уехал бы `macosArm64`,
-      # и потребитель получил бы «No matching variant» вместо библиотеки. Проверка ниже смотрит
-      # на то, что реально опубликовано, а не на зелёный прогон.
+      # The artefact **must** be linuxX64. Built on a macOS host it would be macosArm64, and the
+      # consumer would get "No matching variant" instead of a library. The check below looks at
+      # what was actually published rather than at a green run.
       #
-      # Тесты здесь не гоняются: им нужен контур из трёх с лишним серверов. Публикуется то,
-      # что прогнано отдельно — см. workflow `build`.
-      - name: Опубликовать
+      # Tests do not run here: they need a contour of four servers. What gets published is what was
+      # tested separately — see the `build` workflow.
+      - name: Publish
         env:
           MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
           MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
@@ -57,9 +57,10 @@ jobs:
             :mongkn-extensions:publishAllPublicationsToMongknRepoRepository \
             -PVERSION=${{ steps.version.outputs.value }}
 
-      # Успешная публикация говорит только то, что загрузка не упала. Что попало в артефакт,
-      # показывает его `.module`: там перечислены варианты, и по ним видно, тот ли это таргет.
-      - name: Проверить опубликованное
+      # A successful publish only says the upload did not fail. What ended up in the artefact is
+      # visible in its `.module`: the variants are listed there, and they show whether this is the
+      # right target.
+      - name: Verify what was published
         env:
           MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
           MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
@@ -67,16 +68,16 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.value }}
           ROOT="$MONGKN_REPO_URL/io/github/youndie/mongkn"
-          # Оба модуля, а не только core: extensions публикуется той же версией, и разъехавшиеся
-          # версии потребитель увидит как «No matching variant» уже у себя.
+          # Both modules, not just core: extensions is published with the same version, and versions
+          # drifting apart show up as "No matching variant" on the consumer's side, not here.
           for MODULE_NAME in mongkn-core mongkn-extensions; do
             BASE=$ROOT/$MODULE_NAME/$VERSION
             MODULE=$(curl -fsSL -u "$MONGKN_REPO_USER:$MONGKN_REPO_SECRET" "$BASE/$MODULE_NAME-$VERSION.module")
             echo "$MODULE_NAME:"
             echo "$MODULE" | grep -o '"org.jetbrains.kotlin.native.target": "[a-z0-9_]*"' | sort -u
             if ! echo "$MODULE" | grep -q '"org.jetbrains.kotlin.native.target": "linux_x64"'; then
-              echo "::error::в $MODULE_NAME нет варианта linux_x64 — артефакт собран не на том хосте"
+              echo "::error::$MODULE_NAME has no linux_x64 variant — built on the wrong host"
               exit 1
             fi
-            echo "Опубликовано: io.github.youndie.mongkn:$MODULE_NAME:$VERSION"
+            echo "Published: io.github.youndie.mongkn:$MODULE_NAME:$VERSION"
           done

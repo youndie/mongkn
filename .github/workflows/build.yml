@@ -1,18 +1,18 @@
 name: build
 
-# Матрица из двух хостов — не для галочки. На macOS Homebrew даёт mongo-c-driver 2.x,
-# на Ubuntu apt даёт 1.26, то есть ветку 1.x. Обе ветки резолвера библиотек проверяются
-# по-настоящему, а не на честном слове (решение Р1 ресёрча).
+# The two-host matrix is not decoration. Homebrew on macOS gives mongo-c-driver 2.x, apt on Ubuntu
+# gives 1.26 — that is the 1.x branch. Both branches of the library resolver are therefore exercised
+# for real rather than taken on trust (decision Р1 in docs/research/research-architecture.md).
 #
-# Kotlin/Native не поддерживает linux-aarch64 как хост, поэтому Linux-раннер обязан быть
-# x86_64 — см. §1.18 ресёрча.
+# Kotlin/Native does not support linux-aarch64 as a host, so the Linux runner must be x86_64 —
+# see §1.18 of the research document.
 
-# **Автоматический запуск временно выключен.** Остался только ручной (`workflow_dispatch`):
-# шардированный контур из M-66 в CI ещё ни разу не прогонялся, и раньше всего споткнётся
-# macOS-джоба, где кластер поднимается процессами через brew, а не контейнером. Пусть первый
-# прогон будет осознанным, а не сорванной проверкой на первом же push.
+# **Automatic triggers are switched off for now.** Only the manual one (`workflow_dispatch`) is
+# left: the sharded contour from M-66 has never run in CI, and the first thing to trip over it will
+# be the macOS job, where the cluster is started as brew processes rather than a container. Better
+# a deliberate first run than a broken check on the next push.
 #
-# Вернуть — раскомментировать `push` и `pull_request` ниже.
+# To bring them back, uncomment `push` and `pull_request` below.
 on:
   workflow_dispatch:
   # push:
@@ -40,24 +40,25 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Установить mongo-c-driver (macOS, ветка 2.x)
+      - name: Install mongo-c-driver (macOS, 2.x branch)
         if: runner.os == 'macOS'
         run: brew install mongo-c-driver
 
-      - name: Установить libmongoc (Linux, ветка 1.x)
+      - name: Install libmongoc (Linux, 1.x branch)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libmongoc-dev libbson-dev
 
-      # Сервер поднимается как **одноузловой replica set**, а не standalone. Причина одна:
-      # change streams на standalone не работают вовсе, то есть тесты `watch` без этого нечем
-      # проверить. Для всех остальных операций одноузловой replica set неотличим от standalone,
-      # а вдобавок он понадобится транзакциям (M14) и readPreference (M-50).
+      # The server comes up as a **single-node replica set**, not a standalone. One reason: change
+      # streams do not work on a standalone at all, so there would be nothing to test `watch`
+      # against. For every other operation a single-node replica set is indistinguishable from a
+      # standalone, and transactions (M14) and readPreference (M-50) will need it anyway.
       #
-      # `rs.initiate` задаёт член явным адресом `127.0.0.1:27017`: без этого сервер объявит себя
-      # под своим hostname, драйвер пойдёт по объявленному адресу и не достучится.
-      - name: Поднять mongod (Linux)
+      # `rs.initiate` names the member by its explicit address `127.0.0.1:27017`: without that the
+      # server advertises its own hostname, the driver follows the advertised address and never
+      # arrives.
+      - name: Start mongod (Linux)
         if: runner.os == 'Linux'
         run: |
           docker run -d --name mongod -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
@@ -65,26 +66,26 @@ jobs:
           docker exec mongod mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
           for _ in $(seq 1 30); do docker exec mongod mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' && break; sleep 2; done
 
-      - name: Поднять mongod (macOS)
+      - name: Start mongod (macOS)
         if: runner.os == 'macOS'
         run: |
           brew tap mongodb/brew
-          # mongosh отдельной формулой: он нужен для rs.initiate, а с сервером не ставится.
+          # mongosh is a separate formula: rs.initiate needs it, and it does not come with the server.
           brew install mongodb-community@8.0 mongosh
-          # enableTestCommands нужен failpoint'ам в RetryTest: без него сервер откажется
-          # инсценировать сбой, и проверить ретраи будет нечем.
+          # enableTestCommands is required by the failpoints in RetryTest: without it the server
+          # refuses to stage a failure, and there is nothing to test retries against.
           printf 'replication:\n  replSetName: rs0\nsetParameter:\n  enableTestCommands: 1\n' >> "$(brew --prefix)/etc/mongod.conf"
           brew services start mongodb-community@8.0
-          # Сервер поднимается не мгновенно, а тесты падают, а не пропускаются, если его нет.
+          # The server does not come up instantly, and the tests fail rather than skip without it.
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27017 && break; sleep 2; done
           mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
           for _ in $(seq 1 30); do mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' && break; sleep 2; done
 
-      # Второй сервер — с включённой аутентификацией, на своём порту. Отдельный, а не тот же
-      # самый: включи мы --auth на основном, креды понадобились бы каждому из полутора сотен
-      # остальных тестов, и предмет проверки растворился бы в общем шуме. Креды здесь —
-      # фикстура одноразового контейнера, а не секрет.
-      - name: Поднять mongod с аутентификацией (Linux)
+      # The second server has authentication enabled, on its own port. Separate rather than the same
+      # one: had we enabled --auth on the main server, every one of the other hundred and fifty tests
+      # would need credentials, and the subject of the check would dissolve into noise. The
+      # credentials here are a fixture of a throwaway container, not a secret.
+      - name: Start mongod with authentication (Linux)
         if: runner.os == 'Linux'
         run: |
           docker run -d --name mongod-auth -p 27019:27017 \
@@ -93,10 +94,10 @@ jobs:
           docker exec mongod-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin \
             --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
 
-      # На macOS docker недоступен, поэтому второй mongod поднимается напрямую. Пользователи
-      # заводятся до включения --auth и сервер перезапускается: localhost-исключение на свежем
-      # сервере срабатывает не всегда, а этот порядок детерминирован.
-      - name: Поднять mongod с аутентификацией (macOS)
+      # Docker is not available on macOS, so the second mongod is started directly. Users are created
+      # before --auth is switched on and the server is restarted: the localhost exception on a fresh
+      # server does not always apply, whereas this order is deterministic.
+      - name: Start mongod with authentication (macOS)
         if: runner.os == 'macOS'
         run: |
           BIN="$(brew --prefix)/opt/mongodb-community@8.0/bin"
@@ -108,22 +109,23 @@ jobs:
           "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --auth --fork --logpath /tmp/mongod-auth.log
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
 
-      # Третий сервер — с обязательным TLS. Сертификаты генерируются, а не лежат в репозитории:
-      # серверный живёт 397 дней (политика Apple, иначе Secure Transport на macOS его отвергнет),
-      # и закоммиченный набор через год ломал бы сборку без единой правки кода.
-      - name: Поднять mongod с TLS
+      # The third server requires TLS. Certificates are generated rather than kept in the repository:
+      # the server certificate lives 397 days (Apple's policy — Secure Transport on macOS rejects
+      # anything longer), so a committed set would break the build a year later without a single
+      # code change.
+      - name: Start mongod with TLS
         run: |
           ./ci/tls/generate.sh "$PWD/build/tls"
           ./ci/tls/start-server.sh mongod-tls "$PWD/build/tls" -p 27020:27017
-          # Локально те же серверы поднимаются одной командой `ci/dev-servers.sh up`
-          # (docker compose + инициализация). В CI шаги оставлены раздельными: на macOS-раннере
-          # docker недоступен, и mongod там ставится через brew.
+          # Locally the same servers come up with a single `ci/dev-servers.sh up` (docker compose
+          # plus initialisation). In CI the steps are kept separate: docker is unavailable on the
+          # macOS runner, and mongod is installed there through brew.
 
-      # Четвёртый контур — шардированный кластер (M-66): конфигурационный реплика-сет, два шарда
-      # и mongos. Раскладка портов у контейнера и у процессов на macOS одна и та же, поэтому
-      # запускает кластер один скрипт, а доводит до рабочего состояния — другой, общий для обоих.
-      # Отличается только то, как позвать mongosh, и это ровно одна переменная.
-      - name: Поднять шардированный кластер (Linux)
+      # The fourth contour is a sharded cluster (M-66): a config replica set, two shards and a
+      # mongos. The port layout is identical for the container and for bare processes on macOS, so
+      # one script starts the cluster and another — shared by both — brings it to a working state.
+      # The only difference is how to call mongosh, and that is exactly one variable.
+      - name: Start the sharded cluster (Linux)
         if: runner.os == 'Linux'
         env:
           MONGKN_PLATFORM: linux/amd64
@@ -131,23 +133,23 @@ jobs:
           docker compose up -d mongo-shard
           MONGKN_SHARD_EXEC="docker exec mongkn-shard" ./ci/shard/init.sh
 
-      - name: Поднять шардированный кластер (macOS)
+      - name: Start the sharded cluster (macOS)
         if: runner.os == 'macOS'
         run: |
-          # brew не кладёт mongod и mongos в PATH, а скрипт зовёт их по имени: он рассчитан
-          # и на контейнер, где они лежат в системных каталогах.
+          # brew does not put mongod and mongos on PATH, and the script calls them by name: it is
+          # written for the container too, where they live in system directories.
           export PATH="$(brew --prefix)/opt/mongodb-community@8.0/bin:$PATH"
           MONGKN_SHARD_DBROOT=/tmp/mongkn-shard ./ci/shard/start.sh
           ./ci/shard/init.sh
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Сборка и тесты
-        # checkKotlinAbi выполняется только на macOS: дамп различается между таргетами строкой
-        # `// Targets:`, а объявления одинаковы (§1.19). На Linux задача пропускается сама.
+      - name: Build and test
+        # checkKotlinAbi runs on macOS only: the dump differs between targets by the `// Targets:`
+        # line while the declarations are identical (§1.19). On Linux the task skips itself.
         run: ./gradlew build --stacktrace
 
-      - name: Отчёты тестов
+      - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
