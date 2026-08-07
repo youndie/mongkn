@@ -152,7 +152,8 @@ jobs:
             --tlsCAFile "$CERTS/ca.pem" \
             --tlsAllowConnectionsWithoutCertificates \
             --setParameter enableTestCommands=1 \
-            --fork --logpath /tmp/mongod-tls.log
+            --fork --logpath /tmp/mongod-tls.log \
+            || { echo "--- mongod-tls.log:"; cat /tmp/mongod-tls.log; exit 1; }
           for _ in $(seq 1 30); do mongosh --quiet --tls --tlsCAFile "$CERTS/ca.pem" --host localhost --port 27020 --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
           # The x509 user is named by the client certificate subject, exactly as mongod sees it.
           SUBJECT="$(cat "$CERTS/client-subject.txt")"
