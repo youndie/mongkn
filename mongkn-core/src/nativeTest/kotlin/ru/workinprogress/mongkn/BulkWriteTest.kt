@@ -6,7 +6,10 @@ import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.support.bindableUri
+import ru.workinprogress.mongkn.support.boundTo
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -26,14 +29,19 @@ class BulkWriteTest {
         clients.clear()
     }
 
-    private suspend fun connect(): MongoClient =
-        MongoClient(uri).also { client ->
-            clients += client
-            if (!cleaned) {
-                client.getDatabase(DATABASE).drop()
-                cleaned = true
-            }
+    private val appNames = AppNames("bulkwrite")
+
+    private suspend fun connect(): MongoClient {
+        val appName = appNames.assign()
+        val client = MongoClient(bindableUri(uri, appName))
+        clients += client
+        appNames.remember(client, appName)
+        if (!cleaned) {
+            client.getDatabase(DATABASE).drop()
+            cleaned = true
         }
+        return client
+    }
 
     /** Коллекция с документами `{n: 0..count-1}`. */
     private suspend fun seeded(
@@ -422,7 +430,7 @@ class BulkWriteTest {
                         put("errorCode", WRITE_CONFLICT)
                         putArray("errorLabels") { add("TransientTransactionError") }
                     }
-                },
+                }.boundTo(appNames.of(client)),
             )
             try {
                 val failure =

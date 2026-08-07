@@ -6,7 +6,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.support.boundTo
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,8 +38,14 @@ class FailureModesTest {
         clients.clear()
     }
 
-    private fun connect(options: String = ""): MongoClient =
-        MongoClient(TestServer.uri("serverSelectionTimeoutMS=3000$options")).also { clients += it }
+    private val appNames = AppNames("failure")
+
+    private fun connect(options: String = ""): MongoClient {
+        val appName = appNames.assign()
+        val client = MongoClient(TestServer.uri("appName=$appName&serverSelectionTimeoutMS=3000$options"))
+        clients += client
+        return appNames.remember(client, appName)
+    }
 
     private suspend fun seeded(
         client: MongoClient,
@@ -50,11 +58,17 @@ class FailureModesTest {
         return collection
     }
 
+    /**
+     * Заказывает сбой **своему** клиенту.
+     *
+     * `boundTo` обязателен, а не желателен: failpoint включается на сервере целиком, и
+     * `mode: {times: 1}` расходуется первой подошедшей командой от кого угодно (M-82).
+     */
     private suspend fun failPoint(
         client: MongoClient,
         body: Document,
     ) {
-        client.getDatabase("admin").runCommand(body)
+        client.getDatabase("admin").runCommand(body.boundTo(appNames.of(client)))
     }
 
     private suspend fun clearFailPoint(client: MongoClient) {

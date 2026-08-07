@@ -6,7 +6,10 @@ import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.support.bindableUri
+import ru.workinprogress.mongkn.support.boundTo
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,14 +37,19 @@ class TransactionTest {
         clients.clear()
     }
 
-    private suspend fun connect(): MongoClient =
-        MongoClient(uri).also { client ->
-            clients += client
-            if (!cleaned) {
-                client.getDatabase(DATABASE).drop()
-                cleaned = true
-            }
+    private val appNames = AppNames("transaction")
+
+    private suspend fun connect(): MongoClient {
+        val appName = appNames.assign()
+        val client = MongoClient(bindableUri(uri, appName))
+        clients += client
+        appNames.remember(client, appName)
+        if (!cleaned) {
+            client.getDatabase(DATABASE).drop()
+            cleaned = true
         }
+        return client
+    }
 
     /**
      * Имя коллекции, созданной заранее.
@@ -316,7 +324,7 @@ class TransactionTest {
                     put("errorCode", errorCode)
                     if (labels.isNotEmpty()) putArray("errorLabels") { labels.forEach(::add) }
                 }
-            },
+            }.boundTo(appNames.of(client)),
         )
         try {
             body()

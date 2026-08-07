@@ -14,7 +14,9 @@ import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.support.boundTo
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,9 +40,8 @@ import kotlin.test.assertTrue
  * часами значило бы получать зелёные тесты при сломанном коде и красные при исправном.
  */
 class ChangeStreamTest {
-    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=5000")
-
     private val clients = mutableListOf<MongoClient>()
+    private val appNames = AppNames("changestream")
 
     @AfterTest
     fun tearDown() {
@@ -48,14 +49,18 @@ class ChangeStreamTest {
         clients.clear()
     }
 
-    private suspend fun connect(ioThreads: Int = MongoClient.DEFAULT_IO_THREADS): MongoClient =
-        MongoClient(uri, ioThreads = ioThreads).also { client ->
-            clients += client
-            if (!cleaned) {
-                client.getDatabase(DATABASE).drop()
-                cleaned = true
-            }
+    private suspend fun connect(ioThreads: Int = MongoClient.DEFAULT_IO_THREADS): MongoClient {
+        val appName = appNames.assign()
+        val uri = TestServer.uri("appName=$appName&serverSelectionTimeoutMS=3000&socketTimeoutMS=5000")
+        val client = MongoClient(uri, ioThreads = ioThreads)
+        clients += client
+        appNames.remember(client, appName)
+        if (!cleaned) {
+            client.getDatabase(DATABASE).drop()
+            cleaned = true
         }
+        return client
+    }
 
     private suspend fun collection(hint: String): MongoCollection<Document> {
         val database = connect().getDatabase(DATABASE)
@@ -269,7 +274,7 @@ class ChangeStreamTest {
                     put("errorCode", errorCode)
                     if (labels.isNotEmpty()) putArray("errorLabels") { labels.forEach(::add) }
                 }
-            },
+            }.boundTo(appNames.of(client)),
         )
         try {
             body()

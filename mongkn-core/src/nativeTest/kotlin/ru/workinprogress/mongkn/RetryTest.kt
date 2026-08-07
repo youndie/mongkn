@@ -4,7 +4,9 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.document
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
+import ru.workinprogress.mongkn.support.boundTo
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,9 +37,15 @@ class RetryTest {
         clients.clear()
     }
 
-    private fun connect(options: String = ""): MongoClient =
-        MongoClient(TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=5000$options"))
-            .also { clients += it }
+    private val appNames = AppNames("retry")
+
+    private fun connect(options: String = ""): MongoClient {
+        val appName = appNames.assign()
+        val client =
+            MongoClient(TestServer.uri("appName=$appName&serverSelectionTimeoutMS=3000&socketTimeoutMS=5000$options"))
+        clients += client
+        return appNames.remember(client, appName)
+    }
 
     /**
      * Заказывает серверу ровно один сбой указанных команд и снимает заказ после [body].
@@ -53,6 +61,8 @@ class RetryTest {
         body: suspend () -> Unit,
     ) {
         val admin = client.getDatabase("admin")
+        // boundTo сужает сбой до этого клиента: failpoint глобален для сервера, а `times: 1`
+        // расходуется первой подошедшей командой от кого угодно (M-82).
         admin.runCommand(
             document {
                 put("configureFailPoint", "failCommand")
@@ -64,7 +74,7 @@ class RetryTest {
                         putArray("errorLabels") { labels.forEach(::add) }
                     }
                 }
-            },
+            }.boundTo(appNames.of(client)),
         )
         try {
             body()

@@ -29,6 +29,8 @@ import ru.workinprogress.mongkn.bson.BsonObjectId
 import ru.workinprogress.mongkn.bson.BsonString
 import ru.workinprogress.mongkn.bson.BsonValue
 import ru.workinprogress.mongkn.bson.Document
+import ru.workinprogress.mongkn.support.AppNames
+import ru.workinprogress.mongkn.support.boundTo
 
 /**
  * Раннер официальных spec-тестов MongoDB в [unified test format](https://github.com/mongodb/specifications/blob/master/source/unified-test-format/unified-test-format.md).
@@ -410,7 +412,9 @@ internal class SpecTestRunner(
      * командой, но полагаться на это нельзя — сценарий вправе не дойти до операции.
      */
     private suspend fun configureFailPoint(failPoint: BsonDocument) {
-        client.getDatabase("admin").runCommand(failPoint)
+        // Сбой сужается до клиента раннера: иначе `mode: {times: 1}` вправе съесть соседний тест,
+        // а отменённый вызов из другого класса — прийти сюда с опозданием (M-82).
+        client.getDatabase("admin").runCommand(failPoint.boundTo(AppNames.SPEC))
         configuredFailPoints += (failPoint["configureFailPoint"] as? BsonString)?.value ?: return
     }
 

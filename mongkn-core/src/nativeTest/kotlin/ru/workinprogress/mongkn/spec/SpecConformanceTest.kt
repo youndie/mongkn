@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import ru.workinprogress.mongkn.MongoClient
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonString
+import ru.workinprogress.mongkn.support.AppNames
 import ru.workinprogress.mongkn.support.TestServer
 import ru.workinprogress.mongkn.support.readJsonDocument
 import ru.workinprogress.mongkn.support.requiredPath
@@ -23,7 +24,9 @@ import kotlin.time.Duration.Companion.seconds
  * Первый прогон требует сети.
  */
 class SpecConformanceTest {
-    private val uri = TestServer.uri("serverSelectionTimeoutMS=3000&socketTimeoutMS=10000")
+    // appName — чтобы инсценированные сбои сценариев доставались только этому клиенту (M-82).
+    private val uri =
+        TestServer.uri("appName=${AppNames.SPEC}&serverSelectionTimeoutMS=3000&socketTimeoutMS=10000")
 
     private var client: MongoClient? = null
 
