@@ -124,13 +124,40 @@ jobs:
       # the server certificate lives 397 days (Apple's policy — Secure Transport on macOS rejects
       # anything longer), so a committed set would break the build a year later without a single
       # code change.
-      - name: Start mongod with TLS
+      - name: Generate TLS certificates
+        run: ./ci/tls/generate.sh "$PWD/build/tls"
+
+      - name: Start mongod with TLS (Linux)
+        if: runner.os == 'Linux'
         run: |
-          ./ci/tls/generate.sh "$PWD/build/tls"
           ./ci/tls/start-server.sh mongod-tls "$PWD/build/tls" -p 27020:27017
           # Locally the same servers come up with a single `ci/dev-servers.sh up` (docker compose
           # plus initialisation). In CI the steps are kept separate: docker is unavailable on the
           # macOS runner, and mongod is installed there through brew.
+
+      # The same server as a bare process. `ci/tls/start-server.sh` is docker-only — it copies the
+      # certificates *into* the container, because mongod will not read a key file it does not own.
+      # With a local process that problem disappears, so the flags are passed directly.
+      - name: Start mongod with TLS (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          BIN="$(brew --prefix)/opt/mongodb-community@8.0/bin"
+          CERTS="$PWD/build/tls"
+          mkdir -p /tmp/mongo-tls
+          # mongod refuses to start on a key file that is readable by everyone.
+          chmod 400 "$CERTS"/*.pem
+          "$BIN/mongod" --port 27020 --dbpath /tmp/mongo-tls \
+            --tlsMode requireTLS \
+            --tlsCertificateKeyFile "$CERTS/server.pem" \
+            --tlsCAFile "$CERTS/ca.pem" \
+            --tlsAllowConnectionsWithoutCertificates \
+            --setParameter enableTestCommands=1 \
+            --fork --logpath /tmp/mongod-tls.log
+          for _ in $(seq 1 30); do mongosh --quiet --tls --tlsCAFile "$CERTS/ca.pem" --host localhost --port 27020 --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
+          # The x509 user is named by the client certificate subject, exactly as mongod sees it.
+          SUBJECT="$(cat "$CERTS/client-subject.txt")"
+          mongosh --quiet --tls --tlsCAFile "$CERTS/ca.pem" --host localhost --port 27020 \
+            --eval "db.getSiblingDB('\$external').runCommand({createUser: '$SUBJECT', roles: [{role:'root', db:'admin'}]})"
 
       # The fourth contour is a sharded cluster (M-66): a config replica set, two shards and a
       # mongos. The port layout is identical for the container and for bare processes on macOS, so
