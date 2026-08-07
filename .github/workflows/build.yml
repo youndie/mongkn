@@ -70,6 +70,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew tap mongodb/brew
+          # Homebrew refuses to load formulae from a third-party tap until the tap is trusted —
+          # a security measure added in Homebrew 6. Without this line the step fails at install
+          # with "Refusing to load formula … from untrusted tap", and no amount of retrying helps.
+          # The whole tap is trusted rather than each formula: both the server and mongosh live here.
+          brew trust --tap mongodb/brew
           # mongosh is a separate formula: rs.initiate needs it, and it does not come with the server.
           brew install mongodb-community@8.0 mongosh
           # enableTestCommands is required by the failpoints in RetryTest: without it the server
