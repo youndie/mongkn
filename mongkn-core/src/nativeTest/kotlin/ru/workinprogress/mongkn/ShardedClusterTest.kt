@@ -19,6 +19,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -256,12 +257,27 @@ class ShardedClusterTest {
                 }
 
             // Вторичных узлов у наших одноузловых шардов нет, поэтому чтение обязано не удаться.
-            // Важно **где**: на реплика-сете тот же запрос падает у клиента, доменом
-            // SERVER_SELECTION (см. OptionsAndDatabaseTest), а здесь отказ приходит от кластера
-            // ответом на команду. Это и есть разница между «настройка доехала» и «настройка
-            // исполнена»: сравнение доменов — самая точная её формулировка, доступная тесту.
-            assertEquals(MongoErrorDomain.SERVER, failure.errorDomain, "ошибка: ${failure.message}")
-            assertEquals(FAILED_TO_SATISFY_READ_PREFERENCE, failure.code, "ошибка: ${failure.message}")
+            // Важно **где** оно не удаётся: на реплика-сете тот же запрос падает у клиента,
+            // доменом SERVER_SELECTION (см. OptionsAndDatabaseTest), а здесь отказ приходит
+            // от кластера. Это и есть разница между «настройка доехала» и «настройка исполнена».
+            //
+            // Форма отказа у веток драйвера **разная**, и это проверено, а не предположено
+            // (M-87): на libmongoc 1.26 приходит ответ сервера — домен SERVER, код 133;
+            // на 2.1.1 то же самое выглядит обрывом соединения — домен STREAM. Кластер при этом
+            // ведёт себя одинаково: `mongosh` через тот же mongos отвечает
+            // FailedToSatisfyReadPreference на обеих.
+            //
+            // Поэтому утверждается то, что верно на обеих ветках и сохраняет смысл проверки:
+            // отказ пришёл **не** от клиентского выбора узла. Точный код спрашивается там,
+            // где ветка его даёт, — иначе проверка выродилась бы в «просто упало».
+            assertNotEquals(
+                MongoErrorDomain.SERVER_SELECTION,
+                failure.errorDomain,
+                "отказ пришёл от выбора узла у клиента, а не от кластера: ${failure.message}",
+            )
+            if (failure.errorDomain == MongoErrorDomain.SERVER) {
+                assertEquals(FAILED_TO_SATISFY_READ_PREFERENCE, failure.code, "ошибка: ${failure.message}")
+            }
 
             // Тот же механизм, но с разрешённым первичным узлом, читает: иначе тест был бы
             // зелёным и при полностью сломанном чтении через mongos.
