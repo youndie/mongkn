@@ -47,10 +47,14 @@ jobs:
       # Tests do not run here: they need a contour of four servers. What gets published is what was
       # tested separately — see the `build` workflow.
       - name: Publish
+        # The ORG_GRADLE_PROJECT_ prefix turns an environment variable into a Gradle **project
+        # property**, which is what `providers.gradleProperty(…)` reads. Plain environment
+        # variables work too through the fallback, but properties are the mechanism Gradle
+        # documents, and they survive the configuration cache without special handling.
         env:
-          MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
-          MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
-          MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
+          ORG_GRADLE_PROJECT_MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
+          ORG_GRADLE_PROJECT_MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
+          ORG_GRADLE_PROJECT_MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           ./gradlew \
             :mongkn-core:publishAllPublicationsToMongknRepoRepository \
