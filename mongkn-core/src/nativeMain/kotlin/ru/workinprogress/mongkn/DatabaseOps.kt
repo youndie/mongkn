@@ -153,7 +153,7 @@ internal object DatabaseOps {
                             val cursor =
                                 mongoc_database_aggregate(database, nativePipeline, nativeOpts, null)
                                     ?: error("mongoc_database_aggregate вернул NULL")
-                            drainCursor(cursor)
+                            drainCursor(cursor, batchOf(opts))
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativePipeline)
@@ -163,7 +163,7 @@ internal object DatabaseOps {
                     }
                 }
             }
-        }.flowOn(client.dispatcher)
+        }.flowOn(client.dispatcher).flattenDocuments()
 
     /**
      * Подписка на изменения всей базы или всего развёртывания.

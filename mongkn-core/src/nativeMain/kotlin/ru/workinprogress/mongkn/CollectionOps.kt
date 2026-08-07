@@ -661,7 +661,7 @@ internal object CollectionOps {
                                 withReadPrefs(readPreference) { prefs ->
                                     mongoc_collection_find_with_opts(collection, nativeFilter, nativeOpts, prefs)
                                 } ?: error("mongoc_collection_find_with_opts вернул NULL")
-                            drainCursor(cursor)
+                            drainCursor(cursor, batchOf(opts))
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativeFilter)
@@ -671,7 +671,7 @@ internal object CollectionOps {
                     }
                 }
             }
-        }.flowOn(client.dispatcher)
+        }.flowOn(client.dispatcher).flattenDocuments()
 
     /**
      * Агрегационный конвейер над коллекцией.
@@ -712,7 +712,7 @@ internal object CollectionOps {
                                         prefs,
                                     )
                                 } ?: error("mongoc_collection_aggregate вернул NULL")
-                            drainCursor(cursor)
+                            drainCursor(cursor, batchOf(opts))
                         } finally {
                             bson_destroy(nativeOpts)
                             bson_destroy(nativePipeline)
@@ -722,7 +722,7 @@ internal object CollectionOps {
                     }
                 }
             }
-        }.flowOn(client.dispatcher)
+        }.flowOn(client.dispatcher).flattenDocuments()
 
     /**
      * Создаёт индексы и возвращает их имена.
@@ -821,7 +821,7 @@ internal object CollectionOps {
                             val cursor =
                                 mongoc_collection_find_indexes_with_opts(collection, nativeOpts)
                                     ?: error("mongoc_collection_find_indexes_with_opts вернул NULL")
-                            drainCursor(cursor)
+                            drainCursor(cursor, batchOf(opts))
                         } finally {
                             bson_destroy(nativeOpts)
                         }
@@ -830,7 +830,7 @@ internal object CollectionOps {
                     }
                 }
             }
-        }.flowOn(client.dispatcher)
+        }.flowOn(client.dispatcher).flattenDocuments()
 
     /**
      * Имя, которое сервер даст индексу без явного `name`.

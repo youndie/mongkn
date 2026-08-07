@@ -12,7 +12,9 @@ import kotlinx.cinterop.value
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.flow
 import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.bson_t
@@ -26,6 +28,7 @@ import mongkn.cinterop.mongoc_cursor_next
 import mongkn.cinterop.mongoc_cursor_t
 import ru.workinprogress.mongkn.bson.BsonArray
 import ru.workinprogress.mongkn.bson.BsonDocument
+import ru.workinprogress.mongkn.bson.BsonInt32
 import ru.workinprogress.mongkn.bson.BsonInt64
 import ru.workinprogress.mongkn.bson.Document
 import ru.workinprogress.mongkn.bson.toDocument
@@ -49,14 +52,25 @@ import ru.workinprogress.mongkn.bson.toNativeBson
  * `inline`, потому что внутри вызывается [FlowCollector.emit].
  */
 @OptIn(ExperimentalForeignApi::class)
-internal suspend inline fun FlowCollector<Document>.drainCursor(cursor: CPointer<mongoc_cursor_t>) {
+internal suspend inline fun FlowCollector<List<Document>>.drainCursor(
+    cursor: CPointer<mongoc_cursor_t>,
+    batchSize: Int = DOCUMENT_BATCH,
+) {
     try {
         memScoped {
             val current = allocPointerTo<bson_t>()
+            var batch = ArrayList<Document>(batchSize)
             while (mongoc_cursor_next(cursor, current.ptr)) {
-                val document = current.value?.toDocument() ?: error("mongoc_cursor_next отдал NULL при true")
-                emit(document)
+                batch.add(current.value?.toDocument() ?: error("mongoc_cursor_next отдал NULL при true"))
+                if (batch.size >= batchSize) {
+                    emit(batch)
+                    batch = ArrayList(batchSize)
+                }
             }
+            // Хвост отдаётся **до** проверки ошибки, и это не мелочь: курсор мог оборваться
+            // на середине, и документы, пришедшие до обрыва, потребитель обязан увидеть (M-69).
+            // Проверь мы ошибку раньше — часть выборки исчезла бы молча, а это худший из исходов.
+            if (batch.isNotEmpty()) emit(batch)
             val error = alloc<bson_error_t>()
             if (mongoc_cursor_error(cursor, error.ptr)) {
                 val value = error.ptr.pointed
@@ -67,6 +81,50 @@ internal suspend inline fun FlowCollector<Document>.drainCursor(cursor: CPointer
         mongoc_cursor_destroy(cursor)
     }
 }
+
+/**
+ * Сколько документов пересекает канал корутин за раз.
+ *
+ * Канал, который вставляет `flowOn`, стоит времени на **каждом** пересечении: замер M-77 отдал
+ * ему 0.22 мкс из 0.93 на документ. Батч эту цену делит, а форма `Flow<Document>` снаружи
+ * не меняется — разворачивает батчи [flattenDocuments].
+ *
+ * Число намеренно **меньше серверной пачки** (по умолчанию 101 документ в первом ответе).
+ * Иначе `find().first()` заставил бы лишний круговой рейс: мы бы набирали батч из документов,
+ * которых в полученной пачке ещё нет. По той же причине батч урезается до `batchSize`, если
+ * потребитель задал его меньше, — см. [batchOf].
+ */
+internal const val DOCUMENT_BATCH: Int = 64
+
+/**
+ * Размер батча для этих опций: не больше `batchSize`, если он задан.
+ *
+ * Заданный потребителем `batchSize` — это его решение о том, сколько документов приходит
+ * за круговой рейс. Набирать больше значит превращать один рейс в несколько и делать
+ * `first()` дороже, чем он был до батчей.
+ */
+internal fun batchOf(opts: Document): Int {
+    val requested =
+        when (val value = opts["batchSize"]) {
+            is BsonInt32 -> value.value
+            is BsonInt64 -> value.value.toInt()
+            else -> null
+        }
+    return if (requested != null && requested in 1 until DOCUMENT_BATCH) requested else DOCUMENT_BATCH
+}
+
+/**
+ * Разворачивает батчи обратно в поток документов.
+ *
+ * Ставится **после** `flowOn`: канал пересекает список, а потребитель видит обычный
+ * `Flow<Document>` и о батчах не знает.
+ */
+internal fun Flow<List<Document>>.flattenDocuments(): Flow<Document> =
+    flow {
+        collect { batch ->
+            for (document in batch) emit(document)
+        }
+    }
 
 /**
  * Заворачивает стадии конвейера в документ `{"pipeline": [...]}`.

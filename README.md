@@ -133,7 +133,7 @@ object MoneySerializer : KSerializer<Money> {
 |---|---|
 | [docs/coverage.md](docs/coverage.md) | что умеет, а что нет — цифрами |
 | [docs/api/serialization.md](docs/api/serialization.md) | свои типы, `_id`, пустые поля, почему фильтр может ничего не найти |
-| [docs/performance.md](docs/performance.md) | сколько стоит обвязка: на записи неразличимо, на чтении +52 % |
+| [docs/performance.md](docs/performance.md) | сколько стоит обвязка: после батчей чтения — неразличимо и на записи, и на чтении |
 | [docs/research/](docs/research/) | решения и почему очевидное здесь трижды неверно |
 | [BACKLOG.md](BACKLOG.md) | что дальше |
 | [CLAUDE.md](CLAUDE.md) | как собрать, поднять серверы и опубликовать |

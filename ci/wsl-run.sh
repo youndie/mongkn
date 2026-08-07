@@ -58,5 +58,10 @@ ssh -o ConnectTimeout=20 "$HOST" "wsl -d $DISTRO -- bash -s" <<REMOTE_SCRIPT
 set -euo pipefail
 cd "$REMOTE"
 eval "\$(./ci/dev-servers.sh env 2>/dev/null)"
-./gradlew ${TASKS[*]} --console=plain 2>&1 | grep -E '^e: |FAILED|tests? completed|BUILD' | tail -20
+if [ -n "\${MONGKN_WSL_RAW:-}" ]; then
+    # Полный вывод — для бенчмарков и всего, что печатает результат само, а не через отчёт.
+    ./gradlew ${TASKS[*]} --console=plain 2>&1 | tail -80
+else
+    ./gradlew ${TASKS[*]} --console=plain 2>&1 | grep -E '^e: |FAILED|tests? completed|BUILD' | tail -20
+fi
 REMOTE_SCRIPT
