@@ -15,8 +15,10 @@ JVM-only. mongkn writes the `cinterop` once and hides it behind `suspend fun ins
 
 ## Overview
 
-- 23 of 30 collection operations: insert, update, delete, `find`, aggregation, indexes,
-  `bulkWrite`, `findOneAnd*`, `distinct`
+- 24 of 30 collection operations: insert, update, delete, `find`, aggregation, indexes,
+  `bulkWrite`, `findOneAnd*`, `distinct`. The six that are missing are missing on purpose —
+  five are Atlas Search index operations, which do not exist on a self-hosted server, and the
+  sixth is `mapReduce`, deprecated by MongoDB in favour of aggregation
 - Sessions and transactions, `withTransaction` retrying on server error labels
 - Change streams on collection, database and client, with automatic resumption
 - All topologies: standalone, replica set, sharded cluster through `mongos`
@@ -165,7 +167,7 @@ command arrives first.
 ## What mongkn is not
 
 - **Not a drop-in JVM driver.** The API shape follows `mongodb-driver-kotlin-coroutine`, but the
-  surface is narrower: 23 of 30 collection operations, no GridFS, no client-side field level
+  surface is narrower: 24 of 30 collection operations, no GridFS, no client-side field level
   encryption, no Atlas Search indexes.
 - **Not cross-compiling.** Only the host target is built, because `cinterop` needs the target's
   headers. There is no `mingwX64` build — on Windows, work from WSL2.
