@@ -1,7 +1,10 @@
 name: publish
 
-# Публикация в приватный Reposilite. Только вручную: библиотека выкладывается по решению,
+# Публикация в Maven-репозиторий. Только вручную: библиотека выкладывается по решению,
 # а не на каждый push.
+#
+# Адрес и учётные данные — в секретах репозитория (MONGKN_REPO_URL / _USER / _SECRET),
+# в файлах их нет: у каждого, кто соберёт mongkn, репозиторий свой.
 on:
   workflow_dispatch:
     inputs:
@@ -13,17 +16,21 @@ on:
 jobs:
   publish:
     name: linuxX64 → maven
-    # Раннер в WSL — **нативный Linux x86_64 с libmongoc 1.26**, то есть ровно та платформа,
-    # под которую мы публикуем. Ни контейнера, ни эмуляции: сборка идёт прямо на раннере.
+    # Хостовый ubuntu — нативный Linux x86_64, ровно та платформа, под которую мы публикуем.
     #
-    # Так было не всегда. Первая версия ходила на macOS-раннер и собирала в контейнере
-    # `linux/amd64` под QEMU — потому что на macOS-хосте доступна только задача
-    # publishMacosArm64…, и наивная публикация выложила бы macosArm64 под координатами mongkn.
-    # С появлением раннера в WSL обходной путь стал не нужен.
-    runs-on: [self-hosted, Linux, X64, wsl]
+    # Здесь стоял self-hosted раннер, и для публичного репозитория это было бы дырой: PR
+    # из чужого форка исполнял бы свой код на домашней машине. Собирать на macOS-раннере тоже
+    # нельзя — там доступна только задача publishMacosArm64…, и наивная публикация выложила бы
+    # macosArm64 под координатами mongkn, а потребитель получил бы «No matching variant».
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Драйвер MongoDB
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmongoc-dev libbson-dev
 
       - name: Версия
         id: version
@@ -41,28 +48,30 @@ jobs:
       # что прогнано отдельно — см. workflow `build`.
       - name: Опубликовать
         env:
-          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
-          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+          MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
+          MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
+          MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           ./gradlew \
-            :mongkn-core:publishAllPublicationsToReposilitePrivateRepository \
-            :mongkn-extensions:publishAllPublicationsToReposilitePrivateRepository \
+            :mongkn-core:publishAllPublicationsToMongknRepoRepository \
+            :mongkn-extensions:publishAllPublicationsToMongknRepoRepository \
             -PVERSION=${{ steps.version.outputs.value }}
 
       # Успешная публикация говорит только то, что загрузка не упала. Что попало в артефакт,
       # показывает его `.module`: там перечислены варианты, и по ним видно, тот ли это таргет.
       - name: Проверить опубликованное
         env:
-          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
-          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+          MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
+          MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
+          MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          ROOT=https://maven.internal/private/ru/workinprogress/mongkn
+          ROOT="$MONGKN_REPO_URL/ru/workinprogress/mongkn"
           # Оба модуля, а не только core: extensions публикуется той же версией, и разъехавшиеся
           # версии потребитель увидит как «No matching variant» уже у себя.
           for MODULE_NAME in mongkn-core mongkn-extensions; do
             BASE=$ROOT/$MODULE_NAME/$VERSION
-            MODULE=$(curl -fsSL -u "$REPOSILITE_USER:$REPOSILITE_SECRET" "$BASE/$MODULE_NAME-$VERSION.module")
+            MODULE=$(curl -fsSL -u "$MONGKN_REPO_USER:$MONGKN_REPO_SECRET" "$BASE/$MODULE_NAME-$VERSION.module")
             echo "$MODULE_NAME:"
             echo "$MODULE" | grep -o '"org.jetbrains.kotlin.native.target": "[a-z0-9_]*"' | sort -u
             if ! echo "$MODULE" | grep -q '"org.jetbrains.kotlin.native.target": "linux_x64"'; then

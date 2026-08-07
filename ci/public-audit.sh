@@ -50,11 +50,12 @@ for marker in $MARKERS; do
     hits=$(tracked | tr '\n' '\0' | xargs -0 grep -lE -- "$marker" 2>/dev/null)
     if [ -n "$hits" ]; then
         found=1
+        tree_hits=1
         echo "  «$marker»:"
         echo "$hits" | sed 's/^/    /'
     fi
 done
-[ "$found" = 0 ] && echo "  чисто"
+[ "${tree_hits:-0}" = 0 ] && echo "  чисто"
 
 section "История: внутренние имена"
 history_hits=0
@@ -70,7 +71,8 @@ done
 [ "$history_hits" = 0 ] && echo "  чисто"
 
 section "История: похожее на утёкшие значения"
-leaks=$(git log -p --all 2>/dev/null | grep -nE "^\+.*$SECRET_PATTERNS" | head -20)
+# Сам скрипт исключён: определения шаблонов в нём выглядят как то, что он ищет.
+leaks=$(git log -p --all -- . ':(exclude)ci/public-audit.sh' 2>/dev/null | grep -nE "^\+.*$SECRET_PATTERNS" | head -20)
 if [ -n "$leaks" ]; then
     found=1
     echo "$leaks" | cut -c1-160 | sed 's/^/  /'
@@ -88,13 +90,16 @@ else
 fi
 
 section "Обязательное для публичного репозитория"
-[ -f LICENSE ] || { echo "  нет LICENSE"; found=1; }
-grep -q "self-hosted" .github/workflows/*.yml 2>/dev/null && {
+must=0
+[ -f LICENSE ] || { echo "  нет LICENSE"; found=1; must=1; }
+# Именно в `runs-on`, а не где угодно: упоминание в комментарии — это история, а не настройка.
+grep -qE '^[[:space:]]*runs-on:.*self-hosted' .github/workflows/*.yml 2>/dev/null && {
     echo "  self-hosted раннер в workflow — на публичном репозитории это исполнение чужого кода"
     echo "  на своей машине: PR из форка запускает то, что в нём написано"
     found=1
+    must=1
 }
-[ "$found" = 0 ] && echo "  всё на месте"
+[ "$must" = 0 ] && echo "  всё на месте"
 
 section "Авторы коммитов (попадут в публичную историю)"
 git log --format='%an <%ae>' | sort | uniq -c | sed 's/^/  /'

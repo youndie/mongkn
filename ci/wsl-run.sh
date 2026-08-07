@@ -27,13 +27,18 @@
 #   ./ci/wsl-run.sh                                  # ./gradlew build
 #   ./ci/wsl-run.sh :mongkn-extensions:linuxX64Test  # своя задача
 #
-# Настройки — через окружение: MONGKN_WSL_HOST, MONGKN_WSL_DISTRO, MONGKN_WSL_PATH.
+# Настройки — через окружение:
+#   MONGKN_WSL_HOST   пользователь@адрес машины с WSL (обязательно)
+#   MONGKN_WSL_DISTRO имя дистрибутива, по умолчанию Ubuntu-24.04
+#   MONGKN_WSL_PATH   путь к чекауту внутри WSL, по умолчанию ~/mongkn
 
 set -euo pipefail
 
-HOST="${MONGKN_WSL_HOST:-USER@HOST}"
+# Адрес машины задаётся окружением и в репозитории не хранится: это чужая частная
+# инфраструктура, а не настройка проекта.
+HOST="${MONGKN_WSL_HOST:?задайте MONGKN_WSL_HOST=пользователь@адрес}"
 DISTRO="${MONGKN_WSL_DISTRO:-Ubuntu-24.04}"
-REMOTE="${MONGKN_WSL_PATH:-~/mongkn}"
+REMOTE="${MONGKN_WSL_PATH:-mongkn}"
 
 TASKS=("$@")
 if [ ${#TASKS[@]} -eq 0 ]; then TASKS=("build"); fi

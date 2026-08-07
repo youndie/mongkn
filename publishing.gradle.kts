@@ -2,12 +2,12 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 
 /*
- * Публикация в приватный Reposilite (M-18).
+ * Публикация в Maven-репозиторий (M-18).
  *
- * Координаты и способ передачи кредов повторяют соглашение соседних проектов: URL
- * `https://maven.internal/private`, логин и пароль — из Gradle-свойств
- * `REPOSILITE_USER` / `REPOSILITE_SECRET` либо из одноимённых переменных окружения.
- * Ни то, ни другое в репозиторий не попадает.
+ * Адрес, логин и пароль берутся из Gradle-свойств `MONGKN_REPO_URL` / `MONGKN_REPO_USER` /
+ * `MONGKN_REPO_SECRET` либо из одноимённых переменных окружения. В репозиторий не попадает
+ * ничего из этого: у каждого, кто собирает mongkn, назначение своё, а без настройки остаётся
+ * `publishToMavenLocal`.
  *
  * Скрипт применяется только к публикуемым модулям: `:mongkn-difftest` — тестовая оснастка,
  * наружу не выкладывается.
@@ -19,14 +19,28 @@ apply(plugin = "maven-publish")
 
 configure<PublishingExtension> {
     repositories {
-        maven {
-            name = "mavenPrivate"
-            url = uri("https://maven.internal/private")
-            credentials {
-                username = providers.gradleProperty("REPOSILITE_USER").orNull
-                    ?: System.getenv("REPOSILITE_USER")
-                password = providers.gradleProperty("REPOSILITE_SECRET").orNull
-                    ?: System.getenv("REPOSILITE_SECRET")
+        /*
+         * Адрес репозитория берётся из настройки, а не записан здесь.
+         *
+         * Причина не в секретности — репозиторий и так за паролем, — а в том, что это чужая
+         * инфраструктура: у каждого, кто соберёт mongkn, она своя. Задаётся свойством
+         * `MONGKN_REPO_URL` (в `~/.gradle/gradle.properties`) или одноимённой переменной
+         * окружения; без него блок просто не заводится, и остаётся `publishToMavenLocal`.
+         */
+        val repositoryUrl =
+            providers.gradleProperty("MONGKN_REPO_URL").orNull
+                ?: System.getenv("MONGKN_REPO_URL")
+
+        if (repositoryUrl != null) {
+            maven {
+                name = "mongknRepo"
+                url = uri(repositoryUrl)
+                credentials {
+                    username = providers.gradleProperty("MONGKN_REPO_USER").orNull
+                        ?: System.getenv("MONGKN_REPO_USER")
+                    password = providers.gradleProperty("MONGKN_REPO_SECRET").orNull
+                        ?: System.getenv("MONGKN_REPO_SECRET")
+                }
             }
         }
     }
@@ -40,7 +54,12 @@ configure<PublishingExtension> {
                 "MongoDB для Kotlin/Native: обвязка над официальным C-драйвером с API, " +
                     "форма которого снята с mongodb-driver-kotlin-coroutine"
             )
-            // Секции licenses намеренно нет: репозиторий приватный, лицензия не выбрана.
+            licenses {
+                license {
+                    name.set("The Apache License, Version 2.0")
+                    url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                }
+            }
         }
     }
 }
