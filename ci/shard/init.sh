@@ -29,10 +29,19 @@ evaluate() {
   $EXEC mongosh --quiet --port "$1" --eval "$2"
 }
 
+# Проба, а не обычный вызов: `mongosh` по умолчанию ждёт подключения **тридцать секунд**,
+# и цикл из 45 попыток превращается в двадцать четыре минуты вместо полутора. Отказ обязан
+# наступать быстро — иначе он неотличим от зависания, а в CI просто съедает время раннера.
+probe() {
+  local port="$1" script="$2"
+  # shellcheck disable=SC2086
+  $EXEC mongosh --quiet "mongodb://127.0.0.1:$port/?serverSelectionTimeoutMS=2000" --eval "$script"
+}
+
 wait_for_port() {
   local port="$1" what="$2"
   for _ in $(seq 1 45); do
-    evaluate "$port" 'db.runCommand({ping:1})' >/dev/null 2>&1 && return 0
+    probe "$port" 'db.runCommand({ping:1})' >/dev/null 2>&1 && return 0
     sleep 2
   done
   echo "не дождались $what на порту $port" >&2
@@ -42,7 +51,7 @@ wait_for_port() {
 wait_for_primary() {
   local port="$1" what="$2"
   for _ in $(seq 1 45); do
-    evaluate "$port" 'quit(db.hello().isWritablePrimary ? 0 : 1)' >/dev/null 2>&1 && return 0
+    probe "$port" 'quit(db.hello().isWritablePrimary ? 0 : 1)' >/dev/null 2>&1 && return 0
     sleep 2
   done
   echo "$what не стал первичным на порту $port" >&2

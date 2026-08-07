@@ -23,6 +23,9 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    # A hang must die quickly. Without this a wait loop that never finishes burns runner minutes
+    # up to the six-hour default — which is how a slow failure first showed up here.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -181,7 +184,11 @@ jobs:
           # written for the container too, where they live in system directories.
           export PATH="$(brew --prefix)/opt/mongodb-community@8.0/bin:$PATH"
           MONGKN_SHARD_DBROOT=/tmp/mongkn-shard ./ci/shard/start.sh
-          ./ci/shard/init.sh
+          ./ci/shard/init.sh || {
+            echo "--- cluster logs:"
+            for log in /tmp/mongkn-shard/*.log; do echo "=== $log"; tail -40 "$log"; done
+            exit 1
+          }
 
       - uses: gradle/actions/setup-gradle@v4
 
