@@ -1,11 +1,11 @@
 // Klib ABI Dump
-// Targets: [macosArm64]
+// Targets: [linuxX64]
 // Rendering settings:
 // - Signature version: 2
 // - Show manifest properties: true
 // - Show declarations: true
 
-// Library unique name: <ru.workinprogress.mongkn:mongkn-core>
+// Library unique name: <io.github.youndie.mongkn:mongkn-core>
 open annotation class ru.workinprogress.mongkn.bson/BsonDsl : kotlin/Annotation { // ru.workinprogress.mongkn.bson/BsonDsl|null[0]
     constructor <init>() // ru.workinprogress.mongkn.bson/BsonDsl.<init>|<init>(){}[0]
 }
@@ -411,6 +411,7 @@ final class ru.workinprogress.mongkn.bson/BsonObjectId : ru.workinprogress.mongk
         final const val SIZE // ru.workinprogress.mongkn.bson/BsonObjectId.Companion.SIZE|{}SIZE[0]
             final fun <get-SIZE>(): kotlin/Int // ru.workinprogress.mongkn.bson/BsonObjectId.Companion.SIZE.<get-SIZE>|<get-SIZE>(){}[0]
 
+        final fun generate(): ru.workinprogress.mongkn.bson/BsonObjectId // ru.workinprogress.mongkn.bson/BsonObjectId.Companion.generate|generate(){}[0]
         final fun parse(kotlin/String): ru.workinprogress.mongkn.bson/BsonObjectId // ru.workinprogress.mongkn.bson/BsonObjectId.Companion.parse|parse(kotlin.String){}[0]
         final fun serializer(): kotlinx.serialization/KSerializer<ru.workinprogress.mongkn.bson/BsonObjectId> // ru.workinprogress.mongkn.bson/BsonObjectId.Companion.serializer|serializer(){}[0]
     }
@@ -742,6 +743,8 @@ final class ru.workinprogress.mongkn/UpdateOneModel : ru.workinprogress.mongkn/W
 final class ru.workinprogress.mongkn/UpdateResult { // ru.workinprogress.mongkn/UpdateResult|null[0]
     constructor <init>(kotlin/Long, kotlin/Long, ru.workinprogress.mongkn.bson/BsonValue?) // ru.workinprogress.mongkn/UpdateResult.<init>|<init>(kotlin.Long;kotlin.Long;ru.workinprogress.mongkn.bson.BsonValue?){}[0]
 
+    final val matchedAny // ru.workinprogress.mongkn/UpdateResult.matchedAny|{}matchedAny[0]
+        final fun <get-matchedAny>(): kotlin/Boolean // ru.workinprogress.mongkn/UpdateResult.matchedAny.<get-matchedAny>|<get-matchedAny>(){}[0]
     final val matchedCount // ru.workinprogress.mongkn/UpdateResult.matchedCount|{}matchedCount[0]
         final fun <get-matchedCount>(): kotlin/Long // ru.workinprogress.mongkn/UpdateResult.matchedCount.<get-matchedCount>|<get-matchedCount>(){}[0]
     final val modifiedCount // ru.workinprogress.mongkn/UpdateResult.modifiedCount|{}modifiedCount[0]
@@ -820,6 +823,7 @@ final object ru.workinprogress.mongkn/MongknLog { // ru.workinprogress.mongkn/Mo
 }
 
 final fun <#A: kotlin/Any?> ru.workinprogress.mongkn.bson/decodeFromDocument(kotlinx.serialization/KSerializer<#A>, ru.workinprogress.mongkn.bson/BsonDocument): #A // ru.workinprogress.mongkn.bson/decodeFromDocument|decodeFromDocument(kotlinx.serialization.KSerializer<0:0>;ru.workinprogress.mongkn.bson.BsonDocument){0§<kotlin.Any?>}[0]
+final fun <#A: kotlin/Any?> ru.workinprogress.mongkn.bson/encodeToBsonValue(kotlinx.serialization/SerializationStrategy<#A>, #A): ru.workinprogress.mongkn.bson/BsonValue // ru.workinprogress.mongkn.bson/encodeToBsonValue|encodeToBsonValue(kotlinx.serialization.SerializationStrategy<0:0>;0:0){0§<kotlin.Any?>}[0]
 final fun <#A: kotlin/Any?> ru.workinprogress.mongkn.bson/encodeToDocument(kotlinx.serialization/KSerializer<#A>, #A): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn.bson/encodeToDocument|encodeToDocument(kotlinx.serialization.KSerializer<0:0>;0:0){0§<kotlin.Any?>}[0]
 final fun ru.workinprogress.mongkn.bson/document(kotlin/Function1<ru.workinprogress.mongkn.bson/DocumentBuilder, kotlin/Unit>): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn.bson/document|document(kotlin.Function1<ru.workinprogress.mongkn.bson.DocumentBuilder,kotlin.Unit>){}[0]
 final fun ru.workinprogress.mongkn/majorityWriteConcern(kotlin/Int? = ...): ru.workinprogress.mongkn.bson/BsonDocument // ru.workinprogress.mongkn/majorityWriteConcern|majorityWriteConcern(kotlin.Int?){}[0]
