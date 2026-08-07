@@ -110,7 +110,13 @@ jobs:
           "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --fork --logpath /tmp/mongod-auth.log
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
           mongosh --quiet --port 27019 --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_test", pwd:"mongkn_secret", roles:[{role:"root", db:"admin"}]}); db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
-          "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --shutdown
+          # `mongod --shutdown` is a **Linux-only** option: on macOS the binary rejects it outright.
+          # The portable way is to ask the server itself to stop; the connection dies with it, so
+          # the error from mongosh is expected and ignored.
+          mongosh --quiet --port 27019 --eval 'db.getSiblingDB("admin").shutdownServer()' >/dev/null 2>&1 || true
+          # Wait for the port to be released — starting the second mongod on a still-bound port
+          # fails with a message about the lock file, which points nowhere near the real cause.
+          for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 || break; sleep 1; done
           "$BIN/mongod" --port 27019 --dbpath /tmp/mongo-auth --auth --fork --logpath /tmp/mongod-auth.log
           for _ in $(seq 1 30); do nc -z 127.0.0.1 27019 && break; sleep 2; done
 
