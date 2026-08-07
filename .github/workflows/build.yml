@@ -138,8 +138,10 @@ jobs:
       # The same server as a bare process. `ci/tls/start-server.sh` is docker-only — it copies the
       # certificates *into* the container, because mongod will not read a key file it does not own.
       # With a local process that problem disappears, so the flags are passed directly.
+      # Not started on macOS: see the `mongkn.skipTls` comment in mongkn-core/build.gradle.kts —
+      # mongod there is built against Secure Transport and aborts on our certificates.
       - name: Start mongod with TLS (macOS)
-        if: runner.os == 'macOS'
+        if: false
         run: |
           BIN="$(brew --prefix)/opt/mongodb-community@8.0/bin"
           CERTS="$PWD/build/tls"
@@ -184,9 +186,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build and test
-        # checkKotlinAbi runs on macOS only: the dump differs between targets by the `// Targets:`
-        # line while the declarations are identical (§1.19). On Linux the task skips itself.
-        run: ./gradlew build --stacktrace
+        # The ABI check runs on Linux only — the reference dump is taken on the platform we publish.
+        # On macOS the TLS suite is excluded: there is no docker on the runner, and a native mongod
+        # aborts inside Secure Transport on our certificates. TLS is covered by the Linux job.
+        run: ./gradlew build --stacktrace ${{ runner.os == 'macOS' && '-Pmongkn.skipTls' || '' }}
 
       - name: Test reports
         if: always()

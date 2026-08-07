@@ -253,6 +253,24 @@ kotlin {
 
 tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
     dependsOn(seedDiffReference)
+    /*
+     * `-Pmongkn.skipTls` исключает тесты TLS-контура.
+     *
+     * Заведено ради одного места — macOS-джобы в CI, — и вот почему без него не обойтись.
+     * На macOS-раннере GitHub нет docker, поэтому mongod с TLS приходится поднимать процессом,
+     * а он там собран с **Secure Transport** вместо OpenSSL и на наших сертификатах падает
+     * с `Abort trap: 6` внутри `SSLManagerApple::initSSLContext`. Это ограничение сервера,
+     * а не наша настройка: локально на macOS тот же контур прекрасно работает — в контейнере.
+     *
+     * Флаг именно в командной строке, а не условие внутри тестов: так в логе сборки видно,
+     * что проверено не всё. Тесты по-прежнему **падают** без своего сервера, если их не
+     * исключили явно, — это правило не смягчается (см. CLAUDE.md).
+     *
+     * TLS проверяется на Linux каждым прогоном, поэтому дыры в покрытии не возникает.
+     */
+    if (providers.gradleProperty("mongkn.skipTls").isPresent) {
+        filter.excludeTestsMatching("*TlsTest*")
+    }
     // Корректность этих тестов зависит от состояния mongod, а его Gradle не отслеживает.
     // Без этой строки задача может оказаться UP-TO-DATE и не отработать, тогда как фаза A
     // уже вычистила коллекции, — и фаза C падает на пустой `written`. Ровно так и случилось
