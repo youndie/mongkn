@@ -71,7 +71,9 @@ jobs:
           MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          ROOT="$MONGKN_REPO_URL/io/github/youndie/mongkn"
+          # The same default as in publishing.gradle.kts: the URL secret is optional, and without
+          # this the step died with curl's "malformed URL" while the publish itself had succeeded.
+          ROOT="${MONGKN_REPO_URL:-https://reposilite.kotlin.website/snapshots}/io/github/youndie/mongkn"
           # Both modules, not just core: extensions is published with the same version, and versions
           # drifting apart show up as "No matching variant" on the consumer's side, not here.
           for MODULE_NAME in mongkn-core mongkn-extensions; do
