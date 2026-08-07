@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Прогон Gradle-задачи на Linux-машине (WSL) по **рабочему дереву**, без коммита.
+#
+# Зачем: публикуемая платформа — linuxX64, а разработка идёт на macOS. Проверять правку на Linux
+# приходится до того, как она попадёт в main, иначе непроверенное уезжает в историю. Раньше для
+# этого нужно было закоммитить и запушить, а на той стороне сделать `git reset --hard origin/main` —
+# то есть порядок был вывернут: сначала запись в main, потом проверка.
+#
+# Как это устроено, и почему не очевидно
+# --------------------------------------
+# SSH ведёт на **Windows**, а не в Ubuntu: у WSL своего слушателя нет. Команды туда попадают через
+# `wsl -d <дистрибутив> --`, и из-за этого не работают ни `scp`, ни обычный `rsync` — они кладут
+# файлы в файловую систему Windows. Спасает `--rsync-path`: им задаётся, чем именно запускать
+# rsync на той стороне, и тогда путь назначения читает уже линуксовый rsync.
+#
+# `--delete` обязателен. Синхронизация через `tar` (напрашивающийся способ) удалённые файлы
+# **не убирает**: на них ловились дважды, и выглядит это как «правка не подействовала» — старый
+# файл продолжает собираться вместе с новым.
+#
+# `build/` и `.gradle/` не синхронизируются намеренно: каталог сборки Kotlin/Native огромен
+# и привязан к платформе, а перенос macOS-артефактов в линуксовый чекаут — верный способ получить
+# необъяснимую ошибку компоновки. `.git` тоже не едет: там своя копия репозитория, и она нужна
+# только чтобы видеть, что именно разъехалось.
+#
+# Использование:
+#   ./ci/wsl-run.sh                                  # ./gradlew build
+#   ./ci/wsl-run.sh :mongkn-extensions:linuxX64Test  # своя задача
+#
+# Настройки — через окружение: MONGKN_WSL_HOST, MONGKN_WSL_DISTRO, MONGKN_WSL_PATH.
+
+set -euo pipefail
+
+HOST="${MONGKN_WSL_HOST:-USER@HOST}"
+DISTRO="${MONGKN_WSL_DISTRO:-Ubuntu-24.04}"
+REMOTE="${MONGKN_WSL_PATH:-~/mongkn}"
+
+TASKS=("$@")
+if [ ${#TASKS[@]} -eq 0 ]; then TASKS=("build"); fi
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "→ синхронизация рабочего дерева в $HOST:$REMOTE"
+rsync -az --delete \
+    --exclude 'build/' \
+    --exclude '.gradle/' \
+    --exclude '.git/' \
+    --exclude '.kotlin/' \
+    --exclude '.DS_Store' \
+    --rsync-path="wsl -d $DISTRO -- rsync" \
+    "$ROOT/" "$HOST:$REMOTE/"
+
+echo "→ ${TASKS[*]}"
+
+# Адреса серверов берутся там же, где они подняты, а не считаются заново: контуров на машине
+# может быть несколько, и разъезжаются они именно на этом шаге.
+ssh -o ConnectTimeout=20 "$HOST" "wsl -d $DISTRO -- bash -s" <<REMOTE_SCRIPT
+set -euo pipefail
+cd "$REMOTE"
+eval "\$(./ci/dev-servers.sh env 2>/dev/null)"
+./gradlew ${TASKS[*]} --console=plain 2>&1 | grep -E '^e: |FAILED|tests? completed|BUILD' | tail -20
+REMOTE_SCRIPT
