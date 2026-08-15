@@ -4,7 +4,7 @@
 [![kotlin](https://img.shields.io/badge/Kotlin-2.4.10-blue?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![native](https://img.shields.io/badge/Native-blue?logoColor=white)](https://kotlinlang.org)
 [![mongkn-core](https://reposilite.kotlin.website/api/badge/latest/snapshots/io/github/youndie/mongkn/mongkn-core?name=mongkn-core&color=40c14a&prefix=v)](https://reposilite.kotlin.website/#/snapshots/io/github/youndie/mongkn/mongkn-core)
-[![license](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 MongoDB for Kotlin/Native: a binding over the official C driver (`libmongoc`) with an API whose
 shape is taken from `mongodb-driver-kotlin-coroutine`.
