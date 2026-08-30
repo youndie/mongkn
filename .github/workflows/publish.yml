@@ -27,6 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # There was no Java setup in this job at all: it ran on whatever JDK the runner image happened
+      # to carry. That worked, and "worked" is the whole objection — the toolchain this build asks
+      # for is a decision (`sborka.jvmToolchain`), and leaving the JDK to the image means the day the
+      # image changes, the publish is the thing that finds out.
+      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+        with:
+          konan-cache: "true"
+
       - name: MongoDB C driver
         run: |
           sudo apt-get update
@@ -52,13 +60,15 @@ jobs:
         # variables work too through the fallback, but properties are the mechanism Gradle
         # documents, and they survive the configuration cache without special handling.
         env:
-          ORG_GRADLE_PROJECT_MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
-          ORG_GRADLE_PROJECT_MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
-          ORG_GRADLE_PROJECT_MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
+          # The SAME SECRETS under the names the shared convention reads. `sborka.publish` declares
+          # the repository itself, as `wip`, and takes its credentials from REPOSILITE_USER /
+          # REPOSILITE_SECRET — so the values do not move, only what they are called on the way in.
+          ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.MONGKN_REPO_USER }}
+          ORG_GRADLE_PROJECT_REPOSILITE_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           ./gradlew \
-            :mongkn-core:publishAllPublicationsToMongknRepoRepository \
-            :mongkn-extensions:publishAllPublicationsToMongknRepoRepository \
+            :mongkn-core:publishAllPublicationsToWipRepository \
+            :mongkn-extensions:publishAllPublicationsToWipRepository \
             -PVERSION=${{ steps.version.outputs.value }}
 
       # A successful publish only says the upload did not fail. What ended up in the artefact is
