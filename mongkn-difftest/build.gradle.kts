@@ -1,5 +1,14 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    id("org.jetbrains.kotlin.jvm")
+    id("ru.workinprogress.sborka.jvm")
+    id("ru.workinprogress.sborka.lint")
+}
+
+// NOT PUBLISHED: test scaffolding, and the only reason the official JVM driver is still in the
+// project at all. So no `sborka.publish` here, and no explicit API either — there is no consumer for
+// a spelled-out surface to be spelled out for.
+kotlin {
+    explicitApi = null
 }
 
 dependencies {

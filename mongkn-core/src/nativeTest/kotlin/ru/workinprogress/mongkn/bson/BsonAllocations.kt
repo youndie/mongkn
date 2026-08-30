@@ -112,7 +112,9 @@ private val countingRealloc =
         val result = realloc(mem, bytes)
         when {
             mem == null && result != null -> liveAllocations.fetchAndAdd(1)
-            mem != null && bytes.toULong() == 0uL -> liveAllocations.fetchAndAdd(-1)
+
+            // `size_t` уже ULong на этой платформе — `toULong()` здесь ничего не делал.
+            mem != null && bytes == 0uL -> liveAllocations.fetchAndAdd(-1)
         }
         result
     }
