@@ -1,0 +1,103 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  extends: ["config:recommended"],
+
+  // Once a week, in UTC. Updates arrive as one Monday-morning batch rather than a trickle of a PR
+  // a day.
+  timezone: "Etc/UTC",
+  schedule: ["before 6am on monday"],
+
+  // Commits here are Conventional Commits, and a hook enforces it. `config:recommended` maps
+  // dependency bumps to `fix:` and everything else to `chore:`.
+  semanticCommits: "enabled",
+
+  labels: ["dependencies"],
+
+  // NOTHING AUTOMERGES HERE, AND THAT IS THE DIFFERENCE FROM THE OTHER REPOSITORIES.
+  // The sibling configs let the build harness merge itself on the argument that CI on
+  // `pull_request` is the review. In this repository the automatic triggers of `build.yml` are
+  // commented out on purpose — only `workflow_dispatch` is left — so a pull request here carries
+  // no check at all. A green-looking PR means nobody ran anything, and automerge would turn that
+  // into "nobody ever will".
+  //
+  // The number is therefore a throttle on human attention rather than on runner time, and it is
+  // lower than elsewhere for that reason.
+  prConcurrentLimit: 3,
+  prHourlyLimit: 0,
+  platformAutomerge: false,
+
+  // Vulnerabilities are the one thing that ignores the schedule.
+  vulnerabilityAlerts: {
+    schedule: ["at any time"],
+    labels: ["dependencies", "security"],
+  },
+
+  ignorePaths: ["**/build/**", "**/.gradle/**"],
+
+  packageRules: [
+    {
+      description: "Kotlin: the compiler and its plugins move as one version, and that is never a routine bump",
+      matchPackageNames: ["/^org\\.jetbrains\\.kotlin[:.]/"],
+      groupName: "kotlin",
+    },
+    {
+      description: "kotlinx ships as one release train — one PR",
+      matchPackageNames: ["/^org\\.jetbrains\\.kotlinx[:.]/"],
+      groupName: "kotlinx",
+    },
+    {
+      // The build conventions are one release published under two names: the catalog entry
+      // `sborka` (the plugin coordinates) and the settings plugin id resolved in
+      // settings.gradle.kts. Without this they arrive as two pull requests for one number, which
+      // is what happens today in the repositories that migrated first.
+      description: "sborka is one release, not one release per place it is named",
+      matchPackageNames: [
+        "/^ru\\.workinprogress\\.sborka/",
+        // The catalog's `sborka` version is read from the GitHub releases of the repository that
+        // publishes the plugins, so Renovate knows the same release under a second name. Without
+        // this line it arrives as a second pull request for the same number — which is exactly
+        // what the repositories that migrated first are living with today.
+        "youndie/sborka",
+      ],
+      groupName: "sborka",
+    },
+    {
+      description: "The build harness arrives as one PR, not one per action",
+      matchManagers: ["github-actions"],
+      groupName: "ci actions",
+    },
+    {
+      description: "ktlint is build tooling, not a runtime dependency",
+      matchPackageNames: [
+        // The Gradle plugin is named by its id, with nothing after it — a pattern that demands a
+        // `:` or a `.` next matches the coordinate and misses the plugin entirely.
+        "org.jlleitschuh.gradle.ktlint",
+        "/^com\\.pinterest\\.ktlint[:.]/",
+      ],
+      matchUpdateTypes: ["minor", "patch"],
+      automerge: false,
+    },
+    {
+      // The JDK the CI image carries is what the cinterop build runs against, and no check on a
+      // pull request builds this file.
+      description: "Base images: changing the JDK or the distro is a decision, not a bump",
+      matchManagers: ["dockerfile"],
+      additionalBranchPrefix: "docker-",
+    },
+    {
+      // The whole point of this repository is which mongo-c-driver branch is exercised, and the
+      // server the tests run against is half of that pair. A new major of the server is a decision
+      // about what is being tested, and it is taken by reading, not by merging.
+      description: "The test server is the subject of the tests, not a dependency of them",
+      matchManagers: ["docker-compose"],
+      additionalBranchPrefix: "stand-",
+      labels: ["dependencies", "test server"],
+    },
+    {
+      description: "Majors get a human — as does everything else here",
+      matchUpdateTypes: ["major"],
+      labels: ["dependencies", "major"],
+    },
+  ],
+}
