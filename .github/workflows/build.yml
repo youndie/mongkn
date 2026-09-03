@@ -36,7 +36,7 @@ jobs:
             runner: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Java and Gradle come from the shared action now; the Gradle setup that used to sit further
       # down the job comes with it.
