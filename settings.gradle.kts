@@ -16,7 +16,7 @@ pluginManagement {
 plugins {
     // The repositories with their content filters, the shared `wip` catalog, and the check that this
     // repository's `.editorconfig` is the one the rest of them use.
-    id("ru.workinprogress.sborka.settings") version "0.1.0.13"
+    id("ru.workinprogress.sborka.settings") version "0.1.0.23"
 }
 
 include(":mongkn-core")
