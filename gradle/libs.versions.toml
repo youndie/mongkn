@@ -11,7 +11,7 @@ ktlint = "1.8.0"
 ktlintGradle = "14.2.0"
 # Официальный JVM-драйвер — эталон для дифференциальных тестов (:mongkn-difftest).
 # Источником сигнатур для генерации он быть перестал: решение Р9, генератор удалён.
-mongodbDriverKotlin = "5.9.1"
+mongodbDriverKotlin = "5.11.0"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
