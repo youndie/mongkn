@@ -12,7 +12,7 @@ plugins {
 
 // The coordinates, the version and the ktlint wiring used to live here, in an `allprojects` and a
 // `subprojects` block. They are `sborka.group` and `version` in `gradle.properties` now, and
-// `ru.workinprogress.sborka.lint` pins the formatter — the same 1.8.0 this repository already
+// `io.github.youndie.sborka.lint` pins the formatter — the same 1.8.0 this repository already
 // insisted on, and with it the `.editorconfig` the tool reads, which is the half a version number
 // cannot pin.
 //
