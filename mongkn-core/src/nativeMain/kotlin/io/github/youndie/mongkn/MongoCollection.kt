@@ -1,8 +1,5 @@
 package io.github.youndie.mongkn
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.serialization.KSerializer
 import io.github.youndie.mongkn.bson.BsonDocument
 import io.github.youndie.mongkn.bson.BsonInt64
 import io.github.youndie.mongkn.bson.BsonValue
@@ -10,6 +7,9 @@ import io.github.youndie.mongkn.bson.Document
 import io.github.youndie.mongkn.bson.decodeFromDocument
 import io.github.youndie.mongkn.bson.decodeFromNative
 import io.github.youndie.mongkn.bson.encodeToDocument
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.KSerializer
 
 /**
  * Коллекция MongoDB.

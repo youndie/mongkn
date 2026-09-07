@@ -1,8 +1,8 @@
 package io.github.youndie.mongkn.spec
 
-import kotlinx.coroutines.test.runTest
 import io.github.youndie.mongkn.MongoClient
 import io.github.youndie.mongkn.support.TestServer
+import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,5 +1,11 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.BsonArray
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.BsonInt64
+import io.github.youndie.mongkn.bson.BsonString
+import io.github.youndie.mongkn.bson.Document
+import io.github.youndie.mongkn.bson.toNativeBson
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import mongkn.cinterop.MONGOC_READ_NEAREST
@@ -13,12 +19,6 @@ import mongkn.cinterop.mongoc_read_prefs_new
 import mongkn.cinterop.mongoc_read_prefs_set_max_staleness_seconds
 import mongkn.cinterop.mongoc_read_prefs_set_tags
 import mongkn.cinterop.mongoc_read_prefs_t
-import io.github.youndie.mongkn.bson.BsonArray
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.BsonInt64
-import io.github.youndie.mongkn.bson.BsonString
-import io.github.youndie.mongkn.bson.Document
-import io.github.youndie.mongkn.bson.toNativeBson
 
 /**
  * Собирает `mongoc_read_prefs_t` из описания, отдаёт его в [body] и уничтожает.

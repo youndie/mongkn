@@ -1,7 +1,5 @@
 package io.github.youndie.mongkn
 
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import io.github.youndie.mongkn.bson.BsonDocument
 import io.github.youndie.mongkn.bson.BsonString
 import io.github.youndie.mongkn.bson.Document
@@ -9,6 +7,8 @@ import io.github.youndie.mongkn.bson.document
 import io.github.youndie.mongkn.support.AppNames
 import io.github.youndie.mongkn.support.TestServer
 import io.github.youndie.mongkn.support.boundTo
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

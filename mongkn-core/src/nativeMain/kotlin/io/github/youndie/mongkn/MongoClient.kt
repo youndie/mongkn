@@ -1,5 +1,7 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.Document
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
@@ -25,8 +27,6 @@ import mongkn.cinterop.mongoc_client_start_session
 import mongkn.cinterop.mongoc_client_t
 import mongkn.cinterop.mongoc_uri_destroy
 import mongkn.cinterop.mongoc_uri_new_with_error
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.Document
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 

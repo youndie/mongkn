@@ -1,6 +1,5 @@
 package io.github.youndie.mongkn.spec
 
-import kotlinx.coroutines.flow.toList
 import io.github.youndie.mongkn.BulkWriteResult
 import io.github.youndie.mongkn.CommandStartedEvent
 import io.github.youndie.mongkn.DeleteManyModel
@@ -31,6 +30,7 @@ import io.github.youndie.mongkn.bson.BsonValue
 import io.github.youndie.mongkn.bson.Document
 import io.github.youndie.mongkn.support.AppNames
 import io.github.youndie.mongkn.support.boundTo
+import kotlinx.coroutines.flow.toList
 
 /**
  * Раннер официальных spec-тестов MongoDB в [unified test format](https://github.com/mongodb/specifications/blob/master/source/unified-test-format/unified-test-format.md).

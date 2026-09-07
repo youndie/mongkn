@@ -1,6 +1,5 @@
 package io.github.youndie.mongkn.spec
 
-import kotlinx.coroutines.test.runTest
 import io.github.youndie.mongkn.MongoClient
 import io.github.youndie.mongkn.bson.BsonArray
 import io.github.youndie.mongkn.bson.BsonString
@@ -8,6 +7,7 @@ import io.github.youndie.mongkn.support.AppNames
 import io.github.youndie.mongkn.support.TestServer
 import io.github.youndie.mongkn.support.readJsonDocument
 import io.github.youndie.mongkn.support.requiredPath
+import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertTrue

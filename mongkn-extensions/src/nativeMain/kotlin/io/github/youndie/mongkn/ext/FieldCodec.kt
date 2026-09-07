@@ -1,12 +1,12 @@
 package io.github.youndie.mongkn.ext
 
+import io.github.youndie.mongkn.bson.BsonNull
+import io.github.youndie.mongkn.bson.BsonValue
+import io.github.youndie.mongkn.bson.encodeToBsonValue
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.elementNames
 import kotlinx.serialization.internal.GeneratedSerializer
-import io.github.youndie.mongkn.bson.BsonNull
-import io.github.youndie.mongkn.bson.BsonValue
-import io.github.youndie.mongkn.bson.encodeToBsonValue
 
 /**
  * Кодирует значение фильтра **тем же сериализатором, каким кодируется само поле**.

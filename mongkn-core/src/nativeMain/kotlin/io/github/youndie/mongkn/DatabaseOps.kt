@@ -1,5 +1,9 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.Document
+import io.github.youndie.mongkn.bson.toDocument
+import io.github.youndie.mongkn.bson.toNativeBson
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
@@ -32,10 +36,6 @@ import mongkn.cinterop.mongoc_database_drop_with_opts
 import mongkn.cinterop.mongoc_database_get_collection_names_with_opts
 import mongkn.cinterop.mongoc_database_t
 import mongkn.cinterop.mongoc_database_watch
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.Document
-import io.github.youndie.mongkn.bson.toDocument
-import io.github.youndie.mongkn.bson.toNativeBson
 
 /**
  * Операции уровня базы и клиента.

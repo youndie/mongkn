@@ -1,5 +1,7 @@
 package io.github.youndie.mongkn.support
 
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.toDocument
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -13,8 +15,6 @@ import mongkn.cinterop.bson_json_reader_new_from_file
 import mongkn.cinterop.bson_json_reader_read
 import mongkn.cinterop.bson_t
 import platform.posix.getenv
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.toDocument
 
 /**
  * Чтение JSON-файлов в тестах.

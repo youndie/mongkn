@@ -1,7 +1,5 @@
 package io.github.youndie.mongkn.ext
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import io.github.youndie.mongkn.bson.BsonArray
 import io.github.youndie.mongkn.bson.BsonBoolean
 import io.github.youndie.mongkn.bson.BsonDocument
@@ -9,6 +7,8 @@ import io.github.youndie.mongkn.bson.BsonInt32
 import io.github.youndie.mongkn.bson.BsonNull
 import io.github.youndie.mongkn.bson.BsonString
 import io.github.youndie.mongkn.bson.document
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

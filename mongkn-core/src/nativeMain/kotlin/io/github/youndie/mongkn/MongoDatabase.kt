@@ -1,9 +1,9 @@
 package io.github.youndie.mongkn
 
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.serializer
 import io.github.youndie.mongkn.bson.BsonDocument
 import io.github.youndie.mongkn.bson.Document
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.serializer
 
 /**
  * Логическая ссылка на базу. Собственных C-ресурсов не держит: `mongoc_database_t` привязан

@@ -1,6 +1,5 @@
 package io.github.youndie.mongkn
 
-import kotlinx.coroutines.flow.Flow
 import io.github.youndie.mongkn.bson.BsonBoolean
 import io.github.youndie.mongkn.bson.BsonDocument
 import io.github.youndie.mongkn.bson.BsonInt32
@@ -8,6 +7,7 @@ import io.github.youndie.mongkn.bson.BsonInt64
 import io.github.youndie.mongkn.bson.BsonString
 import io.github.youndie.mongkn.bson.BsonValue
 import io.github.youndie.mongkn.bson.Document
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Результат [MongoCollection.find] с чейнингом опций.

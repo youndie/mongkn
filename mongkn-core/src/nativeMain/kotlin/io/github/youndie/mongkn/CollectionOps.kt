@@ -1,5 +1,16 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.BsonArray
+import io.github.youndie.mongkn.bson.BsonBoolean
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.BsonInt32
+import io.github.youndie.mongkn.bson.BsonInt64
+import io.github.youndie.mongkn.bson.BsonObjectId
+import io.github.youndie.mongkn.bson.BsonString
+import io.github.youndie.mongkn.bson.BsonValue
+import io.github.youndie.mongkn.bson.Document
+import io.github.youndie.mongkn.bson.toDocument
+import io.github.youndie.mongkn.bson.toNativeBson
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
@@ -71,17 +82,6 @@ import mongkn.cinterop.mongoc_cursor_next
 import mongkn.cinterop.mongoc_index_model_destroy
 import mongkn.cinterop.mongoc_index_model_new
 import mongkn.cinterop.mongoc_index_model_t
-import io.github.youndie.mongkn.bson.BsonArray
-import io.github.youndie.mongkn.bson.BsonBoolean
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.BsonInt32
-import io.github.youndie.mongkn.bson.BsonInt64
-import io.github.youndie.mongkn.bson.BsonObjectId
-import io.github.youndie.mongkn.bson.BsonString
-import io.github.youndie.mongkn.bson.BsonValue
-import io.github.youndie.mongkn.bson.Document
-import io.github.youndie.mongkn.bson.toDocument
-import io.github.youndie.mongkn.bson.toNativeBson
 
 /**
  * Реализация операций коллекции — весь cinterop живёт здесь.

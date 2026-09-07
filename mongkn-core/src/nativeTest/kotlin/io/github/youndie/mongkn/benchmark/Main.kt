@@ -1,5 +1,15 @@
 package io.github.youndie.mongkn.benchmark
 
+import io.github.youndie.mongkn.MongoClient
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.Document
+import io.github.youndie.mongkn.bson.decodeFromDocument
+import io.github.youndie.mongkn.bson.decodeFromNative
+import io.github.youndie.mongkn.bson.document
+import io.github.youndie.mongkn.bson.encodeToDocument
+import io.github.youndie.mongkn.bson.toDocument
+import io.github.youndie.mongkn.bson.toNativeBson
+import io.github.youndie.mongkn.support.TestServer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocPointerTo
@@ -25,16 +35,6 @@ import mongkn.cinterop.mongoc_collection_find_with_opts
 import mongkn.cinterop.mongoc_collection_insert_one
 import mongkn.cinterop.mongoc_cursor_destroy
 import mongkn.cinterop.mongoc_cursor_next
-import io.github.youndie.mongkn.MongoClient
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.Document
-import io.github.youndie.mongkn.bson.decodeFromDocument
-import io.github.youndie.mongkn.bson.decodeFromNative
-import io.github.youndie.mongkn.bson.document
-import io.github.youndie.mongkn.bson.encodeToDocument
-import io.github.youndie.mongkn.bson.toDocument
-import io.github.youndie.mongkn.bson.toNativeBson
-import io.github.youndie.mongkn.support.TestServer
 
 /**
  * Замер производительности (M-76).

@@ -1,5 +1,11 @@
 package io.github.youndie.mongkn.spec
 
+import io.github.youndie.mongkn.MongoClient
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.BsonInt32
+import io.github.youndie.mongkn.bson.BsonString
+import io.github.youndie.mongkn.bson.toDocument
+import io.github.youndie.mongkn.bson.toNativeBson
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -8,12 +14,6 @@ import mongkn.cinterop.bson_destroy
 import mongkn.cinterop.bson_error_t
 import mongkn.cinterop.bson_t
 import mongkn.cinterop.mongoc_client_command_simple
-import io.github.youndie.mongkn.MongoClient
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.BsonInt32
-import io.github.youndie.mongkn.bson.BsonString
-import io.github.youndie.mongkn.bson.toDocument
-import io.github.youndie.mongkn.bson.toNativeBson
 
 /**
  * Версия сервера — для `runOnRequirements` в spec-тестах.
