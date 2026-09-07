@@ -102,6 +102,10 @@ public class BsonObjectId(
          * от совпадения между процессами исчезла бы.
          */
         @OptIn(ExperimentalAtomicApi::class, ExperimentalTime::class)
+        @Suppress(
+            "ktlint:kapkan:wall-clock",
+            "ObjectId по спецификации BSON НЕСЁТ время своего создания: это то самое место, где часы читают",
+        )
         public fun generate(): BsonObjectId {
             val bytes = ByteArray(SIZE)
 

@@ -1,12 +1,12 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.document
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import io.github.youndie.mongkn.bson.document
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -106,6 +106,10 @@ class UnreachableServerTest {
         }
 
     @Test
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "сервер недостижим по условию теста: этот вызов обязан упасть, а проверяется close() после него",
+    )
     fun `closing a client that never reached the server is safe`() =
         runTest {
             val client = connect()

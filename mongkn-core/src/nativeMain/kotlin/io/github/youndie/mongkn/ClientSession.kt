@@ -1,5 +1,7 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.Document
+import io.github.youndie.mongkn.bson.toDocument
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
@@ -25,8 +27,6 @@ import mongkn.cinterop.mongoc_client_session_in_transaction
 import mongkn.cinterop.mongoc_client_session_start_transaction
 import mongkn.cinterop.mongoc_client_session_t
 import mongkn.cinterop.mongoc_client_t
-import io.github.youndie.mongkn.bson.Document
-import io.github.youndie.mongkn.bson.toDocument
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
@@ -195,6 +195,10 @@ public class ClientSession internal constructor(
      * Откат делается «по возможности»: если транзакция уже развалилась на стороне сервера,
      * `abortTransaction` сам отдаст ошибку, и она не должна подменить собой исходную причину.
      */
+    @Suppress(
+        "ktlint:kapkan:swallowed-failure",
+        "откат «по возможности»: ошибка abortTransaction не должна подменить исходную причину (см. KDoc)",
+    )
     public suspend fun <T> withTransaction(
         options: TransactionOptions? = null,
         body: suspend () -> T,

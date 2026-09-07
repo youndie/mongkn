@@ -1,5 +1,7 @@
 package io.github.youndie.mongkn
 
+import io.github.youndie.mongkn.bson.BsonDocument
+import io.github.youndie.mongkn.bson.toDocument
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -36,8 +38,6 @@ import mongkn.cinterop.mongoc_apm_set_command_started_cb
 import mongkn.cinterop.mongoc_apm_set_command_succeeded_cb
 import mongkn.cinterop.mongoc_client_pool_set_apm_callbacks
 import mongkn.cinterop.mongoc_client_pool_t
-import io.github.youndie.mongkn.bson.BsonDocument
-import io.github.youndie.mongkn.bson.toDocument
 
 /**
  * Подписка пула на события команд.
@@ -161,6 +161,10 @@ internal class ApmSubscription private constructor(
          * Наблюдение не должно ломать операцию, за которой наблюдает, — а исключение, прошедшее
          * сквозь кадр C, роняет процесс целиком.
          */
+        @Suppress(
+            "ktlint:kapkan:swallowed-failure",
+            "исключение, прошедшее сквозь кадр C, роняет процесс: молчать здесь — и есть работа",
+        )
         private inline fun guard(body: () -> Unit) {
             try {
                 body()
