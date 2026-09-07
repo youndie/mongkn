@@ -824,9 +824,9 @@ KSP и KotlinPoet вычищены из сборки, `MongoCollection` живё
 Обратное запрещено: int64, не помещающийся в `Int`, даёт `SerializationException`, а не
 обрезанное значение. Тихая порча данных хуже отказа.
 
-### Р12. Координаты — `ru.workinprogress.mongkn`, пакеты переименованы под них
+### Р12. Координаты — `io.github.youndie.mongkn`, пакеты переименованы под них
 
-Было `io.github.mongkn` и в пакетах, и в `group`. Решение: `ru.workinprogress.mongkn` —
+Было `io.github.mongkn` и в пакетах, и в `group`. Решение: `io.github.youndie.mongkn` —
 как у соседних проектов, публикуемых в тот же приватный Reposilite, — и пакеты переименованы
 следом, чтобы groupId и namespace не разъезжались.
 
@@ -924,7 +924,7 @@ Homebrew даёт mongo-c-driver **2.x**, а Ubuntu — **1.x**, и это ед�
 таргет только хостовый, потому что cinterop нужны заголовки платформы.
 
 Практическое последствие: **кто публиковал последним, тот и определяет короткую координату.**
-Сейчас опубликовано с Linux, поэтому `ru.workinprogress.mongkn:mongkn-core` резолвится только
+Сейчас опубликовано с Linux, поэтому `io.github.youndie.mongkn:mongkn-core` резолвится только
 для `linuxX64`; потребителю на macOS придётся указывать `mongkn-core-macosarm64` напрямую —
 таргетный модуль публикуется отдельно и со своими метаданными.
 

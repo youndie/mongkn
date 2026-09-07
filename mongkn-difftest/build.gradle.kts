@@ -42,7 +42,7 @@ val diffFixture: Provider<RegularFile> = layout.buildDirectory.file("diff/refere
 val seedDiffReference by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Фаза A: официальный драйвер пишет эталонный документ и выгружает фикстуру"
-    mainClass.set("ru.workinprogress.mongkn.difftest.Seed")
+    mainClass.set("io.github.youndie.mongkn.difftest.Seed")
     classpath = sourceSets.main.get().runtimeClasspath
     argumentProviders.add { listOf(diffUri, diffFixture.get().asFile.absolutePath) }
     outputs.file(diffFixture)
@@ -54,7 +54,7 @@ val seedDiffReference by tasks.registering(JavaExec::class) {
 val verifyDiffWritten by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Фаза C: официальный драйвер сверяет с эталоном то, что записал mongkn"
-    mainClass.set("ru.workinprogress.mongkn.difftest.Verify")
+    mainClass.set("io.github.youndie.mongkn.difftest.Verify")
     classpath = sourceSets.main.get().runtimeClasspath
     argumentProviders.add { listOf(diffUri) }
     outputs.upToDateWhen { false }

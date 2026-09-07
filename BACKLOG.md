@@ -225,7 +225,7 @@ Kotlin-энумом, а `typealias` на `UInt` (ресёрч §1.8).
       Всё починено, 53 теста зелёные на обеих платформах.
       **Сам workflow не прогонялся** — GitHub Actions отсюда не запустить; проверено только то,
       что Linux-сборка проходит в контейнере
-- [x] **M-18** Публикация в приватный Reposilite: `ru.workinprogress.mongkn`, модули
+- [x] **M-18** Публикация в приватный Reposilite: `io.github.youndie.mongkn`, модули
       `mongkn-core` и `mongkn-extensions` (плюс таргетные `*-macosarm64` / `*-linuxx64`).
       Креды — `REPOSILITE_USER` / `REPOSILITE_SECRET` из окружения или Gradle-свойств.
       `:mongkn-difftest` не публикуется — это тестовая оснастка.
@@ -839,8 +839,8 @@ APM (M-39). Без spec-покрытия остались только `countDoc
       kotlin.ArrayIndexOutOfBoundsException
         at Kotlin_String_subSequence
         at kotlinx.serialization.internal.CollectionSerializer#collectionIterator
-        at ru.workinprogress.mongkn.bson#encodeToBsonValue
-        at ru.workinprogress.mongkn.ext.FieldCodec#encode
+        at io.github.youndie.mongkn.bson#encodeToBsonValue
+        at io.github.youndie.mongkn.ext.FieldCodec#encode
       ```
 
       то есть `CollectionSerializer` идёт итерировать строку как коллекцию. Один и тот же запрос:

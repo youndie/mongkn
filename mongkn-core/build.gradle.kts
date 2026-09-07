@@ -238,7 +238,7 @@ kotlin {
          */
         binaries.executable("benchmark", listOf(org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.RELEASE)) {
             compilation = compilations.getByName("test")
-            entryPoint = "ru.workinprogress.mongkn.benchmark.main"
+            entryPoint = "io.github.youndie.mongkn.benchmark.main"
         }
 
         // Опций линковки здесь больше нет: все они в сгенерированном `.def` и потому едут

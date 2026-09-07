@@ -11,7 +11,7 @@ depends_on:
   - libmongoc (системная библиотека, 2.x)
   - libbson (системная библиотека, 2.x)
 publishes:
-  - klib ru.workinprogress.mongkn:mongkn-core (пока не публикуется)
+  - klib io.github.youndie.mongkn:mongkn-core (пока не публикуется)
 ---
 
 # mongkn-core
