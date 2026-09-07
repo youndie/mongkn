@@ -16,7 +16,7 @@ date: 2026-08-05
 
 ## Как измерялось
 
-`mongkn-core/src/nativeTest/kotlin/ru/workinprogress/mongkn/benchmark/`, запуск:
+`mongkn-core/src/nativeTest/kotlin/io/github/youndie/mongkn/benchmark/`, запуск:
 
 ```bash
 ./gradlew :mongkn-core:runBenchmarkReleaseExecutableMacosArm64

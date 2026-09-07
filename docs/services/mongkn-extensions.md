@@ -27,9 +27,9 @@ C-кода здесь нет вовсе: модуль работает толь�
 
 | Файл | Что там |
 |---|---|
-| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` — по имени поля строкой |
-| [Scopes.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Scopes.kt) | `FilterScope` / `UpdateScope` со ссылками на свойства и проверкой имён; `collection.find { … }` |
-| [Updates.kt](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Updates.kt) | `setTo`, `incBy`, `unset`, `combine` |
+| [Filters.kt](../../mongkn-extensions/src/nativeMain/kotlin/io/github/youndie/mongkn/ext/Filters.kt) | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `within`, `exists`, `and`/`or`/`not` — по имени поля строкой |
+| [Scopes.kt](../../mongkn-extensions/src/nativeMain/kotlin/io/github/youndie/mongkn/ext/Scopes.kt) | `FilterScope` / `UpdateScope` со ссылками на свойства и проверкой имён; `collection.find { … }` |
+| [Updates.kt](../../mongkn-extensions/src/nativeMain/kotlin/io/github/youndie/mongkn/ext/Updates.kt) | `setTo`, `incBy`, `unset`, `combine` |
 
 ## 3. Сознательные ограничения / грабли
 
