@@ -1,0 +1,92 @@
+package io.github.youndie.mongkn.spec
+
+import kotlinx.coroutines.test.runTest
+import io.github.youndie.mongkn.MongoClient
+import io.github.youndie.mongkn.bson.BsonArray
+import io.github.youndie.mongkn.bson.BsonString
+import io.github.youndie.mongkn.support.AppNames
+import io.github.youndie.mongkn.support.TestServer
+import io.github.youndie.mongkn.support.readJsonDocument
+import io.github.youndie.mongkn.support.requiredPath
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Прогон официальных spec-тестов MongoDB (M-30).
+ *
+ * Файлы скачиваются задачей `:mongkn-core:fetchSpecTests` в `build/spec-tests` и **в репозиторий
+ * не кладутся**: `mongodb/specifications` лицензирован под CC BY-NC-SA 3.0 (NonCommercial,
+ * ShareAlike), а mongkn рассчитывает на публикацию. Использовать их для проверки можно,
+ * распространять копию — вопрос лицензии.
+ *
+ * Первый прогон требует сети.
+ */
+class SpecConformanceTest {
+    // appName — чтобы инсценированные сбои сценариев доставались только этому клиенту (M-82).
+    private val uri =
+        TestServer.uri("appName=${AppNames.SPEC}&serverSelectionTimeoutMS=3000&socketTimeoutMS=10000")
+
+    private var client: MongoClient? = null
+
+    @AfterTest
+    fun tearDown() {
+        client?.close()
+        client = null
+    }
+
+    @Test
+    fun `official CRUD spec tests pass`() =
+        runTest(timeout = 120.seconds) {
+            val directory =
+                requiredPath(
+                    "MONGKN_SPEC_TESTS",
+                    "тест запущен в обход :mongkn-core:fetchSpecTests",
+                )
+            val manifest = readJsonDocument("$directory/manifest.json")
+            val files =
+                (manifest["files"] as? BsonArray)
+                    ?.values
+                    .orEmpty()
+                    .filterIsInstance<BsonString>()
+                    .map { it.value }
+
+            assertTrue(files.isNotEmpty(), "манифест пуст: $directory/manifest.json")
+
+            // Наблюдатель команд ставится сразу: `expectEvents` сверяется по тому, что клиент
+            // действительно отправил, а подключить APM после создания клиента libmongoc не даёт.
+            val recorder = SpecEventRecorder()
+            val connection = MongoClient(uri, commandListener = recorder).also { client = it }
+            val runner =
+                SpecTestRunner(uri, connection, recorder, serverVersion(connection), topology(connection))
+
+            for (name in files) {
+                val path = "$directory/$name"
+                runner.runFile(path, readJsonDocument(path))
+            }
+
+            val report = runner.report()
+            println(report.render())
+            report.executed.forEach { println("  ✓ $it") }
+
+            // Порог, а не «хотя бы один»: без него молчаливое расширение списка пропусков
+            // выглядело бы как зелёный прогон. Если сценариев стало меньше — надо разбираться,
+            // а не понижать число.
+            assertTrue(
+                report.executed.size >= MINIMUM_EXECUTED,
+                "выполнено всего ${report.executed.size} сценариев, ожидалось не меньше " +
+                    "$MINIMUM_EXECUTED:\n${report.render()}",
+            )
+        }
+
+    private companion object {
+        /**
+         * Замерено на прогоне; поднимать вместе с ростом поддержки.
+         *
+         * 71 из 75: все четыре пропуска — про версию сервера, которой у нас нет, и снять их
+         * поддержкой раннера нельзя в принципе (M-80, M-40).
+         */
+        const val MINIMUM_EXECUTED = 71
+    }
+}
