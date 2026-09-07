@@ -124,8 +124,8 @@ final class <#A: kotlin/Any?> io.github.youndie.mongkn/AggregateFlow : kotlinx.c
     final fun batchSize(kotlin/Int): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.batchSize|batchSize(kotlin.Int){}[0]
     final fun bypassDocumentValidation(kotlin/Boolean = ...): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.bypassDocumentValidation|bypassDocumentValidation(kotlin.Boolean){}[0]
     final fun collation(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.collation|collation(io.github.youndie.mongkn.bson.BsonDocument){}[0]
-    final fun comment(kotlin/String): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.comment|comment(kotlin.String){}[0]
     final fun comment(io.github.youndie.mongkn.bson/BsonValue): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.comment|comment(io.github.youndie.mongkn.bson.BsonValue){}[0]
+    final fun comment(kotlin/String): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.comment|comment(kotlin.String){}[0]
     final fun hint(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.hint|hint(io.github.youndie.mongkn.bson.BsonDocument){}[0]
     final fun hintString(kotlin/String): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.hintString|hintString(kotlin.String){}[0]
     final fun let(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/AggregateFlow<#A> // io.github.youndie.mongkn/AggregateFlow.let|let(io.github.youndie.mongkn.bson.BsonDocument){}[0]
@@ -138,8 +138,8 @@ final class <#A: kotlin/Any?> io.github.youndie.mongkn/AggregateFlow : kotlinx.c
 final class <#A: kotlin/Any?> io.github.youndie.mongkn/ChangeStreamFlow : kotlinx.coroutines.flow/Flow<#A> { // io.github.youndie.mongkn/ChangeStreamFlow|null[0]
     final fun batchSize(kotlin/Int): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.batchSize|batchSize(kotlin.Int){}[0]
     final fun collation(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.collation|collation(io.github.youndie.mongkn.bson.BsonDocument){}[0]
-    final fun comment(kotlin/String): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.comment|comment(kotlin.String){}[0]
     final fun comment(io.github.youndie.mongkn.bson/BsonValue): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.comment|comment(io.github.youndie.mongkn.bson.BsonValue){}[0]
+    final fun comment(kotlin/String): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.comment|comment(kotlin.String){}[0]
     final fun fullDocument(kotlin/String): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.fullDocument|fullDocument(kotlin.String){}[0]
     final fun fullDocumentBeforeChange(kotlin/String): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.fullDocumentBeforeChange|fullDocumentBeforeChange(kotlin.String){}[0]
     final fun maxAwaitTime(kotlin/Long): io.github.youndie.mongkn/ChangeStreamFlow<#A> // io.github.youndie.mongkn/ChangeStreamFlow.maxAwaitTime|maxAwaitTime(kotlin.Long){}[0]
@@ -159,8 +159,8 @@ final class <#A: kotlin/Any?> io.github.youndie.mongkn/FindFlow : kotlinx.corout
     final fun allowDiskUse(kotlin/Boolean = ...): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.allowDiskUse|allowDiskUse(kotlin.Boolean){}[0]
     final fun batchSize(kotlin/Int): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.batchSize|batchSize(kotlin.Int){}[0]
     final fun collation(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.collation|collation(io.github.youndie.mongkn.bson.BsonDocument){}[0]
-    final fun comment(kotlin/String): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.comment|comment(kotlin.String){}[0]
     final fun comment(io.github.youndie.mongkn.bson/BsonValue): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.comment|comment(io.github.youndie.mongkn.bson.BsonValue){}[0]
+    final fun comment(kotlin/String): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.comment|comment(kotlin.String){}[0]
     final fun cursorType(io.github.youndie.mongkn/CursorType): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.cursorType|cursorType(io.github.youndie.mongkn.CursorType){}[0]
     final fun hint(io.github.youndie.mongkn.bson/BsonDocument): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.hint|hint(io.github.youndie.mongkn.bson.BsonDocument){}[0]
     final fun hintString(kotlin/String): io.github.youndie.mongkn/FindFlow<#A> // io.github.youndie.mongkn/FindFlow.hintString|hintString(kotlin.String){}[0]
@@ -237,17 +237,17 @@ final class <#A: out kotlin/Any?> io.github.youndie.mongkn/ReplaceOneModel : io.
 }
 
 final class io.github.youndie.mongkn.bson/ArrayBuilder { // io.github.youndie.mongkn.bson/ArrayBuilder|null[0]
+    final fun add(io.github.youndie.mongkn.bson/BsonValue) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(io.github.youndie.mongkn.bson.BsonValue){}[0]
     final fun add(kotlin/Boolean) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(kotlin.Boolean){}[0]
     final fun add(kotlin/Double) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(kotlin.Double){}[0]
     final fun add(kotlin/Int) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(kotlin.Int){}[0]
     final fun add(kotlin/Long) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(kotlin.Long){}[0]
     final fun add(kotlin/String) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(kotlin.String){}[0]
-    final fun add(io.github.youndie.mongkn.bson/BsonValue) // io.github.youndie.mongkn.bson/ArrayBuilder.add|add(io.github.youndie.mongkn.bson.BsonValue){}[0]
     final fun addArray(kotlin/Function1<io.github.youndie.mongkn.bson/ArrayBuilder, kotlin/Unit>) // io.github.youndie.mongkn.bson/ArrayBuilder.addArray|addArray(kotlin.Function1<io.github.youndie.mongkn.bson.ArrayBuilder,kotlin.Unit>){}[0]
     final fun addDocument(kotlin/Function1<io.github.youndie.mongkn.bson/DocumentBuilder, kotlin/Unit>) // io.github.youndie.mongkn.bson/ArrayBuilder.addDocument|addDocument(kotlin.Function1<io.github.youndie.mongkn.bson.DocumentBuilder,kotlin.Unit>){}[0]
 }
 
-final class io.github.youndie.mongkn.bson/BsonArray : kotlin.collections/Iterable<io.github.youndie.mongkn.bson/BsonValue>, io.github.youndie.mongkn.bson/BsonValue { // io.github.youndie.mongkn.bson/BsonArray|null[0]
+final class io.github.youndie.mongkn.bson/BsonArray : io.github.youndie.mongkn.bson/BsonValue, kotlin.collections/Iterable<io.github.youndie.mongkn.bson/BsonValue> { // io.github.youndie.mongkn.bson/BsonArray|null[0]
     constructor <init>(kotlin.collections/List<io.github.youndie.mongkn.bson/BsonValue>) // io.github.youndie.mongkn.bson/BsonArray.<init>|<init>(kotlin.collections.List<io.github.youndie.mongkn.bson.BsonValue>){}[0]
 
     final val size // io.github.youndie.mongkn.bson/BsonArray.size|{}size[0]
@@ -337,7 +337,7 @@ final class io.github.youndie.mongkn.bson/BsonDecimal128 : io.github.youndie.mon
     }
 }
 
-final class io.github.youndie.mongkn.bson/BsonDocument : kotlin.collections/Iterable<kotlin/Pair<kotlin/String, io.github.youndie.mongkn.bson/BsonValue>>, io.github.youndie.mongkn.bson/BsonValue { // io.github.youndie.mongkn.bson/BsonDocument|null[0]
+final class io.github.youndie.mongkn.bson/BsonDocument : io.github.youndie.mongkn.bson/BsonValue, kotlin.collections/Iterable<kotlin/Pair<kotlin/String, io.github.youndie.mongkn.bson/BsonValue>> { // io.github.youndie.mongkn.bson/BsonDocument|null[0]
     constructor <init>(kotlin.collections/List<kotlin/Pair<kotlin/String, io.github.youndie.mongkn.bson/BsonValue>>) // io.github.youndie.mongkn.bson/BsonDocument.<init>|<init>(kotlin.collections.List<kotlin.Pair<kotlin.String,io.github.youndie.mongkn.bson.BsonValue>>){}[0]
     constructor <init>(kotlin/Array<out kotlin/Pair<kotlin/String, io.github.youndie.mongkn.bson/BsonValue>>...) // io.github.youndie.mongkn.bson/BsonDocument.<init>|<init>(kotlin.Array<out|kotlin.Pair<kotlin.String,io.github.youndie.mongkn.bson.BsonValue>>...){}[0]
 
@@ -476,12 +476,12 @@ final class io.github.youndie.mongkn.bson/BsonTimestamp : io.github.youndie.mong
 }
 
 final class io.github.youndie.mongkn.bson/DocumentBuilder { // io.github.youndie.mongkn.bson/DocumentBuilder|null[0]
+    final fun put(kotlin/String, io.github.youndie.mongkn.bson/BsonValue) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;io.github.youndie.mongkn.bson.BsonValue){}[0]
     final fun put(kotlin/String, kotlin/Boolean) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;kotlin.Boolean){}[0]
     final fun put(kotlin/String, kotlin/Double) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;kotlin.Double){}[0]
     final fun put(kotlin/String, kotlin/Int) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;kotlin.Int){}[0]
     final fun put(kotlin/String, kotlin/Long) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;kotlin.Long){}[0]
     final fun put(kotlin/String, kotlin/String) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;kotlin.String){}[0]
-    final fun put(kotlin/String, io.github.youndie.mongkn.bson/BsonValue) // io.github.youndie.mongkn.bson/DocumentBuilder.put|put(kotlin.String;io.github.youndie.mongkn.bson.BsonValue){}[0]
     final fun putArray(kotlin/String, kotlin/Function1<io.github.youndie.mongkn.bson/ArrayBuilder, kotlin/Unit>) // io.github.youndie.mongkn.bson/DocumentBuilder.putArray|putArray(kotlin.String;kotlin.Function1<io.github.youndie.mongkn.bson.ArrayBuilder,kotlin.Unit>){}[0]
     final fun putDocument(kotlin/String, kotlin/Function1<io.github.youndie.mongkn.bson/DocumentBuilder, kotlin/Unit>) // io.github.youndie.mongkn.bson/DocumentBuilder.putDocument|putDocument(kotlin.String;kotlin.Function1<io.github.youndie.mongkn.bson.DocumentBuilder,kotlin.Unit>){}[0]
     final fun putNull(kotlin/String) // io.github.youndie.mongkn.bson/DocumentBuilder.putNull|putNull(kotlin.String){}[0]
