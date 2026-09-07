@@ -36,7 +36,7 @@ object MoneySerializer : KSerializer<Money> {
 обратно.
 
 Готовые сериализаторы для самых частых случаев лежат в `mongkn-extensions`:
-[`StringAsBsonObjectId`](../../mongkn-extensions/src/nativeMain/kotlin/ru/workinprogress/mongkn/ext/Serializers.kt)
+[`StringAsBsonObjectId`](../../mongkn-extensions/src/nativeMain/kotlin/io/github/youndie/mongkn/ext/Serializers.kt)
 и `InstantAsBsonDateTime`.
 
 ## `_id`: нужны обе половины
