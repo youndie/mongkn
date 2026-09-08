@@ -376,7 +376,14 @@ public class MongoCollection<T> internal constructor(
         options: Document = BsonDocument(),
     ): List<String> = CollectionOps.createIndexes(target, databaseName, name, indexes, opts(options))
 
-    /** Удаляет индекс по имени. */
+    /**
+     * Удаляет индекс по имени.
+     *
+     * Чем кончится вызов для **несуществующего** имени, решает сервер, и решает по-разному:
+     * до 8.3 это ошибка `IndexNotFound` (27), с 8.3 — успех и ничего не сделано. Проверено
+     * прогоном на 8.0.29, 8.2.12 и 8.3.8. Полагаться на исключение как на признак «индекса
+     * не было» нельзя; проверяйте [listIndexes], если это важно.
+     */
     public suspend fun dropIndex(
         indexName: String,
         options: Document = BsonDocument(),
@@ -386,7 +393,8 @@ public class MongoCollection<T> internal constructor(
      * Удаляет индекс по его ключам.
      *
      * Имя выводится из ключей по правилу сервера. Если индекс создавался с явным `name`,
-     * этот вызов его **не найдёт** — удаляйте по имени.
+     * этот вызов его **не найдёт** — удаляйте по имени. Что будет при промахе, см. [dropIndex]:
+     * ошибка или тихий успех в зависимости от версии сервера.
      */
     public suspend fun dropIndexByKeys(
         keys: Document,
