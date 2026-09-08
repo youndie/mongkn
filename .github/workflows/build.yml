@@ -7,17 +7,28 @@ name: build
 # Kotlin/Native does not support linux-aarch64 as a host, so the Linux runner must be x86_64 —
 # see §1.18 of the research document.
 
-# **Automatic triggers are switched off for now.** Only the manual one (`workflow_dispatch`) is
-# left: the sharded contour from M-66 has never run in CI, and the first thing to trip over it will
-# be the macOS job, where the cluster is started as brew processes rather than a container. Better
-# a deliberate first run than a broken check on the next push.
+# Automatic triggers are on. They were off while the sharded contour from M-66 had never run in
+# CI at all; it has now — the whole job went through green by hand on the Linux host, so the check
+# is a check rather than a first attempt. `workflow_dispatch` stays for reruns without a push.
 #
-# To bring them back, uncomment `push` and `pull_request` below.
+# Both legs of the matrix run on every pull request, macOS included, and that is a decision about
+# money as much as about coverage: mongkn is a **public** repository, and standard GitHub-hosted
+# runners — `macos-14` among them — are unmetered there. Only larger runners are billed on public
+# repositories, and this matrix asks for none. Were the repository private, the macOS leg would
+# have to stay on `workflow_dispatch`: this account has no paid minutes, and macOS bills at ten
+# times the Linux rate.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  # pull_request:
+
+# One run per branch. A push onto a pull request that is still building makes the older run
+# pointless — it is testing code nobody will merge — and on the macOS leg it is also the slower
+# half of a two-host matrix holding a runner.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
