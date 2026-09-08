@@ -170,12 +170,42 @@ class IndexTest {
             assertEquals(listOf("_id_"), names(collection))
         }
 
-    @Test
-    fun `dropping an index that does not exist is an error`() =
-        runTest {
-            val collection = collection("drop_missing")
+    // Отсутствующего индекса в этом наборе нет, и это не пропуск. MongoDB 8.3 сделала
+    // `dropIndexes` по несуществующему **имени** идемпотентной: сервер отвечает `ok: 1`.
+    // Замерено на трёх серверах, а не взято из заметок о выпуске:
+    //
+    //   8.0.29 — IndexNotFound (27)   8.2.12 — IndexNotFound (27)   8.3.8 — ok: 1
+    //
+    // Матрица CI стоит по обе стороны этой границы: на Linux сервер приезжает образом `mongo:8`
+    // (сегодня 8.3), на macOS — формулой `mongodb-community@8.0`. Утверждение о таком вызове
+    // ложно ровно на одной из двух джоб, какую сторону ни выбери, поэтому предмет проверки
+    // сдвинут: отказ обязан долетать до вызывающего исключением, а случаи взяты те, которые
+    // сервер отвергает во всех трёх версиях.
 
-            assertFailsWith<MongoException> { collection.dropIndex("нет_такого") }
+    @Test
+    fun `dropping an index in a collection that does not exist is an error`() =
+        runTest {
+            val database = connect().getDatabase(DATABASE)
+            val collection = database.getCollection("drop_missing_${counter++}")
+
+            // Коллекция не создавалась: `collection(...)` тут не годится — он вставляет документ,
+            // а вместе с ним заводит и коллекцию.
+            val error = assertFailsWith<MongoException> { collection.dropIndex("нет_такого") }
+
+            assertEquals(NAMESPACE_NOT_FOUND, error.code)
+        }
+
+    @Test
+    fun `dropping the id index is an error`() =
+        runTest {
+            val collection = collection("drop_id")
+
+            // Единственный индекс, который сервер не отдаёт ни в какой версии, — обязательный
+            // по `_id`. Ровно это обещает KDoc `dropIndexes`, и до сих пор ничем не проверялось.
+            val error = assertFailsWith<MongoException> { collection.dropIndex("_id_") }
+
+            assertEquals(INVALID_OPTIONS, error.code)
+            assertEquals(listOf("_id_"), names(collection))
         }
 
     @Test
@@ -192,6 +222,11 @@ class IndexTest {
 
     private companion object {
         const val DATABASE = "mongkn_m13"
+
+        /** Коды сервера — из `mongo/base/error_codes.yml`, не из libmongoc. */
+        const val NAMESPACE_NOT_FOUND = 26u
+        const val INVALID_OPTIONS = 72u
+
         var counter = 0
         var cleaned = false
     }
