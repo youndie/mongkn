@@ -198,6 +198,8 @@ public class ClientSession internal constructor(
     @Suppress(
         "ktlint:kapkan:swallowed-failure",
         "откат «по возможности»: ошибка abortTransaction не должна подменить исходную причину (см. KDoc)",
+        "ktlint:kapkan:cancellation-swallowed",
+        "runCatching здесь закрывает только сам откат — пришедшая отмена улетает строкой ниже",
     )
     public suspend fun <T> withTransaction(
         options: TransactionOptions? = null,

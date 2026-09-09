@@ -312,6 +312,10 @@ class ChangeStreamTest {
         }
 
     @Test
+    @Suppress(
+        "ktlint:kapkan:cancellation-swallowed",
+        "a test capturing the throw it is about; nothing cancels this scope",
+    )
     fun `a failure without the resumable label ends the stream`() =
         runBlocking {
             val collection = collection("not_resumable")
