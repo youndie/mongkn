@@ -88,6 +88,10 @@ class UnreachableServerTest {
         }
 
     @Test
+    @Suppress(
+        "ktlint:kapkan:cancellation-swallowed",
+        "a test capturing the throw it is about; nothing cancels this scope",
+    )
     fun `a watch subscription reports the failure instead of killing the process`() =
         runTest {
             val collection = collection()
@@ -109,6 +113,8 @@ class UnreachableServerTest {
     @Suppress(
         "ktlint:kapkan:swallowed-failure",
         "сервер недостижим по условию теста: этот вызов обязан упасть, а проверяется close() после него",
+        "ktlint:kapkan:cancellation-swallowed",
+        "a test capturing the throw it is about; nothing cancels this scope",
     )
     fun `closing a client that never reached the server is safe`() =
         runTest {

@@ -163,6 +163,8 @@ class FindFlowTest {
     @Suppress(
         "ktlint:kapkan:swallowed-failure",
         "дубликат вставляется намеренно: отказ и есть предмет теста, а проверяет его assert ниже",
+        "ktlint:kapkan:cancellation-swallowed",
+        "a test capturing the throw it is about; nothing cancels this scope",
     )
     fun `unordered insertMany keeps going after a duplicate key`() =
         runTest {
