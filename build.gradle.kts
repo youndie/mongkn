@@ -1,9 +1,9 @@
 // Every plugin is declared here with `apply false`: otherwise a subproject that names a version of
 // its own runs into "plugin is already on the classpath with an unknown version".
 plugins {
-    alias(libs.plugins.kotlin.multiplatform) apply false
-    alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.kotlin.serialization) apply false
+    alias(wip.plugins.kotlinMultiplatform) apply false
+    alias(wip.plugins.kotlinJvm) apply false
+    alias(wip.plugins.kotlinSerialization) apply false
     alias(libs.plugins.sborkaKmp) apply false
     alias(libs.plugins.sborkaJvm) apply false
     alias(libs.plugins.sborkaLint) apply false
