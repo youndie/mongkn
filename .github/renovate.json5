@@ -5,16 +5,26 @@
   // timezone, the Monday schedule, the limits, the kotlin/kotlinx/sborka/ci-actions groups, majors
   // going to a human — was identical in ten repositories and now lives in sborka.
   //
-  // THE AUTOMERGE PRESET IS DELIBERATELY NOT HERE, AND THAT IS STILL THE DIFFERENCE FROM THE
-  // SIBLINGS. `github>youndie/sborka:automerge-harness` lets the build harness merge itself on the
-  // argument that CI on `pull_request` is the review. In this repository there is no such review:
-  // build.yml and publish.yml are `workflow_dispatch` only — checked again while migrating this
-  // file, not assumed — so a pull request here carries no check at all. A green-looking pull
-  // request means nobody ran anything, and automerge would turn that into "nobody ever will".
-  extends: ["github>youndie/sborka"],
+  // THE AUTOMERGE PRESET IS HERE NOW, AND WHAT CHANGED IS THE PRECONDITION, NOT THE ARGUMENT.
+  // `github>youndie/sborka:automerge-harness` lets the build harness merge itself on the grounds
+  // that CI on `pull_request` is the review. This repository used to be the portfolio's
+  // counter-example: build.yml was `workflow_dispatch` only, so a green-looking pull request meant
+  // nobody had run anything, and automerging it would have meant nobody ever would.
+  //
+  // build.yml now runs on `pull_request` — both legs of the matrix, libmongoc 1.x on Linux and
+  // mongo-c-driver 2.x on macOS, which is the pair this repository exists to exercise. Checked in
+  // the workflow rather than assumed. publish.yml IS still `workflow_dispatch` only, and that is
+  // deliberate and unrelated: the library goes out by decision, and nothing merged here reaches a
+  // release path on its own.
+  //
+  // Second on purpose: package rules concatenate in the order the presets are named, and the
+  // harness rule has to land after the base preset's "a major of anything that ships gets a human".
+  extends: ["github>youndie/sborka", "github>youndie/sborka:automerge-harness"],
 
-  // Lower than the preset's 5, and for the reason above: with nothing merging itself, this number
-  // throttles human attention rather than runner time.
+  // Lower than the preset's 5, and still deliberate now that the harness merges itself: what this
+  // number throttles is the queue a PERSON has to read — the driver pair, the test server and the
+  // base image all land here as decisions, and the harness updates that now pass on their own were
+  // never the crowded part.
   prConcurrentLimit: 3,
 
   // Below the extends, so these win: package rules are concatenated, preset first, last match
@@ -29,8 +39,9 @@
         "/^com\\.pinterest\\.ktlint[:.]/",
       ],
       matchUpdateTypes: ["minor", "patch"],
-      // Redundant while nothing automerges here, and kept on purpose: it is what would keep ktlint
-      // out of an automerge preset if one is ever added, and the sentence above is why.
+      // No longer redundant: the harness preset above merges `github-actions` and `gradle-wrapper`
+      // by itself, and this is what keeps ktlint outside that circle. A formatter version decides
+      // what the whole repository looks like on the next run, which is a reading, not a bump.
       automerge: false,
     },
     {
