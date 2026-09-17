@@ -1,9 +1,8 @@
 [versions]
 # The shared build conventions. One number: every sborka plugin below takes its version from here.
-sborka = "0.4.0.43"
-# Kotlin 2.4.10 — последний stable на 2026-08-04 (2.4.20-Beta2 в бете).
-# Поддерживаемый диапазон Gradle для KGP 2.4.0-2.4.10: 7.6.3–9.5.0 → wrapper зафиксирован на 9.5.0.
-kotlin = "2.4.10"
+# Общие конвенции сборки. Отсюда же приезжает компилятор: релиз sborka публикует каталог `wip`,
+# который несёт `kotlin`, — поэтому версии Kotlin в этом файле больше нет и разъезжаться нечему.
+sborka = "0.4.0.86"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 # CLI ktlint и Gradle-плагин версионируются независимо: плагин лишь запускает CLI указанной версии.
@@ -24,7 +23,4 @@ sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
 sborkaJvm = { id = "io.github.youndie.sborka.jvm", version.ref = "sborka" }
 sborkaLint = { id = "io.github.youndie.sborka.lint", version.ref = "sborka" }
 sborkaPublish = { id = "io.github.youndie.sborka.publish", version.ref = "sborka" }
-kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
