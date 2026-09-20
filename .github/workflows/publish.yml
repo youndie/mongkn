@@ -22,10 +22,10 @@ jobs:
     # Building on a macOS runner is not an option either — only the publishMacosArm64… task is
     # available there, and a naive publish would push macosArm64 under mongkn's coordinates,
     # leaving the consumer with "No matching variant" instead of a library.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # There was no Java setup in this job at all: it ran on whatever JDK the runner image happened
       # to carry. That worked, and "worked" is the whole objection — the toolchain this build asks
