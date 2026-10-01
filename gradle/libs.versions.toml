@@ -2,7 +2,7 @@
 # The shared build conventions. One number: every sborka plugin below takes its version from here.
 # Общие конвенции сборки. Отсюда же приезжает компилятор: релиз sborka публикует каталог `wip`,
 # который несёт `kotlin`, — поэтому версии Kotlin в этом файле больше нет и разъезжаться нечему.
-sborka = "0.4.0.86"
+sborka = "0.4.0.111"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 # CLI ktlint и Gradle-плагин версионируются независимо: плагин лишь запускает CLI указанной версии.
