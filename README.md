@@ -134,7 +134,7 @@ object MoneySerializer : KSerializer<Money> {
 |---|---|
 | cinterop | `libmongoc` 1.26+ and 2.x; library names and header paths are resolved in Gradle — they differ between branches |
 | Resources | `mongoc_client_pool_t` plus a semaphore: `mongoc_client_t` is not thread-safe and `pool_pop` blocks uninterruptibly |
-| Threads | a dedicated pool for blocking calls — `Dispatchers.IO` is `internal` on Kotlin/Native, contrary to its own documentation |
+| Threads | a pool of the client's own for blocking calls (`ioThreads`), closed with the client; why not `Dispatchers.IO` is being re-examined (M-92) — the reason once given here, that it is `internal` on Kotlin/Native, was a missing import |
 | Cursors | a `Flow` that releases the cursor on every outcome, cancellation included |
 | Decoding | typed collections read from `bson_iter_t` directly; maps, polymorphism and `BsonValue` fields fall back to the tree decoder, per subtree |
 

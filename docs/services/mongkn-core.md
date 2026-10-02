@@ -76,9 +76,11 @@ pkg-config на машине разработки нет (ресёрч §1.1), �
 
 **Граница потоков.** Вызовы `libmongoc` блокирующие, асинхронного API у C-драйвера нет.
 Операции уходят на пул потоков, которым владеет сам `MongoClient` (`newFixedThreadPoolContext`,
-4 потока по умолчанию). Ни `Dispatchers.Default` — он процессорный и многопоточный, что при
-общем `mongoc_client_t` даёт гонку (§1.4), ни `Dispatchers.IO` — на Kotlin/Native он `internal`
-(§1.8). Клиент на время операции берётся из `mongoc_client_pool_t` и возвращается в `finally`;
+размер — `ioThreads`, умолчание `MongoClient.DEFAULT_IO_THREADS`; почему столько — M-78, M-85).
+Не `Dispatchers.Default` — он процессорный и многопоточный, что при общем `mongoc_client_t` даёт
+гонку (§1.4). Не `Dispatchers.IO` — по причине, которая оказалась неверной: на Kotlin/Native он
+доступен, нужен `import kotlinx.coroutines.IO` (поправка 02.10.2026, §1.8); пересмотр — M-92.
+Клиент на время операции берётся из `mongoc_client_pool_t` и возвращается в `finally`;
 для `find` — на всё время жизни курсора.
 
 ## 4. Зависимости
@@ -156,9 +158,11 @@ CC BY-NC-SA 3.0, а это NonCommercial и ShareAlike (§1.16).
   внутри значения допускает — §1.15. Ключи, наоборот, NUL содержать не могут и явно отвергаются.
 * **`reply` от `insert_one` надо `bson_destroy` и при успехе.** `alloc<bson_t>()` вернёт стековые
   128 байт, но не то, что libbson доаллоцировал в куче — ресёрч §1.3, следствие 2.
-* **`Dispatchers.Default` здесь запрещён, а `Dispatchers.IO` недоступен.** Первый многопоточный
-  на Kotlin/Native с coroutines 1.7.0, а `mongoc_client_t` не потокобезопасен; второй объявлен
-  `internal` в нативном артефакте coroutines, вопреки собственной документации — §1.8.
+* **`Dispatchers.Default` здесь запрещён.** Он многопоточный на Kotlin/Native с coroutines 1.7.0,
+  а `mongoc_client_t` не потокобезопасен. Здесь же раньше стояло «а `Dispatchers.IO` недоступен» —
+  это неверно (поправка 02.10.2026, §1.8): `Dispatchers.IO` на Native — extension-свойство, и без
+  `import kotlinx.coroutines.IO` компилятор находит одноимённый `internal`-член. Ловушка, таким
+  образом, в импорте, а не в платформе.
 * **`Mongkn.shutdown()` терминален на весь процесс.** После него ни один новый `MongoClient`
   не заработает: `mongoc_init()` не восстанавливает драйвер после `mongoc_cleanup()`.
 * **Долгий `find` держит клиента из пула всё время сбора потока.** Курсор принадлежит клиенту,

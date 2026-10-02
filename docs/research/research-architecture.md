@@ -104,7 +104,7 @@ date: 2026-08-04
 | `mongoc_client_pool_t` потокобезопасен, кроме `mongoc_client_pool_destroy()` | там же |
 | API пула есть и в 2.x: `mongoc_client_pool_new_with_error`, `_pop`, `_try_pop`, `_push`, `_max_size`, `_destroy` | `/opt/homebrew/include/mongoc-2.1.1/mongoc/mongoc-client-pool.h` |
 | На Kotlin/Native `Dispatchers.Default` подкреплён пулом потоков по числу ядер — с kotlinx.coroutines **1.7.0** (#3366) | [CHANGES.md kotlinx.coroutines](https://raw.githubusercontent.com/Kotlin/kotlinx.coroutines/master/CHANGES.md) |
-| ~~`Dispatchers.IO` доступен на Kotlin/Native с **1.7.0** (#3205)~~ — **неверно для 1.11.0**, см. §1.8 | там же |
+| `Dispatchers.IO` доступен на Kotlin/Native с **1.7.0** (#3205) — ~~**неверно для 1.11.0**~~ **верно и для 1.11.0**: это extension-свойство, нужен `import kotlinx.coroutines.IO` (поправка 02.10.2026, §1.8) | там же |
 | Актуальная версия kotlinx.coroutines — 1.11.0 | `maven-metadata.xml` в Maven Central |
 
 **Следствие.** Драфтовое «оберни вызов в `withContext(Dispatchers.Default)`» при одном общем
@@ -176,7 +176,7 @@ Kotlin/Native и до 2.x C-драйвера. Как ориентир по со�
 после `shutdown()` даёт `IllegalStateException`. Отсюда же: `MongoClient.close()` **не** зовёт
 `Mongkn.shutdown()`, иначе закрытие одного клиента ломало бы все остальные.
 
-#### `Dispatchers.IO` на Kotlin/Native — `internal`
+#### `Dispatchers.IO` на Kotlin/Native — ~~`internal`~~ есть, нужен импорт (поправка 02.10.2026)
 
 | Факт | Где проверено |
 |---|---|
@@ -194,6 +194,33 @@ Kotlin/Native и до 2.x C-драйвера. Как ориентир по со�
 размер пула потоков стал явным и привязан к времени жизни клиента, а не глобальным. Число потоков
 по умолчанию (4) намеренно меньше размера пула клиентов libmongoc (100): клиент занят всё время
 жизни курсора, а поток — только пока идёт вызов.
+
+**Поправка 02.10.2026: вывод неверен, `Dispatchers.IO` на Kotlin/Native есть.** Таблица выше
+верна построчно, неверно прочтение. Член `Dispatchers.IO` действительно `internal`, но публичный
+`Dispatchers.IO` на Native — это **extension-свойство** в пакете `kotlinx.coroutines`, и без
+`import kotlinx.coroutines.IO` компилятор находит одноимённый `internal`-член и отвечает ровно
+той ошибкой, что записана выше. Тот же `klib dump-metadata` по тому же артефакту
+(`kotlinx-coroutines-core-macosArm64Main` 1.11.0) показывает две строки, а в таблицу попала
+только первая:
+
+```
+internal final val IO: kotlinx/coroutines/CoroutineDispatcher
+public final val kotlinx/coroutines/Dispatchers.IO: kotlinx/coroutines/CoroutineDispatcher
+```
+
+Прогон (macosArm64, Kotlin/Native 2.4.20, coroutines 1.11.0), один файл в двух вариантах:
+без импорта — `cannot access 'val IO: CoroutineDispatcher': it is internal in
+'kotlinx.coroutines.Dispatchers'`; с `import kotlinx.coroutines.IO` — компилируется,
+`withContext(Dispatchers.IO)` исполняется на `DefaultIoScheduler`. Независимо то же установлено
+в [kore B-42](https://github.com/youndie/kore/blob/main/docs/backlog/B-42-dispatchers-io-exists-on-native.md)
+на `linuxX64` и `macosArm64`, с замером: нативный `Dispatchers.IO` эластичен и растёт мимо
+заблокированных потоков. Документация, которую §1.8 назвал неверной, была права.
+
+**Что это значит для решения.** Собственный пул клиента заведён по причине, которой нет. Это не
+делает его неверным: с тех пор у размера пула появились свои, замеренные основания — колено
+пропускной способности и цена в RSS (M-78, M-85), — но они записаны как настройка уже выбранного
+пула, а не как довод за свой пул против `Dispatchers.IO.limitedParallelism(n)`. Пересмотр — **M-92**;
+код в этой поправке не менялся. Строка §1.4 про `Dispatchers.IO` с 1.7.0 тоже была верна.
 
 #### Мелочи, стоившие по сборке каждая
 
