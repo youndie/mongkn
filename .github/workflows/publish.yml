@@ -81,8 +81,11 @@ jobs:
           MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          # The same default as in publishing.gradle.kts: the URL secret is optional, and without
+          # The same default sborka.publish uses for its `wip` repository (publishing.gradle.kts,
+          # which carried it before, is gone since 3f6196c): the URL secret is optional, and without
           # this the step died with curl's "malformed URL" while the publish itself had succeeded.
+          # The publish step does not read MONGKN_REPO_URL, so setting it would point this check
+          # somewhere the artefact never went.
           ROOT="${MONGKN_REPO_URL:-https://reposilite.kotlin.website/snapshots}/io/github/youndie/mongkn"
           # Both modules, not just core: extensions is published with the same version, and versions
           # drifting apart show up as "No matching variant" on the consumer's side, not here.
