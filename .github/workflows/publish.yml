@@ -22,7 +22,23 @@ jobs:
     # Building on a macOS runner is not an option either — only the publishMacosArm64… task is
     # available there, and a naive publish would push macosArm64 under mongkn's coordinates,
     # leaving the consumer with "No matching variant" instead of a library.
-    runs-on: ubuntu-26.04
+    #
+    # PINNED TO THE FLOOR'S OS, NOT THE NEWEST IMAGE. The cinterop `.def` is generated with the
+    # library names resolved on THIS host and carries them into the klib (`-lmongoc-1.0 -lbson-1.0`
+    # here). Ubuntu 26.04 ships mongo-c-driver 2.2.2 as `libmongoc2`/`libbson2`, so a klib built
+    # there links `-lmongoc2 -lbson2`, and every consumer on the supported floor — libmongoc 1.26,
+    # Ubuntu 24.04 (M-81) — fails at its link step. The Linux leg of `build` tests 24.04 too; what
+    # is published has to be what was tested. Renovate leaves this label alone (see
+    # .github/renovate.json5); moving it is raising the floor, a decision recorded in M-81.
+    runs-on: ubuntu-24.04
+
+    # ONE ADDRESS FOR THE UPLOAD AND FOR THE CHECK THAT READS IT BACK. The upload goes wherever
+    # `sborka.snapshotRepository` points (sborka.publish's `wip` repository); the check used to read
+    # this secret on its own, so setting the secret would have sent the check somewhere the artefact
+    # never went. Now the same value feeds both: the Publish step passes it to Gradle, the Verify
+    # step reads it. Without the secret it is sborka's default.
+    env:
+      MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL || 'https://reposilite.kotlin.website/snapshots' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -69,24 +85,20 @@ jobs:
           ./gradlew \
             :mongkn-core:publishAllPublicationsToWipRepository \
             :mongkn-extensions:publishAllPublicationsToWipRepository \
-            -PVERSION=${{ steps.version.outputs.value }}
+            -PVERSION=${{ steps.version.outputs.value }} \
+            "-Psborka.snapshotRepository=$MONGKN_REPO_URL"
 
       # A successful publish only says the upload did not fail. What ended up in the artefact is
       # visible in its `.module`: the variants are listed there, and they show whether this is the
       # right target.
       - name: Verify what was published
         env:
-          MONGKN_REPO_URL: ${{ secrets.MONGKN_REPO_URL }}
           MONGKN_REPO_USER: ${{ secrets.MONGKN_REPO_USER }}
           MONGKN_REPO_SECRET: ${{ secrets.MONGKN_REPO_SECRET }}
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          # The same default sborka.publish uses for its `wip` repository (publishing.gradle.kts,
-          # which carried it before, is gone since 3f6196c): the URL secret is optional, and without
-          # this the step died with curl's "malformed URL" while the publish itself had succeeded.
-          # The publish step does not read MONGKN_REPO_URL, so setting it would point this check
-          # somewhere the artefact never went.
-          ROOT="${MONGKN_REPO_URL:-https://reposilite.kotlin.website/snapshots}/io/github/youndie/mongkn"
+          # MONGKN_REPO_URL comes from the job: the very value the Publish step handed to Gradle.
+          ROOT="$MONGKN_REPO_URL/io/github/youndie/mongkn"
           # Both modules, not just core: extensions is published with the same version, and versions
           # drifting apart show up as "No matching variant" on the consumer's side, not here.
           for MODULE_NAME in mongkn-core mongkn-extensions; do

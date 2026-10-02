@@ -45,6 +45,20 @@
       automerge: false,
     },
     {
+      // The Ubuntu runner label IS the libmongoc version: 24.04 carries 1.26 (the floor, M-81),
+      // 26.04 carries 2.2.2 under other library names, and publish.yml bakes the names it finds
+      // into the klib's link options. The harness preset above merges `github-actions` majors by
+      // itself, and that is how publish.yml once moved to 26.04 (#17): no check on a pull request
+      // runs the publish workflow, so a green pull request said nothing about it. Off, not held to
+      // a range: the next label is not a bump to wait for, it is raising the floor, taken by
+      // editing publish.yml, build.yml and M-81 together.
+      description: "The Ubuntu runner label is the libmongoc floor (M-81): moved by decision, never by bump",
+      matchManagers: ["github-actions"],
+      matchDatasources: ["github-runners"],
+      matchPackageNames: ["ubuntu"],
+      enabled: false,
+    },
+    {
       // The JDK the CI image carries is what the cinterop build runs against, and no check on a
       // pull request builds this file.
       description: "Base images: changing the JDK or the distro is a decision, not a bump",
