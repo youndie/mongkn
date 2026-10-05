@@ -47,7 +47,7 @@ jobs:
       # to carry. That worked, and "worked" is the whole objection — the toolchain this build asks
       # for is a decision (`sborka.jvmToolchain`), and leaving the JDK to the image means the day the
       # image changes, the publish is the thing that finds out.
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      - uses: youndie/sborka/.github/actions/setup-kotlin@v0.5.0.130
         with:
           konan-cache: "true"
 
