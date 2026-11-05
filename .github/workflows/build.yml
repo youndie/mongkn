@@ -13,7 +13,7 @@ name: build
 #
 # Both legs of the matrix run on every pull request, macOS included, and that is a decision about
 # money as much as about coverage: mongkn is a **public** repository, and standard GitHub-hosted
-# runners — `macos-14` among them — are unmetered there. Only larger runners are billed on public
+# runners — `macos-15` among them — are unmetered there. Only larger runners are billed on public
 # repositories, and this matrix asks for none. Were the repository private, the macOS leg would
 # have to stay on `workflow_dispatch`: this account has no paid minutes, and macOS bills at ten
 # times the Linux rate.
