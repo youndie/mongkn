@@ -42,7 +42,7 @@ jobs:
       matrix:
         include:
           - name: macosArm64 (mongo-c-driver 2.x)
-            runner: macos-14
+            runner: macos-15
           - name: linuxX64 (libmongoc 1.x)
             runner: ubuntu-24.04
 
