@@ -32,11 +32,11 @@
 # прогона тестов, при лимите в гигабайт.
 
 x-common: &common
-  image: mongo:8
+  image: mongo:9
   restart: unless-stopped
   # Под архитектуру хоста: образ не той архитектуры уедет в эмуляцию QEMU, прогон станет вдвое
   # дольше, а замеры производительности — бессмысленными. Проверять так:
-  # docker image inspect mongo:8 --format '{{.Architecture}}'
+  # docker image inspect mongo:9 --format '{{.Architecture}}'
   #
   # Умолчание — arm64 (машина автора). **На x86-хосте, включая WSL2, задайте
   # MONGKN_PLATFORM=linux/amd64**, иначе получите ту самую эмуляцию.
