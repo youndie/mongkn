@@ -20,7 +20,7 @@ set -euo pipefail
 NAME="$1"; CERTS="$2"; shift 2
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker create --name "$NAME" "$@" --entrypoint sh mongo:8 -c '
+docker create --name "$NAME" "$@" --entrypoint sh mongo:9 -c '
   chown -R mongodb:mongodb /etc/mongo-tls && chmod 400 /etc/mongo-tls/*
   exec docker-entrypoint.sh mongod \
     --tlsMode requireTLS \

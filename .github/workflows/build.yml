@@ -13,7 +13,7 @@ name: build
 #
 # Both legs of the matrix run on every pull request, macOS included, and that is a decision about
 # money as much as about coverage: mongkn is a **public** repository, and standard GitHub-hosted
-# runners — `macos-14` among them — are unmetered there. Only larger runners are billed on public
+# runners — `macos-15` among them — are unmetered there. Only larger runners are billed on public
 # repositories, and this matrix asks for none. Were the repository private, the macOS leg would
 # have to stay on `workflow_dispatch`: this account has no paid minutes, and macOS bills at ten
 # times the Linux rate.
@@ -42,7 +42,7 @@ jobs:
       matrix:
         include:
           - name: macosArm64 (mongo-c-driver 2.x)
-            runner: macos-14
+            runner: macos-15
           - name: linuxX64 (libmongoc 1.x)
             runner: ubuntu-24.04
 
@@ -73,10 +73,16 @@ jobs:
       # `rs.initiate` names the member by its explicit address `127.0.0.1:27017`: without that the
       # server advertises its own hostname, the driver follows the advertised address and never
       # arrives.
+      #
+      # The image is `mongo:9` and not `mongo:8`, which today means 8.3: 8.0 and 8.3 refuse to start on
+      # the runner's kernel (`7.0.0-*-azure`), because their check reads `uname -r` and cannot see that
+      # the kernel carries the fix (SERVER-136848). 8.2 and 9 run on it, measured on 2026-11-05 in
+      # https://github.com/youndie/mongkn/actions/runs/42120027132. The compose file and
+      # ci/tls/start-server.sh name the same image.
       - name: Start mongod (Linux)
         if: runner.os == 'Linux'
         run: |
-          docker run -d --name mongod -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
+          docker run -d --name mongod -p 27017:27017 mongo:9 --replSet rs0 --bind_ip_all --setParameter enableTestCommands=1
           for _ in $(seq 1 30); do docker exec mongod mongosh --quiet --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
           docker exec mongod mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
           for _ in $(seq 1 30); do docker exec mongod mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' && break; sleep 2; done
@@ -109,7 +115,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           docker run -d --name mongod-auth -p 27019:27017 \
-            -e MONGO_INITDB_ROOT_USERNAME=mongkn_test -e MONGO_INITDB_ROOT_PASSWORD=mongkn_secret mongo:8
+            -e MONGO_INITDB_ROOT_USERNAME=mongkn_test -e MONGO_INITDB_ROOT_PASSWORD=mongkn_secret mongo:9
           for _ in $(seq 1 30); do docker exec mongod-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin --eval 'db.runCommand({ping:1})' >/dev/null 2>&1 && break; sleep 2; done
           docker exec mongod-auth mongosh --quiet -u mongkn_test -p mongkn_secret --authenticationDatabase admin \
             --eval 'db.getSiblingDB("admin").createUser({user:"mongkn_odd", pwd:"p@ss:w/rd?#1", roles:[{role:"root", db:"admin"}]})'
