@@ -4,7 +4,7 @@
 # который несёт `kotlin`, — поэтому версии Kotlin в этом файле больше нет и разъезжаться нечему.
 sborka = "0.5.0.135"
 coroutines = "1.11.0"
-serialization = "1.11.0"
+serialization = "1.12.0"
 # CLI ktlint и Gradle-плагин версионируются независимо: плагин лишь запускает CLI указанной версии.
 ktlint = "1.8.0"
 ktlintGradle = "14.2.0"
