@@ -4,13 +4,13 @@
 # который несёт `kotlin`, — поэтому версии Kotlin в этом файле больше нет и разъезжаться нечему.
 sborka = "0.5.0.135"
 coroutines = "1.11.0"
-serialization = "1.11.0"
+serialization = "1.12.0"
 # CLI ktlint и Gradle-плагин версионируются независимо: плагин лишь запускает CLI указанной версии.
 ktlint = "1.8.0"
 ktlintGradle = "14.2.0"
 # Официальный JVM-драйвер — эталон для дифференциальных тестов (:mongkn-difftest).
 # Источником сигнатур для генерации он быть перестал: решение Р9, генератор удалён.
-mongodbDriverKotlin = "5.9.1"
+mongodbDriverKotlin = "5.14.0"
 
 [libraries]
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
